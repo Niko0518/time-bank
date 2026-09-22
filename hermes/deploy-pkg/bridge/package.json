@@ -1,9 +1,0 @@
-{
-  "name": "timebank-hermes-bridge",
-  "version": "1.0.0",
-  "private": true,
-  "type": "module",
-  "dependencies": {
-    "@cloudbase/node-sdk": "^3.18.3"
-  }
-}

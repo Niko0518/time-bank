@@ -1,8 +1,0 @@
-{
-  "version": "2.0",
-  "envId": "cloud1-8gvjsmyd7860b4a3",
-  "$schema": "https://framework-1258016615.tcloudbaseapp.com/schema/latest.json",
-  "cloudrun": {
-    "name": "timebank-hermes"
-  }
-}

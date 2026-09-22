@@ -4,6 +4,38 @@
 >
 > 用户-facing 的精简版本请见 `index.html` 关于页。
 
+## v9.37.2 (2026-09-22) — 冷启动重构：移除「首屏可交互」中间态 + 交易并行分页 + 删除级联云端兜底
+
+### 核心变更
+
+1. **实测推翻旧假设（本版全部结论以真机测量为准）**：冷启动 13.0s → 4.2s。原以为瓶颈是"5600+ 条交易串行 6 页"，实测根因是 **`unsubscribeAll()` 内无条件 `[800,1200,1800,2700,4050]`（合计 10550ms）冷却退避**——`subscribeAll()` 每次都先 `await unsubscribeAll()`，而冷启动时 `watchers` 全为 null、无任何连接要关，仍空转（实测 UI 可见→实时就绪 7558ms 中 10440ms 是空转）。同时实测 `updateAllUI` 首屏仅 39ms、Android 段仅 186ms，均非瓶颈。
+2. **S1 `unsubscribeAll` 冷却条件化**：新增 `__closedWatcherCount`，仅"确有 watcher 被关闭"（重连/重建）才走完整退避，否则仅让出 50ms。收益：UI→实时就绪 7558ms → 656ms。
+3. **S2 交易加载改并行分页 + 严格完整性校验**：首页与 `count()` 并行 → 按 `skip` 并行拉取其余页 → 去重后与权威总数**严格比对**（短一条即回退 v9.23.0 串行翻页完整重拉）。并发写入导致的 skip 偏移同样会被发现。实测 7 页 6367 条：串行 ≈3.1s → **1.67s**。
+4. **S4 下线"分阶段冷启动"（架构级回退）**：`loadAll({progressive:true})` → 全量；删除 `continueLoadingTransactions()`（116 行）与 `__txFullLoaded / __awaitTxFullLoaded / __beginTxProgressiveLoad / __resolveTxFullLoaded / __txPagingCursor` 门控及 5 处调用点。**"部分数据窗口"彻底消失** → 窗口内 3 类误算误写回风险（删任务级联漏删 / AI 画像用部分数据覆盖云端 / 打卡双击）一并消除，无需再加锁（`addTransaction` 与上限判定本就在同一同步块内）。
+5. **⚠️ 连胜重建职责修复（易漏点）**：`continueLoadingTransactions` 的 finally 是启动期唯一的连胜重建入口（`refreshHabitStatuses()` 实为空实现），删除后改为在 `loadAll` 尾部显式重建全部习惯，否则界面会停留在云端持久化的旧 streak。
+6. **S3 埋点修正**：`__androidBootMs` 原由 `myWebView.post()` 注入，此时页面仍是 about:blank → 注入值随导航丢弃，该段恒为 n/a；改由 `onPageStarted` 注入并新增 `onPageCommitVisible` 首帧锚点；补 T3(SDK 就绪)/T4(登录态就绪)；画像新增 `onCreate→UI`、`onCreate→RT` 与交易分页明细。
+7. **S5 加载页守到实时就绪**：新增 `__bootFinishLoadingPage()`（幂等），把"收起加载页 + `data-ready` + 入场动画"从 T14 移到 T15；`updateAllUI` 留 4s 兜底防 `subscribeAll` 异常卡死；新增 `window.__bootStage()` 阶段文案（连接→登录→读取→渲染→实时）。
+8. **习惯连胜云写回延迟队列（新发现）**：口径修正后升级首次启动有 61 个习惯同时触发 `saveTask` 云函数，把紧随其后的 WebSocket 预热挤后 ≈2.5s（实测 UI→RT 656ms → 3177ms）。改为启动期只入队（`window.__deferHabitCloudSync`），`__bootFinishLoadingPage` 后 800ms 起 3 并发分批写回；未登录时保留队列（出队前置校验）不丢写回。
+9. **deleteTask 云端兜底删除（数据完整性）**：原实现 `transactions.filter(...)` 只删本地已加载交易 → 云端未加载的历史残留成孤儿（统计/余额继续计入；下次冷启动又出现在历史里）。新增 `DAL.deleteTransactionsByTaskId()`：云端按 taskId 分页枚举（仅取 `_id/txId`）后走既有 `deleteTransaction` 云函数通道（云端原子更新 cachedBalance/daily）；完成提示条数改为真实总数。
+
+### 验证（真机 AAQLBB6516002388，均 force-stop 冷启动）
+
+- 三次 build+push+`pm install`，`lastUpdateTime` 22:56:39 → 23:00:51 → 23:02:11 递增强校验（未用 `adb install -r`）。
+- 改前：HTML→实时就绪 **13021ms**；S1+S3 后 **2356ms**（当时仅取第 1 页交易）；S1+S2+S4 后 **3873ms**（`onCreate→实时就绪 4208ms`），含全量 6367 条 + 实时通道，日志 `mode=parallel`、`docs=6367` 完整。
+- 阶段明细（末次）：HTML parse 102ms｜SDK 就绪 73ms｜登录就绪 841ms｜全量交易 1671ms｜渲染 183ms｜UI→实时就绪 1068ms。
+- `node --check` app-1/app-2 通过；`read_lints` 0 诊断；被移除符号的残留扫描仅剩历史注释。
+
+### 文件
+
+- 前端：`js/app-1.js`、`js/app-2.js`、`index.html`、`css/main.css`
+- Android：`MainActivity.java`
+
+### 已知遗留 / 后续可优化
+
+- 全量交易仍是启动必经（3873ms 中占 1671ms）；进一步压缩可考虑收窄 `TX_PROJECTION`（如 `pauseHistory` 延迟加载）或服务端聚合，但不得破坏 9.22.S 的 `data:true` 防线。
+- 重连/重建链路仍保留 10.55s 退避（本版只做条件化，未调时长）——该路径依赖服务器 unwatch ACK，需单独验证后再动。
+- 连胜延迟写回若进程在写回前退出，云端保留旧值（本地已正确，下次启动重算并写回，幂等）。
+
 ## v9.37.1 (2026-09-19) — AI 设置弹窗重排 + 主动建议四档滑块 + 生图 404 根因修复 + Hermes 常驻止血
 
 ### 核心变更

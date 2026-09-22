@@ -1509,6 +1509,9 @@ function renderTaskCards(taskList, options = {}) {
         // [v9.29.4] 不再在卡片上写 --spring-i（原来的是死值，无 CSS 读取）：
         // 分类卡片需继承 .category-tasks 容器上的 --spring-i（分类序号）来实现“块级错峰”，若卡片自带会覆盖继承值。
         const habitStyle = task.isHabit ? `style="--habit-color: ${color}"` : '';
+        // [v9.37.2] 迷你卡片：本周期习惯已达标 → 任务名加 .habit-met（CSS 变金色），不新增任何元素
+        const habitMetNameClass = (task.isHabit && typeof isHabitPeriodMet === 'function' && isHabitPeriodMet(task))
+            ? ' habit-met' : '';
 
         // [v9.18.2] 迷你卡片模式：1行（色条+任务名+按钮）；运行中任务渲染为标准卡并跳出 grid
         // [v9.20.4] 长按升格的迷你卡也走标准卡模板（停留 10 秒后自动退回）
@@ -1540,7 +1543,7 @@ function renderTaskCards(taskList, options = {}) {
                     default: actionButton = `<button class="task-btn primary solo" onclick="startTask(event, '${task.id}')">开始</button>`; break;
                 }
             }
-            const miniSingleRow = `<div class="task-row mini-single-row"><div class="task-category mini-category-label" style="--category-gradient: ${getCategoryGradient(color)}; --cat-rgb: ${(() => { const rgb = hexToRgb(color); return rgb ? `${rgb.r}, ${rgb.g}, ${rgb.b}` : '124, 77, 255'; })()}; background: ${getCategoryGradient(color)};">${safeCategory.charAt(0)}</div><div class="task-name" title="${safeTaskName}">${safeTaskName}</div><div class="mini-actions-inline">${actionButton}</div></div>`;
+            const miniSingleRow = `<div class="task-row mini-single-row"><div class="task-category mini-category-label" style="--category-gradient: ${getCategoryGradient(color)}; --cat-rgb: ${(() => { const rgb = hexToRgb(color); return rgb ? `${rgb.r}, ${rgb.g}, ${rgb.b}` : '124, 77, 255'; })()}; background: ${getCategoryGradient(color)};">${safeCategory.charAt(0)}</div><div class="task-name${habitMetNameClass}" title="${safeTaskName}">${safeTaskName}</div><div class="mini-actions-inline">${actionButton}</div></div>`;
             return `<div class="task-card task-card-mini ${cardStyleClass} ${habitClass} ${hasBgClass}" ${habitStyle} data-task-id="${task.id}" oncontextmenu="return false" onpointerdown="window.__pinMiniStart &amp;&amp; window.__pinMiniStart('${task.id}', event)" onpointerup="window.__pinMiniCancel &amp;&amp; window.__pinMiniCancel('${task.id}')" onpointerleave="window.__pinMiniCancel &amp;&amp; window.__pinMiniCancel('${task.id}')" ontouchmove="window.__pinMiniCancel &amp;&amp; window.__pinMiniCancel('${task.id}')">${bgHtml}${miniSingleRow}</div>`;
         }
 
@@ -3078,6 +3081,8 @@ async function deleteTask() {
     const taskId = currentEditingTask.id;
     const taskName = currentEditingTask.name;
     const relatedTransactions = transactions.filter(t => t.taskId === taskId);
+    // [v9.37.2] 真实删除条数：本地已加载 + 云端补删的合计（原实现只报本地条数，会少报）
+    let __deletedTxTotal = relatedTransactions.length;
 
     if (shouldDeleteTransactions) {
         showTaskDeleteProgressModal(taskName, relatedTransactions.length);
@@ -3094,11 +3099,27 @@ async function deleteTask() {
             // [v9.1.0] 余额云端权威化：不再本地重算（云端 tb_profile.cachedBalance 在 deleteTransaction 时已原子更新）
             delete deletedTaskCategoryMap[String(taskId)];
 
-            if (isLoggedIn() && relatedTxIds.length > 0) {
-                const BATCH_SIZE = 20;
-                for (let i = 0; i < relatedTxIds.length; i += BATCH_SIZE) {
-                    const batch = relatedTxIds.slice(i, i + BATCH_SIZE);
-                    await Promise.allSettled(batch.map(txId => DAL.deleteTransaction(txId)));
+            if (isLoggedIn()) {
+                // 1) 本地已加载的交易：直接提交删除（无需查询，最快路径）
+                if (relatedTxIds.length > 0) {
+                    const BATCH_SIZE = 20;
+                    for (let i = 0; i < relatedTxIds.length; i += BATCH_SIZE) {
+                        const batch = relatedTxIds.slice(i, i + BATCH_SIZE);
+                        await Promise.allSettled(batch.map(txId => DAL.deleteTransaction(txId)));
+                    }
+                }
+                // 2) [v9.37.2] ★ 云端兜底删除：按 taskId 枚举云端全部交易并删除
+                //    原实现只删「本地已加载」的部分，未加载的历史交易会残留成孤儿记录
+                //    （统计/余额继续计入，下次冷启动又以历史记录形式出现 → 用户视角"删了又回来"）
+                if (typeof DAL.deleteTransactionsByTaskId === 'function') {
+                    try {
+                        const __cloudDeleted = await DAL.deleteTransactionsByTaskId(taskId);
+                        if (typeof __cloudDeleted === 'number' && __cloudDeleted > __deletedTxTotal) {
+                            __deletedTxTotal = __cloudDeleted;
+                        }
+                    } catch (e) {
+                        console.warn('[v9.37.2] [deleteTask] 云端按 taskId 补删失败（本地删除已生效）:', e?.message || e);
+                    }
                 }
             }
         } else if (currentEditingTask.category) {
@@ -3129,7 +3150,7 @@ async function deleteTask() {
         updateAllUI();
 
         if (shouldDeleteTransactions) {
-            showNotification('🗑️ 删除完成', `已删除任务及 ${relatedTransactions.length} 条历史记录`, 'achievement');
+            showNotification('🗑️ 删除完成', `已删除任务及 ${__deletedTxTotal} 条历史记录`, 'achievement');
         } else {
             showNotification('🗑️ 删除完成', '已删除任务，历史记录将按原分类保留', 'info');
         }
@@ -5024,13 +5045,8 @@ function hasMissedHabitDayInCurrentPeriod(task, transactionList, referenceDate =
 
 // [v7.39.0] Habit System 3.0 - 简化 processHabitCompletion
 // 核心原则：1) 只添加基础交易 2) trigger rebuildHabitStreak 3) 只有streak增加时才发放奖励
-async function processHabitCompletion(task, baseReward, referenceDate, descriptionDetails = '', pauseHistory = []) {
-    // [v9.34.2] 分阶段冷启动：部分窗口内等待交易集全量就绪后整体结算——
-    // 基础奖励与连胜/达标奖励同步一起结算（用户要求一次完成，接受窗口期 1~3 秒等待成本）
-    if (window.__txFullLoaded === false) {
-        console.log(`[v9.34.2] [processHabitCompletion] 交易集未全量，等待后台续载完成后整体结算: ${task.name}`);
-        await __awaitTxFullLoaded(60000);
-    }
+async function processHabitCompletion(task, baseReward, referenceDate, descriptionDetails = '', pauseHistory = [], extra = {}) {
+    // [v9.37.2] 取消交易全量门控：交易在冷启动阶段一次性拉全，不存在"部分数据窗口"
     // [v9.23.0] NaN 兜底：baseReward 非数字时降级为 0，避免后续计算产生 NaN
     if (typeof baseReward !== 'number' || isNaN(baseReward)) {
         console.warn(`[v9.23.0] [processHabitCompletion] baseReward 异常 (${baseReward}) → 0，task=${task?.name}`);
@@ -5067,6 +5083,14 @@ async function processHabitCompletion(task, baseReward, referenceDate, descripti
         clientId: clientId,
         balanceAdjust: hasBalanceAdjust ? { multiplier, originalAmount: baseReward } : undefined
     };
+    // [v9.37.2] 落两个字段供习惯「达标才计次」判定使用：
+    //   rawSeconds = 本次实际时长（不含倍率/奖励）；targetMet = 本次是否达标（仅达标任务/设了目标时长时才有）
+    if (typeof extra.rawSeconds === 'number' && extra.rawSeconds > 0) {
+        transaction.rawSeconds = Math.floor(extra.rawSeconds);
+    }
+    if (typeof extra.targetMet === 'boolean') {
+        transaction.targetMet = extra.targetMet;
+    }
 
     addTransaction(transaction);
     task.completionCount = (task.completionCount || 0) + 1;
@@ -6119,7 +6143,11 @@ async function stopTask(taskId, fromVoice = false) {
                     showAlert('已达到此习惯的每日完成上限');
                 } else {
                     // [v7.39.7] 习惯任务必须走 processHabitCompletion（包含连胜重建+奖励判定），不受 targetMet 影响
-                    await processHabitCompletion(task, baseEarnedTime, stopEventTime, earnedTimeDescription, pauseHistory);
+                    // [v9.37.2] 但要把「本次是否达标 / 实际时长」写进交易，供 rebuildHabitStreak 判定是否计入习惯次数
+                    await processHabitCompletion(task, baseEarnedTime, stopEventTime, earnedTimeDescription, pauseHistory, {
+                        rawSeconds: Math.floor(totalSeconds),
+                        targetMet: (task.type === 'continuous_target') ? !!targetMet : undefined
+                    });
                 }
             } else {
                 const isTargetNotMet = task.type === 'continuous_target' && !targetMet;
@@ -6908,11 +6936,7 @@ function switchBackdateMode(mode) {
 // [v4.3.0] Reworked saveBackdate to NOT call processHabitCompletion, calls rebuildHabitStreak instead
 async function saveBackdate(event) {
     event.preventDefault(); clearFormErrors();
-    // [v9.34.2] 分阶段冷启动：补录依赖完整交易史（连胜重建/配额计算/奖励检查），
-    // 部分数据窗口内等待全量就绪后再执行（一次完成，与习惯完成路径同策略）
-    if (window.__txFullLoaded === false) {
-        await __awaitTxFullLoaded(60000);
-    }
+    // [v9.37.2] 取消交易全量门控：补录依赖的完整交易史在冷启动阶段已就绪
     const taskId = document.getElementById('backdateTaskId').value;
     const task = tasks.find(t => t.id === taskId);
     if (!task) { showAlert('发生错误：找不到任务'); return; }
@@ -7339,13 +7363,8 @@ function shouldRebuildHabitStreak(task) {
 function rebuildHabitStreak(task) {
     if (!task || !task.isHabit) return null;
 
-    // [v9.34.2] 分阶段冷启动：交易部分数据窗口内跳过重建
-    // （避免基于不完整交易史算出偏低的连胜并写回云端；后台续载完成后
-    //   continueLoadingTransactions 会统一重算所有习惯连胜，显示值先用云端持久化的 streak）
-    if (window.__txFullLoaded === false) {
-        console.log(`[rebuildHabitStreak] ⏸️ 交易集未全量（分阶段冷启动），延迟重建: ${task.name}`);
-        return null;
-    }
+    // [v9.37.2] 取消交易全量门控：调用方（loadAll 尾部 / DAL 写入路径 / watch 回推）均在
+    // 交易全量就绪后执行，不再需要"未全量则跳过"的中间态判断
 
     // [v9.0.7] 单一数据源：始终用 transactions.filter
     // 之前 transactionIndex 路径在 applyDataState 后索引为空时，
@@ -7363,8 +7382,12 @@ function rebuildHabitStreak(task) {
 
     const { period, targetCountInPeriod } = task.habitDetails;
     const targetCount = targetCountInPeriod || 1;
-    const isDurationBased = (task.type === 'continuous' || task.type === 'continuous_redeem');
-    const isContinuousTarget = (task.type === 'continuous_target');
+    // [v9.37.2] 达标口径统一：周期目标次数 = 「达标的完成次数」，不是累计分钟数
+    //   旧实现两处口径错误：
+    //   ① 时长型（continuous/continuous_redeem）把「分钟数」累加后与「次数」比较 → 单位错乱，1 分钟即算达标
+    //   ② 达标型用交易金额（含倍率与达标奖励）与目标时长比较 → 倍率 > 1 时，未达标也被判成达标
+    const targetSeconds = Number(task.targetTime) || 0;
+    const needTargetMet = (task.type === 'continuous_target') || (targetSeconds > 0);
 
     // 2. 按周期分组，统计每个周期是否达标
     const periods = new Map(); // Key: periodKey, Value: { count, firstTxDate, isQualified }
@@ -7397,21 +7420,22 @@ function rebuildHabitStreak(task) {
 
         const periodData = periods.get(periodKey);
 
-        // 统计该周期内的完成次数/时长
-        if (isDurationBased) {
-            const txSeconds = getRawUsageSecondsFromTransaction(tx);
-            let txMinutes = Math.floor(txSeconds / 60);
-            if (txMinutes === 0) txMinutes = 1;
-            periodData.count += txMinutes;
-        } else {
-            // [v7.39.0] continuous_target必须验证 amount >= targetTime 才算有效
-            let isValid = true;
-            if (isContinuousTarget) {
-                isValid = tx.amount >= task.targetTime;
+        // [v9.37.2] 只有「达标」的这一次才计入周期完成次数（不达标不计）
+        //   ① 新数据：交易上已落 targetMet 标记 → 直接采用（最准确，含倒计时 achieved 的情况）
+        //   ② 历史数据：用「实际时长 ≥ 目标时长」判定（getRawUsageSeconds 不含倍率/达标奖励）
+        if (needTargetMet) {
+            let met;
+            if (typeof tx.targetMet === 'boolean') {
+                met = tx.targetMet;
+            } else {
+                const rawSeconds = getRawUsageSecondsFromTransaction(tx);
+                met = rawSeconds >= targetSeconds;
             }
-            if (isValid) {
+            if (met) {
                 periodData.count++;
             }
+        } else {
+            periodData.count++;
         }
 
         // 判断该周期是否已达标（只标记一次）
@@ -7464,7 +7488,14 @@ function rebuildHabitStreak(task) {
     const lastDateChanged = prevLastCompletionDate !== lastCompletionDateStr;
     if (streakChanged || lastDateChanged) {
         console.log(`[rebuildHabitStreak] ✅ ${task.name}: streak ${prevStreak} → ${newStreak}, lastDate ${prevLastCompletionDate} → ${lastCompletionDateStr}`);
-        if (isLoggedIn() && typeof DAL?.saveTask === 'function') {
+        // [v9.37.2] 冷启动批量重建时改为"延迟到实时就绪后分批写回"：
+        //   启动路径会对全部习惯做一次重建，若此时逐个打云函数（实测 61 个），
+        //   会把紧随其后的 WebSocket 预热查询挤后数秒（UI→实时就绪 656ms → 3177ms）。
+        //   本地值已用全量交易算准，延迟写回不影响显示；若进程在写回前退出，
+        //   云端保留旧值 → 下次启动重新算出同一结果（幂等，无数据风险）。
+        if (window.__deferHabitCloudSync && typeof __queueHabitCloudSync === 'function') {
+            __queueHabitCloudSync(task);
+        } else if (isLoggedIn() && typeof DAL?.saveTask === 'function') {
             DAL.saveTask(task).catch(err => console.error('[rebuildHabitStreak] 任务同步失败:', err));
         }
     } else {
@@ -7479,6 +7510,71 @@ function rebuildHabitStreak(task) {
         streakChanged,
         lastDateChanged
     };
+}
+
+// [v9.37.2] 冷启动习惯连胜"延迟写回"队列
+// 背景：启动时对所有习惯重建一次连胜，值变化者需写回云端。若并发写回，会与紧随其后的
+//   subscribeAll（WebSocket 预热）抢同一条请求通道，实测把"实时就绪"推迟约 2.5s。
+// 策略：启动期只入队（本地值已正确），实时就绪后再小批（3 并发）写回，既不阻塞冷启动，
+//   也不会在启动瞬间打满云函数配额；失败由既有同步兜底（watch/reconcile）覆盖。
+const __habitCloudSyncQueue = [];
+function __queueHabitCloudSync(task) {
+    if (!task || __habitCloudSyncQueue.some(t => t.id === task.id)) return;
+    __habitCloudSyncQueue.push(task);
+}
+
+function __flushHabitCloudSync() {
+    if (__habitCloudSyncQueue.length === 0) return;
+    // ⚠️ 前置校验必须在"出队"之前：否则未登录/未就绪时会把待写回项静默丢弃
+    if (typeof isLoggedIn === 'function' && !isLoggedIn()) {
+        console.warn(`[v9.37.2] [habitCloudSync] 未登录，保留 ${__habitCloudSyncQueue.length} 项待写回（下次放行时重试）`);
+        return;
+    }
+    if (typeof DAL === 'undefined' || typeof DAL.saveTask !== 'function') return;
+    const pending = __habitCloudSyncQueue.splice(0, __habitCloudSyncQueue.length);
+    console.log(`[v9.37.2] [habitCloudSync] 实时就绪后延迟写回 ${pending.length} 个习惯的连胜（3 并发分批）`);
+    const BATCH = 3;
+    (async () => {
+        let ok = 0;
+        for (let i = 0; i < pending.length; i += BATCH) {
+            const results = await Promise.allSettled(
+                pending.slice(i, i + BATCH).map(t => {
+                    try { return DAL.saveTask(t); } catch (e) { return Promise.resolve(); }
+                })
+            );
+            ok += results.filter(r => r.status === 'fulfilled').length;
+        }
+        console.log(`[v9.37.2] [habitCloudSync] 写回完成 ${ok}/${pending.length}`);
+    })().catch(e => console.warn('[v9.37.2] [habitCloudSync] 写回异常（数据无风险，云端保留旧值）:', e?.message || e));
+}
+
+// [v9.37.2] 当前周期该习惯是否已达标 —— 与 rebuildHabitStreak 完全同一口径（达标才计次）
+// 仅用于展示（迷你卡片任务名变金），不写回任何状态、不发奖励
+function isHabitPeriodMet(task, referenceDate = new Date()) {
+    if (!task || !task.isHabit || !task.habitDetails) return false;
+    // [v9.37.2] 交易在启动阶段即全量就绪，无需再判"未全量"
+
+    const targetCount = task.habitDetails.targetCountInPeriod || 1;
+    const targetSeconds = Number(task.targetTime) || 0;
+    const needTargetMet = (task.type === 'continuous_target') || (targetSeconds > 0);
+
+    const { periodStart, periodEnd } = getHabitPeriodInfo(task, transactions, referenceDate);
+    const periodTxs = transactions.filter(t =>
+        t.taskId === task.id && t.type === 'earn' && !t.undone &&
+        isTransactionInHabitPeriod(t, periodStart, periodEnd)
+    );
+
+    let count = 0;
+    for (const tx of periodTxs) {
+        if (needTargetMet) {
+            const met = (typeof tx.targetMet === 'boolean')
+                ? tx.targetMet
+                : (getRawUsageSecondsFromTransaction(tx) >= targetSeconds);
+            if (!met) continue;
+        }
+        count++;
+    }
+    return count >= targetCount;
 }
 
 

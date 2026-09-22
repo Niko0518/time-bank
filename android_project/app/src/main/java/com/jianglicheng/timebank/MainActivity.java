@@ -170,6 +170,35 @@ public class MainActivity extends AppCompatActivity {
                 } catch (Exception e) {
                     android.util.Log.e("MainActivity", "[v9.17.9] 注入配置失败（不影响主流程）", e);
                 }
+                // [v9.37.2-S-DEBUG] ★ 修正 Android 侧启动锚点注入时机（此前埋点恒为 n/a）
+                // 根因：原实现用 myWebView.post() 注入 window.__androidBootMs，那一刻页面还是
+                //   about:blank，注入值随导航被丢弃 → 真实页面里该字段永远 undefined，
+                //   "__androidBootMs + t0" 的 Android 段完全无法测量。
+                // 修复：改在 onPageStarted 注入（与 _ENV 同一时机、同一文档上下文）。
+                //   语义 = "MainActivity.onCreate → 页面导航开始"（WebView 初始化 + loadUrl + 首帧前开销）；
+                //   JS 侧 t0_htmlParse 是 navigation start 起算，故 androidBootMs + t0 = onCreate→HTML parse。
+                try {
+                    long __tbAndroidMs = android.os.SystemClock.uptimeMillis() - _tb_bootT_minus1;
+                    view.evaluateJavascript(
+                        "(function(){try{window.__androidBootMs=" + __tbAndroidMs + ";}catch(e){}})();",
+                        null
+                    );
+                    android.util.Log.i("TimeBankBoot", "[T0.6] onPageStarted→JS inject: " + __tbAndroidMs + "ms");
+                } catch (Exception e) { /* ignore */ }
+            }
+
+            @Override
+            public void onPageCommitVisible(WebView view, String url) {
+                super.onPageCommitVisible(view, url);
+                // [v9.37.2-S-DEBUG] 首帧可见锚点：onCreate → 页面首次绘制（用户首次看到内容）
+                try {
+                    long __tbCommitMs = android.os.SystemClock.uptimeMillis() - _tb_bootT_minus1;
+                    view.evaluateJavascript(
+                        "(function(){try{window.__androidCommitMs=" + __tbCommitMs + ";}catch(e){}})();",
+                        null
+                    );
+                    android.util.Log.i("TimeBankBoot", "[T0.7] onPageCommitVisible: " + __tbCommitMs + "ms");
+                } catch (Exception e) { /* ignore */ }
             }
 
             @Override
@@ -243,19 +272,9 @@ public class MainActivity extends AppCompatActivity {
         android.util.Log.i("TimeBankBoot", "[T0.5] before loadUrl uptime=" + android.os.SystemClock.uptimeMillis());
         // 加载网页 - 使用虚拟 HTTPS 域名
         myWebView.loadUrl("https://timebank.local/assets/www/index.html");
-        // [v9.22.S-DEBUG] JS 注入：把"MainActivity 启动到 JS 可执行"的耗时作为 t_androidBootMs
-        // 这是 9.22.0 时代漏量的关键段：WebView 初始化 + loadUrl + 首帧 parse
-        myWebView.post(() -> {
-            try {
-                final long _tb_bootT_inject = android.os.SystemClock.uptimeMillis();
-                final long _tb_bootT_androidMs = _tb_bootT_inject - _tb_bootT_minus1;
-                myWebView.evaluateJavascript(
-                    "try { window.__androidBootMs = " + _tb_bootT_androidMs + "; } catch(e) {}",
-                    null
-                );
-                android.util.Log.i("TimeBankBoot", "[Android] onCreate→JS inject: " + _tb_bootT_androidMs + "ms");
-            } catch (Exception e) { /* ignore */ }
-        });
+        // [v9.37.2-S-DEBUG] 原 myWebView.post() 注入 __androidBootMs 已移除：
+        //   post() 执行时页面仍是 about:blank，注入值随导航被丢弃 → 启动画像里该段恒为 n/a。
+        //   现改在 onPageStarted 注入（见上方 WebViewClient），语义更准确。
 
         // [v7.18.3-fix3] 注册悬浮窗事件接收器，支持时间同步
         // [v9.3.1] 携带 eventId，JS 处理后回传 ack

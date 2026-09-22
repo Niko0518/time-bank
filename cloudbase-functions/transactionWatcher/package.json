@@ -1,9 +1,0 @@
-{
-  "name": "transaction-watcher",
-  "version": "1.0.0",
-  "description": "CloudBase Watch 订阅 - Transaction 变更监听",
-  "main": "index.js",
-  "dependencies": {
-    "@cloudbase/node-sdk": "^2.6.0"
-  }
-}

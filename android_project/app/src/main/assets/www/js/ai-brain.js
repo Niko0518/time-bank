@@ -21,7 +21,6 @@
 const AI_BRAIN = {
     VERSION: 2,
     MEM_KEY: 'timebankAIBrainV2',          // 本地缓存（离线可读、秒开）
-    HERMES_SEED_KEY: 'timebankHermesSeedMerged',
     PROACTIVE_KEY: 'timebankAIBrainProactive',
 
     DAY_MS: 86400000,
@@ -188,8 +187,7 @@ const AI_BRAIN = {
 
     /**
      * 语言证据：用户自己说过的话（目标/承诺/偏好/抱怨/情绪）
-     * 数据源 1：tb_ai_messages 中的 user 发言（由 generate 时异步拉取）
-     * 数据源 2：Hermes 容器记忆遗留（"每天健身"，一次性迁移）
+     * 数据源：tb_ai_messages 中的 user 发言（由 generate 时异步拉取）
      */
     extractLanguageEvidence(messages) {
         const rules = [
@@ -211,12 +209,6 @@ const AI_BRAIN = {
                 if (hit) out.push({ kind: r.kind, text: hit[0].slice(0, 40), quote: text.slice(0, 60), date: dateStr });
             });
         });
-        // Hermes 记忆迁移（容器记忆里唯一有长期价值的一句）
-        try {
-            if (localStorage.getItem(this.HERMES_SEED_KEY) !== '1') {
-                out.push({ kind: 'goal', text: '每天健身', quote: '用户的核心目标：每天健身', date: '管家记忆', seed: true });
-            }
-        } catch (e) { /* 忽略 */ }
         // 去重 + 限流
         const seen = new Set();
         return out.filter(e => {
@@ -399,7 +391,6 @@ ${inputsText}
             this._cache = portrait;
             try {
                 localStorage.setItem(this.MEM_KEY, JSON.stringify({ v: 2, portrait }));
-                localStorage.setItem(this.HERMES_SEED_KEY, '1');
             } catch (e) { /* 忽略 */ }
             if (typeof svc.saveSettings === 'function') svc.saveSettings({ initStatus: true, lastSyncAt: Date.now() });
             if (typeof showToast === 'function' && opts.toast !== false) showToast('画像已更新', 2500);
@@ -841,7 +832,7 @@ ${inputsText}
             card.id = 'tbInsightCard';
             card.className = 'tb-insight-card';
             card.innerHTML =
-                '<div class="tb-insight-title">管家说</div>' +
+                '<div class="tb-insight-title">Time Bot 说</div>' +
                 '<div class="tb-insight-text">' + this._esc(insight.text) + '</div>' +
                 '<div class="tb-insight-evidence" hidden>' + this._esc(insight.evidence || '暂无依据') + '</div>' +
                 '<div class="tb-insight-actions">' +

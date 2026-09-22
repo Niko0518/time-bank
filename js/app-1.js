@@ -12,7 +12,7 @@
 // [v9.3.1] 架构重构：悬浮窗定时器状态以原生 Service 为唯一事实来源。修复 30+ 分钟后"任务消失/计时被吞"根因
 // [v9.3.2] Bug 1 修复：stopTask/cancelTask 静默期追踪 + __onFloatingTimerAction 恢复逻辑改为"云端权威源"（修复 v9.3.1 的"任务复活"回归）
 // [v9.3.3 final] 原生层云端同步保活：CloudSyncScheduler（WorkManager 周期任务） + __onNativeCloudDelta + visibilitychange always-reconcile + JS 心跳失败上报
-const APP_VERSION = 'v9.37.1';
+const APP_VERSION = 'v9.37.2';
 
 // [v9.3.3 final] App 启动时间戳（用于"初始化中"状态窗口判定）
 // 注：声明为 const 而非 let，避免被覆盖
@@ -479,6 +479,14 @@ function waitForCloudBase(callback, maxRetries = 150, interval = 200) {
 waitForCloudBase(function(success) {
     if (success) {
         console.log('[CloudBase] Ready to use');
+        // [v9.37.2-S-DEBUG] T3: CloudBase SDK 就绪（initCloudBase 成功）
+        // 补上原有空白段：T2(window.load) → T5(DAL.init) 之间原本零打点，
+        // 该段含「SDK 轮询等待 + 登录态恢复 + token 健康度探测」，慢时无法定位卡在谁身上
+        try {
+            window.__bootProfile = window.__bootProfile || {};
+            window.__bootProfile.t3_cloudbaseReady = performance.now();
+            if (window.__bootStage) window.__bootStage('正在验证登录…');
+        } catch (e) { /* ignore */ }
         // 尝试恢复登录状态
         refreshLoginState().then(async state => {
             // [v9.15.2-fix] 启动协调：无论登录态是否恢复，都必须 resolve 协调 promise
@@ -512,6 +520,12 @@ waitForCloudBase(function(success) {
                     __startupReloginResolve = null;
                 }
                 __startupReloginDone = true;
+                // [v9.37.2-S-DEBUG] T4: 登录态就绪（token 探测通过，无需 relogin），此后可安全发数据库请求
+                try {
+                    window.__bootProfile = window.__bootProfile || {};
+                    window.__bootProfile.t4_loginReady = performance.now();
+                    window.__bootProfile.t4_path = 'already-restored';
+                } catch (e) { /* ignore */ }
             } else {
                 // [v7.9.4] 登录状态丢失，尝试自动重新登录
                 const autoLoginSuccess = await tryAutoReLogin();
@@ -530,6 +544,12 @@ waitForCloudBase(function(success) {
                     __startupReloginResolve = null;
                 }
                 __startupReloginDone = true;
+                // [v9.37.2-S-DEBUG] T4: 登录态就绪（relogin 路径已刷新 access token）
+                try {
+                    window.__bootProfile = window.__bootProfile || {};
+                    window.__bootProfile.t4_loginReady = performance.now();
+                    window.__bootProfile.t4_path = 'relogin';
+                } catch (e) { /* ignore */ }
             }
         });
     } else {
@@ -2408,8 +2428,9 @@ function computeHabitStreakFromTransactions(task) {
 
     const { period, targetCountInPeriod } = task.habitDetails;
     const targetCount = targetCountInPeriod || 1;
-    const isContinuousTarget = (task.type === 'continuous_target');
-    const isDurationBased = (task.type === 'continuous' || task.type === 'continuous_redeem');
+    // [v9.37.2] 与 app-2.js rebuildHabitStreak 完全同一口径：达标才计 1 次（详见该函数注释）
+    const targetSeconds = Number(task.targetTime) || 0;
+    const needTargetMet = (task.type === 'continuous_target') || (targetSeconds > 0);
 
     const periods = new Map();
     for (const tx of earnTxs) {
@@ -2420,10 +2441,18 @@ function computeHabitStreakFromTransactions(task) {
             periods.set(periodKey, { count: 0, firstTxDate: txDate, isQualified: false });
         }
         const pd = periods.get(periodKey);
-        if (isDurationBased) {
-            pd.count += Math.max(1, Math.floor((getRawUsageSecondsFromTransaction ? getRawUsageSecondsFromTransaction(tx) : tx.amount * 60) / 60));
-        } else if (isContinuousTarget) {
-            if (tx.amount >= task.targetTime) pd.count++;
+        // [v9.37.2] 达标才计入：优先用交易上的 targetMet 标记，历史数据回退到「实际时长 ≥ 目标时长」
+        if (needTargetMet) {
+            let met;
+            if (typeof tx.targetMet === 'boolean') {
+                met = tx.targetMet;
+            } else {
+                const rawSeconds = (typeof getRawUsageSecondsFromTransaction === 'function')
+                    ? getRawUsageSecondsFromTransaction(tx)
+                    : (tx.amount || 0);
+                met = rawSeconds >= targetSeconds;
+            }
+            if (met) pd.count++;
         } else {
             pd.count++;
         }
@@ -2576,34 +2605,13 @@ function __scheduleUpdateAllUIFromWatch() {
 let __syncLastForcedPullAt = 0;
 const ACTIVE_SYNC_FORCE_PULL_INTERVAL_MS = 5 * 60 * 1000; // 5 分钟兜底强制拉取（防 WebSocket 半死假健康）
 
-// ========== [v9.34.2] 分阶段冷启动：交易全量门控 ==========
-// 背景：冷启动首屏不再等全量交易（5600+ 条串行 6 页，云端冷时可达 13s+）。
-//   首屏仅依赖 profile/tasks/running/daily（余额来自云端 cachedBalance，不依赖交易），
-//   交易第 1 页后的剩余页后台续载。
-// 门控语义："部分数据窗口"内 window.__txFullLoaded=false；结算类逻辑（屏幕时间/利息/戒除/
-//   习惯重建）必须 await __awaitTxFullLoaded()，避免基于部分数据误算误写回
-//   （9.22.0 灾难教训：数据完整性永远优先于速度）。
-window.__txFullLoaded = true;
-window.__txFullLoadedPromise = Promise.resolve();
-function __beginTxProgressiveLoad() {
-    window.__txFullLoaded = false;
-    window.__txFullLoadedPromise = new Promise(resolve => { window.__resolveTxFullLoadedFn = resolve; });
-}
-function __resolveTxFullLoaded() {
-    window.__txFullLoaded = true;
-    if (typeof window.__resolveTxFullLoadedFn === 'function') {
-        window.__resolveTxFullLoadedFn();
-        window.__resolveTxFullLoadedFn = null;
-    }
-}
-async function __awaitTxFullLoaded(timeoutMs = 60000) {
-    if (window.__txFullLoaded) return;
-    // 超时保护：后台续载因意外未释放门控时，结算不死锁（降级为部分数据执行，与升级前行为一致）
-    await Promise.race([
-        window.__txFullLoadedPromise,
-        new Promise(r => setTimeout(r, timeoutMs))
-    ]);
-}
+// ========== [v9.37.2] 已移除：v9.34.2「分阶段冷启动 / 交易全量门控」 ==========
+// 移除原因（实测驱动，不再靠假设）：
+//   1) 冷启动慢的根因不是数据量：13.1s 中 10.44s 是 unsubscribeAll 的固定空转（本版已修）
+//   2) 交易加载改为并行分页 + 严格完整性校验（本版），全量耗时压到 ~1/3
+//   3) 中间态会制造"部分数据窗口"：窗口内的结算 / 删除级联 / AI 画像 / 双击打卡
+//      都有误算误写回风险（数据完整性优先）
+// 现策略：加载页一直等到「全量数据 + 实时就绪」再放行交互 —— 单一事实状态，无窗口、无门控。
 
 // [v9.34.2] 交易文档→tx 对象转换（从 loadAllTransactions 抽取，后台续载复用同一口径）
 // 字段规则与 v9.23.0 安全投影一致：data 缺失时顶层字段兜底
@@ -2915,6 +2923,8 @@ function __dumpBootProfile() {
             t0_htmlParse: 'T0:HTML parse start',
             t1_domReady: 'T1:DOMContentLoaded',
             t2_windowLoad: 'T2:window.load (all scripts done)',
+            t3_cloudbaseReady: 'T3:CloudBase SDK ready',
+            t4_loginReady: 'T4:login ready (token ok / relogin done)',
             t5_dalInit: 'T5:DAL.init entry',
             t6_uidReady: 'T6:getCurrentUid done (SDK ready)',
             t7_tasksStart: 'T7:loadAllTasks start',
@@ -2929,8 +2939,8 @@ function __dumpBootProfile() {
             t14_uiUpdated: 'T14:updateAllUI done (DOM visible)',
             t15_subscribeDone: 'T15:subscribeAll done (real-time ready)'
         };
-        // [v9.23.0] Android 侧锚点：JS 注入 window.__androidBootMs = "MainActivity.onCreate → JS 注入"的 ms 数
-        // 这段耗时是 WebView 初始化 + loadUrl + 首帧 parse 的总和，是 9.22.0 时代漏量的关键瓶颈
+        // [v9.23.0] Android 侧锚点，[v9.37.2] 语义修正为 "MainActivity.onCreate → 页面导航开始"
+        // （原 post() 注入时机错误导致该值恒为 undefined，本版改由 onPageStarted 注入）
         let androidBootMs = null;
         if (typeof window.__androidBootMs === 'number') {
             androidBootMs = window.__androidBootMs;
@@ -2942,9 +2952,12 @@ function __dumpBootProfile() {
         // 段 2：阶段差分（关键指标）
         const seg = (a, b) => (typeof p[a] === 'number' && typeof p[b] === 'number') ? (p[b] - p[a]).toFixed(1) + 'ms' : 'n/a';
         const segTable = [
-            `Android onCreate→JS inject  : ${androidBootMs !== null ? androidBootMs.toFixed(1) + 'ms  [WebView init+loadUrl+首帧parse]' : 'n/a'}`,
+            `Android onCreate→nav start  : ${androidBootMs !== null ? androidBootMs.toFixed(1) + 'ms  [WebView init+loadUrl]' : 'n/a'}`,
+            `Android → first paint       : ${(typeof window.__androidCommitMs === 'number') ? window.__androidCommitMs.toFixed(0) + 'ms  [onPageCommitVisible]' : 'n/a'}`,
             `HTML parse                  : ${seg('t0_htmlParse', 't1_domReady')}`,
             `Scripts load (after DOM)    : ${seg('t1_domReady', 't2_windowLoad')}`,
+            `SDK ready (T2→T3)           : ${seg('t2_windowLoad', 't3_cloudbaseReady')}`,
+            `login ready (T3→T4)         : ${seg('t3_cloudbaseReady', 't4_loginReady')}  (path=${p.t4_path || 'n/a'})`,
             `JS startup → DAL.init       : ${seg('t2_windowLoad', 't5_dalInit')}`,
             `SDK getCurrentUid           : ${seg('t5_dalInit', 't6_uidReady')}  (hasUid=${p.t6_hasUid})`,
             `loadAllTasks (full)         : ${seg('t7_tasksStart', 't8_tasksEnd')}  (pages=${p.tasksPages || 0}, docs=${p.tasksDocs || 0})`,
@@ -2952,14 +2965,21 @@ function __dumpBootProfile() {
             `5-query Promise.all         : ${seg('t5_dalInit', 't12_loadAllEnd')}`,
             `loadAll → UI visible        : ${seg('t12_loadAllEnd', 't14_uiUpdated')}`,
             `UI visible → real-time ready: ${seg('t14_uiUpdated', 't15_subscribeDone')}`,
-            `TOTAL boot (Android→UI)     : ${androidBootMs !== null ? (androidBootMs + (p.t14_uiUpdated || 0)).toFixed(1) + 'ms  [真实首屏可交互]' : 'n/a'}`,
+            `TOTAL boot (onCreate→UI)    : ${androidBootMs !== null ? (androidBootMs + (p.t14_uiUpdated || 0)).toFixed(1) + 'ms  [真实首屏可交互]' : 'n/a'}`,
+            `TOTAL boot (onCreate→RT)    : ${androidBootMs !== null ? (androidBootMs + (p.t15_subscribeDone || 0)).toFixed(1) + 'ms  [冷启动全链路]' : 'n/a'}`,
             `TOTAL boot (HTML→real-time) : ${seg('t0_htmlParse', 't15_subscribeDone')}`,
             `TOTAL boot (HTML→UI visible): ${seg('t0_htmlParse', 't14_uiUpdated')}`
-        ].join('\n');
+        ];
+        // [v9.37.2-S-DEBUG] 交易分页明细：区分"串行 RTT 累计"与"单页传输量"两种瓶颈
+        if (Array.isArray(p.txPageTimes) && p.txPageTimes.length > 0) {
+            segTable.push('--- 交易分页明细 ---');
+            p.txPageTimes.forEach(t => segTable.push(`  page ${t.page}: ${t.qMs.toFixed(0)}ms / ${t.docs} docs`));
+        }
+        const segTableText = segTable.join('\n');
         const warmTag = p.isWarm ? '🔥 热启动 (sessionStorage 有上次会话)' : '❄️  冷启动 (全新会话)';
         console.log(
             `\n========== [v9.22.S-DEBUG] 启动画像 (${warmTag}) ==========\n` +
-            `--- 阶段耗时（差分） ---\n${segTable}\n` +
+            `--- 阶段耗时（差分） ---\n${segTableText}\n` +
             `--- 累计时间戳（相对 T0） ---\n${cumTable}\n` +
             `================================================\n`
         );
@@ -3007,6 +3027,7 @@ const DAL = {
         try {
             window.__bootProfile = window.__bootProfile || {};
             window.__bootProfile.t5_dalInit = performance.now();
+            if (window.__bootStage) window.__bootStage('正在读取全部记录…');
         } catch(e) {}
         console.log('[DAL.init] Starting...');
 
@@ -3990,16 +4011,16 @@ const DAL = {
             return [];
         }
         
-        // 分页加载所有交易（每次 1000 条，直到没有更多数据）
+        // [v9.37.2] ★ 交易加载：并行分页 + 严格完整性校验（取代 v9.34.2 的「串行翻页 + 渐进加载」）
+        // 动机：6367 条串行 6 页实测 ≈ 3.1s（单页 0.29~0.63s），是"全量数据就绪"的最后一处瓶颈；
+        //   并行分页把 6 次串行往返压成 1 轮网络往返。
+        // 正确性纪律（数据完整性永远优先于速度，9.22.0 教训）：
+        //   1) 仍以云端为唯一数据源，绝不用本地缓存渲染首屏
+        //   2) 先 count() 取权威总数，再与去重后条数**严格比对**（并发写入导致 skip 偏移也能被发现）
+        //   3) 任一分页失败 / 条数不符 → 立即回退「串行完整重拉」（宁慢不可残缺）
+        //   4) 投影必须含 data:true（9.22.S 灾难防线）
         const PAGE_SIZE = 1000;
-        let allDocs = [];
-        // [v9.23.0] 翻页键改为 _id（_id 是稳定的字符串主键，timestamp 在同时刻会重复）
-        let lastId = null;
-        let pageCount = 0;
         const MAX_PAGES = 20; // 最多 20 页，即 20000 条
-        // [v9.34.2] 分阶段冷启动：maxPages 限制本次加载页数（默认全量）；
-        // 首屏路径传 1，剩余页由 continueLoadingTransactions 后台续载
-        const maxPagesThisRun = Math.max(1, options.maxPages || MAX_PAGES);
 
         // [v9.23.0] 安全投影：声明只读字段，**必须包含 data:true**
         // 9.22.0 灾难教训：timebankSync 中投影不含 data:true 会让老数据兼容路径崩塌
@@ -4025,55 +4046,107 @@ const DAL = {
             pauseHistory: true
         };
 
+        let allDocs = [];
+        let __pageStats = [];
+        let __parallelOk = false;
+
         try {
-        while (pageCount < maxPagesThisRun) {
-            pageCount++;
-            // [v9.22.S-DEBUG] 单页请求打点：start / end + docs 数量 + 该页 network 耗时
-            const __tx_qStart = performance.now();
-            // [v9.23.0] 翻页键改为 _id + 降序，与云端主键索引对齐
-            // 第一页不带 _id 过滤，后续页用 _id < lastId 继续翻
-            const whereCondition = lastId
-                ? { _openid: currentUid, _id: _.lt(lastId) }
-                : { _openid: currentUid };
-            let query = db.collection(TABLES.TRANSACTION)
-                .where(whereCondition)
+        // ---- [v9.37.2] 路径 A：并行分页（首选） ----
+        try {
+            const __p1Start = performance.now();
+            const __txBaseQuery = () => db.collection(TABLES.TRANSACTION)
+                .where({ _openid: currentUid })
                 .orderBy('_id', 'desc')
-                .limit(PAGE_SIZE)
                 .field(TX_PROJECTION);
 
-            const res = await query.get();
-            const __tx_qEnd = performance.now();
-            const docs = res.data || [];
+            // 第 1 页（最新数据）与权威总数并行发起
+            const [__firstRes, __countRes] = await Promise.all([
+                __txBaseQuery().limit(PAGE_SIZE).get(),
+                db.collection(TABLES.TRANSACTION).where({ _openid: currentUid }).count()
+                    .catch(e => {
+                        console.warn('[v9.37.2] [loadAllTransactions] count() 失败 → 退回串行:', e?.message || e);
+                        return null;
+                    })
+            ]);
+            const __firstDocs = __firstRes.data || [];
+            allDocs = __firstDocs;
+            __pageStats.push({ page: 1, qMs: performance.now() - __p1Start, docs: __firstDocs.length });
 
-            if (docs.length === 0) break;
+            const __total = (__countRes && typeof __countRes.total === 'number')
+                ? __countRes.total
+                : ((__countRes && __countRes.data && typeof __countRes.data.total === 'number') ? __countRes.data.total : null);
 
-            allDocs = allDocs.concat(docs);
-            // [v9.23.0] 用 _id 作为下一页起点（_id 是字符串主键，严格小于保证不漏不重）
-            lastId = docs[docs.length - 1]._id;
-
-            console.log(`[DAL.loadAllTransactions] Page ${pageCount}: ${docs.length} docs, total: ${allDocs.length} (q=${(__tx_qEnd - __tx_qStart).toFixed(1)}ms)`);
-            // [v9.22.S-DEBUG] 累计分页耗时 + 单页耗时数组
-            try {
-                window.__bootProfile.txPages = (window.__bootProfile.txPages || 0) + 1;
-                window.__bootProfile.txDocs = (window.__bootProfile.txDocs || 0) + docs.length;
-                window.__bootProfile.txPageTimes = window.__bootProfile.txPageTimes || [];
-                window.__bootProfile.txPageTimes.push({
-                    page: pageCount,
-                    qMs: __tx_qEnd - __tx_qStart,
-                    docs: docs.length,
-                    lastId: lastId
+            if (__total !== null && __total <= PAGE_SIZE) {
+                __parallelOk = true; // 单页即全量
+            } else if (__total !== null && __firstDocs.length === PAGE_SIZE) {
+                const __pages = Math.min(MAX_PAGES, Math.ceil(__total / PAGE_SIZE));
+                const __tasks = [];
+                for (let k = 1; k < __pages; k++) {
+                    __tasks.push(
+                        __txBaseQuery().skip(k * PAGE_SIZE).limit(PAGE_SIZE).get()
+                            .then(r => ({ k, ok: true, docs: r.data || [] }))
+                            .catch(e => {
+                                console.warn(`[v9.37.2] [loadAllTransactions] 并行分页 page${k + 1} 失败:`, e?.message || e);
+                                return { k, ok: false, docs: [] };
+                            })
+                    );
+                }
+                const __results = await Promise.all(__tasks);
+                const __seenIds = new Set(allDocs.map(d => d._id));
+                let __anyFail = false;
+                __results.sort((a, b) => a.k - b.k).forEach(r => {
+                    if (!r.ok) { __anyFail = true; return; }
+                    __pageStats.push({ page: r.k + 1, qMs: 0, docs: r.docs.length });
+                    r.docs.forEach(d => { if (!__seenIds.has(d._id)) { __seenIds.add(d._id); allDocs.push(d); } });
                 });
-            } catch(e) {}
-
-            if (docs.length < PAGE_SIZE) break; // 最后一页
+                // 严格完整性校验：短一条就回退串行重拉（宁可慢，不可残缺）
+                const __expected = Math.min(__total, MAX_PAGES * PAGE_SIZE);
+                if (!__anyFail && allDocs.length === __expected) {
+                    __parallelOk = true;
+                } else {
+                    console.warn(`[v9.37.2] [loadAllTransactions] 并行结果不完整（got=${allDocs.length}, expected=${__expected}${__anyFail ? ', 有分页失败' : ''}）→ 回退串行完整重拉`);
+                }
+            }
+        } catch (__parallelErr) {
+            console.warn('[v9.37.2] [loadAllTransactions] 并行分页异常 → 回退串行:', __parallelErr?.message || __parallelErr);
         }
 
-        console.log('[DAL.loadAllTransactions] Total loaded:', allDocs.length, 'transactions');
-        // [v9.34.2] 记录续载游标：被 maxPages 截断且末页满 → 还有剩余页需后台续载
-        this.__txPagingCursor = {
-            lastId: lastId,
-            hasMore: (pageCount >= maxPagesThisRun) && allDocs.length > 0 && (allDocs.length % PAGE_SIZE === 0)
-        };
+        // ---- [v9.37.2] 路径 B：串行翻页（兜底；语义与 v9.23.0 完全一致） ----
+        if (!__parallelOk) {
+            allDocs = [];
+            __pageStats = [];
+            let lastId = null;
+            let pageCount = 0;
+            while (pageCount < MAX_PAGES) {
+                pageCount++;
+                const __tx_qStart = performance.now();
+                // [v9.23.0] 翻页键 _id + 降序；首页不带 _id 过滤，后续页用 _id < lastId 继续翻
+                const whereCondition = lastId
+                    ? { _openid: currentUid, _id: _.lt(lastId) }
+                    : { _openid: currentUid };
+                const res = await db.collection(TABLES.TRANSACTION)
+                    .where(whereCondition)
+                    .orderBy('_id', 'desc')
+                    .limit(PAGE_SIZE)
+                    .field(TX_PROJECTION)
+                    .get();
+                const docs = res.data || [];
+                if (docs.length === 0) break;
+                allDocs = allDocs.concat(docs);
+                lastId = docs[docs.length - 1]._id;
+                __pageStats.push({ page: pageCount, qMs: performance.now() - __tx_qStart, docs: docs.length });
+                console.log(`[DAL.loadAllTransactions] Page ${pageCount}: ${docs.length} docs, total: ${allDocs.length} (串行兜底)`);
+                if (docs.length < PAGE_SIZE) break; // 最后一页
+            }
+        }
+
+        console.log(`[DAL.loadAllTransactions] Total loaded: ${allDocs.length} (mode=${__parallelOk ? 'parallel' : 'serial'})`);
+        // [v9.22.S-DEBUG] 分页统计（并行页 qMs 记为 0，耗时体现在 T9→T10 整段）
+        try {
+            window.__bootProfile.txPages = __pageStats.length;
+            window.__bootProfile.txDocs = allDocs.length;
+            window.__bootProfile.txPageTimes = __pageStats;
+        } catch (e) {}
         // [v9.22.S-DEBUG] T10: loadAllTransactions 完成
         try {
             window.__bootProfile = window.__bootProfile || {};
@@ -4123,122 +4196,6 @@ const DAL = {
         }
     },
     
-    // [v9.34.2] 分阶段冷启动：后台续载剩余交易页（首屏仅加载第 1 页）
-    // 安全纪律（与 9.22.S 同源）：
-    //   1. 投影必须含 data:true（灾难防线），与 loadAllTransactions 的 TX_PROJECTION 严格一致
-    //   2. 本函数只读追加，不参与任何写入路径；翻页键/排序与 loadAllTransactions 完全相同
-    //   3. 会话守卫：loadAll/importFromBackup 会递增 __loadAllSession，续载中会话变化 → 立即放弃
-    //      （防止旧页数据污染全量重拉/导入后的新数据）
-    async continueLoadingTransactions() {
-        if (this.__txContinueInFlight) return false;
-        this.__txContinueInFlight = true;
-        const session = this.__loadAllSession || 0;
-        const __contStart = performance.now();
-        try {
-            const currentUid = await this.getCurrentUid();
-            if (!currentUid) return false;
-            let lastId = (this.__txPagingCursor && this.__txPagingCursor.lastId) || null;
-            if (!lastId) return false;
-
-            const PAGE_SIZE = 1000;
-            const MAX_PAGES = 20;
-            // ⚠️ 必须与 loadAllTransactions 的 TX_PROJECTION 保持一致（含 data:true，9.22.S 灾难防线）
-            const TX_PROJECTION = {
-                _id: true,
-                data: true,  // ⭐ 9.22.S: 必须保留
-                _openid: true,
-                txId: true,
-                taskId: true,
-                taskName: true,
-                category: true,
-                amount: true,
-                type: true,
-                timestamp: true,
-                description: true,
-                isStreakAdvancement: true,
-                isSystem: true,
-                sleepData: true,
-                napData: true,
-                balanceAdjust: true,
-                clientId: true,
-                isBackdate: true,
-                pauseHistory: true
-            };
-
-            const newDocs = [];
-            for (let page = 0; page < MAX_PAGES; page++) {
-                if ((this.__loadAllSession || 0) !== session) {
-                    console.warn('[v9.34.2] [continueTx] 会话已变更（发生全量 loadAll/导入），放弃本次续载');
-                    return false;
-                }
-                const res = await db.collection(TABLES.TRANSACTION)
-                    .where({ _openid: currentUid, _id: _.lt(lastId) })
-                    .orderBy('_id', 'desc')
-                    .limit(PAGE_SIZE)
-                    .field(TX_PROJECTION)
-                    .get();
-                const docs = res.data || [];
-                if (docs.length === 0) break;
-                for (const d of docs) newDocs.push(d);
-                lastId = docs[docs.length - 1]._id;
-                console.log(`[v9.34.2] [continueTx] 后台翻页 ${page + 1}: ${docs.length} 条（累计 ${newDocs.length}）`);
-                if (docs.length < PAGE_SIZE) break;
-            }
-
-            if ((this.__loadAllSession || 0) !== session) {
-                console.warn('[v9.34.2] [continueTx] 会话已变更，丢弃续载结果');
-                return false;
-            }
-
-            // 转换（同一口径）+ O(1) 去重合并（乐观更新/watch 推送可能已先行到达）
-            let added = 0;
-            for (const doc of newDocs) {
-                const tx = __normalizeTxDoc(doc);
-                if (!tx || !tx.id) continue;
-                if (__getTxById(tx.id)) continue;
-                this.transactionCache.set(tx.id, doc._id);
-                transactions.push(tx);
-                added++;
-            }
-            if (added > 0) {
-                transactions.sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp));
-                markTransactionsDirty();
-                if (typeof buildTransactionIndex === 'function') buildTransactionIndex();
-            }
-            console.log(`✅ [v9.34.2] [continueTx] 后台续载完成: +${added} 条，共 ${transactions.length} 条，耗时 ${((performance.now() - __contStart) / 1000).toFixed(1)}s`);
-            return true;
-        } catch (e) {
-            console.warn('⚠️ [v9.34.2] [continueTx] 后台续载失败（数据完整性由 activeSync/reconcile 兜底）:', e?.message || e);
-            return false;
-        } finally {
-            this.__txContinueInFlight = false;
-            if ((this.__loadAllSession || 0) === session) {
-                // 释放门控（失败也释放，避免结算死锁；缺失数据由兜底链路补齐）
-                __resolveTxFullLoaded();
-                try {
-                    window.__bootProfile = window.__bootProfile || {};
-                    window.__bootProfile.t16_txFullEnd = performance.now();
-                } catch (e2) {}
-                // 全量就绪后统一重算所有习惯连胜（修正部分窗口内基于不完整数据算出的旧值）
-                try {
-                    if (Array.isArray(tasks)) {
-                        tasks.filter(t => t.isHabit).forEach(t => { try { rebuildHabitStreak(t); } catch (e2) {} });
-                    }
-                } catch (e2) {}
-                // [v9.34.2] 睡眠历史缓存失效：窗口期内构建的缓存只含第 1 页的睡眠记录，
-                // 续载补齐老交易后必须清除，否则长历史视图（详情弹窗/AI报告）保持陈旧
-                if (typeof clearSleepHistoryCache === 'function') clearSleepHistoryCache();
-                // [v9.34.2] 睡眠卡片重绘：用全量数据重算卡片渐变色/图表，
-                // 修正窗口期或启动期结算未完成时首绘的蓝灰默认色
-                if (typeof updateSleepCard === 'function') { try { updateSleepCard(); } catch (e2) {} }
-                if (typeof updateAllUI === 'function') updateAllUI();
-                if (typeof recomputeRecommendations === 'function') {
-                    try { recomputeRecommendations(); } catch (e2) {}
-                }
-            }
-        }
-    },
-
     async addTransaction(tx) {
         const currentUid = await this.getCurrentUid();
         console.log('[DAL.addTransaction] 开始写入交易:', tx.id, tx.taskName, tx.amount, 'UID:', currentUid);
@@ -4405,6 +4362,54 @@ const DAL = {
         console.log('[DAL.deleteTransaction] ✅ 已提交云函数');
     },
     
+    /**
+     * [v9.37.2] 按 taskId 删除该任务的全部云端交易（不依赖本地是否已加载）
+     * 动机：deleteTask 原实现只删"本地已加载"的交易，未加载的历史交易会残留在云端变成
+     *   孤儿记录——统计/余额继续计入，下次冷启动又以"历史记录"形式出现（用户视角=删了又回来）。
+     * 做法：从云端按 taskId 分页枚举（只取 _id/txId），再逐条走既有 deleteTransaction 云函数通道
+     *   （云端原子更新 cachedBalance/daily，语义与手动删除完全一致）。
+     * 安全：tb_transaction 为自定义安全规则集合 → 查询必须显式带 _openid。
+     */
+    async deleteTransactionsByTaskId(taskId, options = {}) {
+        const currentUid = await this.getCurrentUid();
+        if (!taskId || !currentUid) return 0;
+        const PAGE = 1000;
+        const MAX_PAGES = options.maxPages || 20; // 上限 20000 条，防异常数据把枚举拖死
+        const CONCURRENCY = 20;
+        const txIds = [];
+        for (let page = 0; page < MAX_PAGES; page++) {
+            let res = null;
+            try {
+                res = await db.collection(TABLES.TRANSACTION)
+                    .where({ _openid: currentUid, taskId })
+                    .orderBy('_id', 'desc')
+                    .skip(page * PAGE)
+                    .limit(PAGE)
+                    .field({ _id: true, txId: true })
+                    .get();
+            } catch (e) {
+                console.warn(`[v9.37.2] [deleteTransactionsByTaskId] 第 ${page + 1} 页枚举失败，停止枚举:`, e?.message || e);
+                break;
+            }
+            const docs = (res && res.data) || [];
+            if (docs.length === 0) break;
+            docs.forEach(d => { if (d.txId) txIds.push(d.txId); });
+            if (docs.length < PAGE) break;
+        }
+        // 分批提交（callMutation 自带队列与失败重试，不阻塞 UI）
+        for (let i = 0; i < txIds.length; i += CONCURRENCY) {
+            txIds.slice(i, i + CONCURRENCY).forEach(txId => {
+                try {
+                    callMutation('deleteTransaction', { _openid: currentUid, txId });
+                } catch (e) {
+                    console.warn('[v9.37.2] [deleteTransactionsByTaskId] 提交删除失败:', txId, e?.message || e);
+                }
+            });
+        }
+        console.log(`[v9.37.2] [deleteTransactionsByTaskId] taskId=${taskId}：云端枚举到 ${txIds.length} 条，已提交删除`);
+        return txIds.length;
+    },
+
     // ========== RunningTask 操作 ==========
     runningCache: new Map(), // taskId -> _id
     
@@ -5265,6 +5270,8 @@ const DAL = {
         try {
             window.__bootProfile = window.__bootProfile || {};
             window.__bootProfile.t15_subscribeDone = performance.now();
+            // [v9.37.2] 实时就绪 = 冷启动终点：收起加载页、放行交互、播放入场动画
+            try { __bootFinishLoadingPage(); } catch (e2) {}
             // 一次性输出完整启动画像
             __dumpBootProfile();
         } catch(e) {}
@@ -5315,10 +5322,13 @@ const DAL = {
         // 根因：旧版只调 close()，没等服务器确认就清空 watcher，
         // 服务器继续推数据 → SDK 内部报 "no realtime listener found for watchId"
         const closePromises = [];
+        // [v9.37.2] 统计"确有连接被关闭"的数量：决定是否需要切换冷却期（见下方说明）
+        let __closedWatcherCount = 0;
         // [v9.12.1 修复] 设守卫：阻止 close() 期间 SDK 内部触发 onError → scheduleWatchReconnect 级联
         __watchClosingAll = true;
         for (const key of Object.keys(watchers)) {
             if (watchers[key]) {
+                __closedWatcherCount++;
                 // [v8.2.2] 致命修复：close() 在 WebSocket 损坏时可能永久挂起，添加超时保护
                 try {
                     closePromises.push(
@@ -5345,12 +5355,21 @@ const DAL = {
         // [v9.12.1 修复] close 已全部完成，安全移守卫
         __watchClosingAll = false;
 
-        // [v9.0.11-fix] 等所有 close 完成 + 服务器 ACK + ws 资源释放
-        // [v9.12.1 修复] 移至关闭完成后执行（close 已在 await Promise.all 中完成）
-        // 保留以下 10.5s 退避作为"unsubscribe→subscribe 切换冷却期"
-        const __unsubDelays = [800, 1200, 1800, 2700, 4050];
-        for (const __unsubMs of __unsubDelays) {
-            await new Promise((r) => setTimeout(r, __unsubMs));
+        // [v9.37.2] ★ 冷却期条件化（冷启动提速核心修复）
+        // 背景：该退避是"unsubscribe → subscribe 切换冷却期"（等服务器 unwatch ACK + WS 资源释放），
+        //   仅在**确有活跃 watch 被关闭**时才需要。
+        // 原实现无条件执行 [800,1200,1800,2700,4050]（合计 10550ms）——
+        //   而 subscribeAll 内部每次都先 await unsubscribeAll()，导致**冷启动首次订阅**
+        //   （watchers 全为 null、无任何连接要关）也白白空转 10.55s。
+        // 实测：13.1s 的"HTML→实时就绪"里 10.44s 全是这段空转（见 v9.37.2 技术日志）。
+        // 修复：只有真的关了 watch（重连/重建场景）才走完整退避；否则仅让出 50ms 防止 SDK 内部竞态。
+        if (__closedWatcherCount > 0) {
+            const __unsubDelays = [800, 1200, 1800, 2700, 4050];
+            for (const __unsubMs of __unsubDelays) {
+                await new Promise((r) => setTimeout(r, __unsubMs));
+            }
+        } else {
+            await new Promise((r) => setTimeout(r, 50));
         }
 
         // [v7.33.2] 重置两层状态：registered + connected
@@ -5527,9 +5546,8 @@ const DAL = {
     async loadAll(options = {}) {
         // [v9.34.2] 会话号：任何全量加载/导入都递增，使进行中的后台续载立即失效
         this.__loadAllSession = (this.__loadAllSession || 0) + 1;
-        // [v9.34.2] 分阶段冷启动：progressive=true 时交易仅加载第 1 页，剩余页后台续载
-        // （仅启动路径传入；reconcile 全量兜底/导入等恢复性路径保持全量，正确性优先）
-        const __progressive = options.progressive === true;
+        // [v9.37.2] progressive 渐进加载已下线：loadAll 一律全量
+        // （loadAllTransactions 内部已改为并行分页 + 完整性校验，全量耗时接近单页往返）
         // [v9.13.0 诊断] 记录调用源 + 栈
         const __loadAllCallId = ++__loadAllCallSeq;
         const __loadAllStack = (new Error().stack || '').split('\n').slice(1, 6).join(' | ');
@@ -5550,7 +5568,7 @@ const DAL = {
                 [profile, loadedTasks, loadedTransactions, loadedRunning, loadedDaily] = await Promise.all([
                     this.loadProfile(),
                     this.loadAllTasks(),
-                    __progressive ? this.loadAllTransactions({ maxPages: 1 }) : this.loadAllTransactions(),
+                    this.loadAllTransactions(),
                     this.loadRunningTasks(),
                     this.loadDailyChanges()
                 ]);
@@ -5951,19 +5969,27 @@ const DAL = {
         try {
             window.__bootProfile = window.__bootProfile || {};
             window.__bootProfile.t12_loadAllEnd = performance.now();
+            if (window.__bootStage) window.__bootStage('正在渲染界面…');
         } catch(e) {}
         // [v9.23.0] 标记 loadAll 完成时间戳，供 reconcile 5 秒退避判断使用
         window.__loadAllJustFinishedAt = Date.now();
 
-        // [v9.34.2] 分阶段冷启动：首屏数据就绪后，后台续载剩余交易页
-        if (__progressive && this.__txPagingCursor && this.__txPagingCursor.hasMore) {
-            __beginTxProgressiveLoad();
-            console.log('🚀 [v9.34.2] 分阶段冷启动：首屏就绪（交易第 1 页），后台续载剩余页');
-            this.continueLoadingTransactions();
-        } else {
-            // 非分阶段路径（reconcile 全量/无剩余页）：确保门控处于全量态
-            __resolveTxFullLoaded();
-        }
+        // [v9.37.2] 全量交易就绪后统一重建习惯连胜
+        // 原由 v9.34.2 后台续载 continueLoadingTransactions 的 finally 承担；该函数已随
+        // 渐进加载一起下线，故必须在此显式执行。特别注意 refreshHabitStatuses() 是空实现，
+        // 不承担连胜重建职责，漏掉会让界面停留在云端持久化的旧 streak 值。
+        try {
+            if (Array.isArray(tasks) && typeof rebuildHabitStreak === 'function') {
+                // [v9.37.2] 期间抑制云端写回（只入队）：61 个习惯逐个打云函数会把紧随其后的
+                // WebSocket 预热挤后约 2.5s。本地值已算准，写回延后到实时就绪（__bootFinishLoadingPage）
+                window.__deferHabitCloudSync = true;
+                try {
+                    tasks.filter(t => t.isHabit).forEach(t => { try { rebuildHabitStreak(t); } catch (e2) {} });
+                } finally {
+                    window.__deferHabitCloudSync = false;
+                }
+            }
+        } catch (e2) {}
 
         // [v9.2.3] 数据加载完成 → 标记 __dataLoaded=true，subscribeAll 才能显示"已同步 ✅"
         // 关键修复：把"已同步"状态与"实际数据已加载"绑定，避免用户看到"已同步"但列表为空
@@ -7520,10 +7546,7 @@ async function initApp() {
     // [v7.9.6] 执行所有自动结算（静默执行，无报告弹窗）
     setTimeout(async () => {
         try {
-            // [v9.34.2] 分阶段冷启动：结算类逻辑必须在交易全量就绪后执行
-            // （屏幕时间结算/自动检测补录/利息/戒除检查均依赖完整交易史，
-            //   部分数据窗口内执行会产生误算误写——数据完整性优先于速度）
-            await __awaitTxFullLoaded(60000);
+            // [v9.37.2] 取消交易全量门控：loadAll 已保证进入自动结算时交易全量就绪
             console.log('[AutoSettlement] === 自动结算触发 ===');
             
             // [v7.15.4] 0. 启动时自动清理重复利息交易
@@ -7721,6 +7744,50 @@ function refreshHabitStatuses() {
     // 无需额外状态同步，streak 值由 rebuildHabitStreak 维护
 }
 
+/**
+ * [v9.37.2] 冷启动终点：收起加载页 + 放行交互 + 播放入场动画
+ * 设计变更（取消"首屏可交互"中间态）：
+ *   原实现把这些动作挂在 updateAllUI 首次渲染（T14），而 T14 早于 subscribeAll 完成（T15），
+ *   于是产生"界面已可点、但实时通道未建立、数据仍可能不全"的中间状态。
+ *   现在统一由 T15（实时就绪）释放 —— 用户看到加载页 → 直接进入完整可用状态，无中间态。
+ * 幂等：可被 T15 与 4s 兜底定时器重复调用，只有第一次生效。
+ */
+function __bootFinishLoadingPage() {
+    if (window.__earnEntrancePlayed) return;
+    window.__earnEntrancePlayed = true;
+    try {
+        if (window.__bootStage) window.__bootStage('准备就绪');
+        if (window.__earnLoadingInterval) clearInterval(window.__earnLoadingInterval);
+        const indicator = document.getElementById('earnLoadingIndicator');
+        if (indicator) indicator.classList.add('done');
+        document.body.classList.add('data-ready');
+        document.body.classList.add('spring-entrance');
+        setTimeout(() => document.body.classList.remove('spring-entrance'), 1500);
+        // [v9.37.0] 打开 App：按需刷新双层画像 + 最多一条主动建议（内部自带节流与开关，失败静默不打扰）
+        try { if (window.AI_BRAIN && typeof AI_BRAIN.onAppOpen === 'function') AI_BRAIN.onAppOpen(); } catch (e) { /* 忽略 */ }
+        const spring = 'cubic-bezier(0.34, 1.56, 0.64, 1)';
+        const settle = (el, delay, dur) => {
+            if (el && el.animate) {
+                el.animate([
+                    { opacity: 0, transform: 'translateY(-18px) scale(1.05)' },
+                    { opacity: 1, transform: 'translateY(0) scale(1)' }
+                ], { duration: dur || 560, delay: delay, easing: spring, fill: 'backwards' });
+            }
+        };
+        settle(document.getElementById('cardStack'), 0, 620);
+        settle(document.querySelector('#earnTab .recent-tasks-header'), 100, 480);
+        settle(document.getElementById('recentEarnTasks'), 170, 480);
+        settle(document.querySelector('#earnTab .section-title-container'), 240, 480);
+        settle(document.getElementById('categoryEarnTasks'), 310, 520);
+        // [v9.37.2] 放行界面后再分批写回启动期被抑制的习惯连胜（避免与首屏/实时通道抢请求通道）
+        setTimeout(() => {
+            try { if (typeof __flushHabitCloudSync === 'function') __flushHabitCloudSync(); } catch (e2) { /* 忽略 */ }
+        }, 800);
+    } catch (e) {
+        console.warn('[v9.37.2] [__bootFinishLoadingPage] 放行异常（不影响数据）:', e?.message || e);
+    }
+}
+
 function updateAllUI() {
     // [v9.34.2-diag] 首屏分步耗时打点：定位冷启动渲染瓶颈（仅数据就绪后的首次调用测量，后续零开销）
     const __measure = !window.__updateAllUIProfiled && (typeof __dataLoaded === 'undefined' || __dataLoaded);
@@ -7754,30 +7821,11 @@ function updateAllUI() {
         window.__bootProfile.t14_uiUpdated = performance.now();
     } catch(e) {}
     // [v9.29.1] 首次数据渲染完成：解除全部隐藏 + 移除加载指示器 + 卡片从展开态收起到位
+    // [v9.37.2] 上述动作已整体移入 __bootFinishLoadingPage()，改由「实时就绪」(T15) 释放；
+    //   此处只负责推进进度文案 + 挂 4s 兜底（subscribeAll 异常时也不让加载页卡死）。
     if (!window.__earnEntrancePlayed) {
-        window.__earnEntrancePlayed = true;
-        if (window.__earnLoadingInterval) clearInterval(window.__earnLoadingInterval);
-        const indicator = document.getElementById('earnLoadingIndicator');
-        if (indicator) indicator.classList.add('done');
-        document.body.classList.add('data-ready');
-        document.body.classList.add('spring-entrance');
-        setTimeout(() => document.body.classList.remove('spring-entrance'), 1500);
-        // [v9.37.0] 打开 App：按需刷新双层画像 + 最多一条主动建议（内部自带节流与开关，失败静默不打扰）
-        try { if (window.AI_BRAIN && typeof AI_BRAIN.onAppOpen === 'function') AI_BRAIN.onAppOpen(); } catch (e) { /* 忽略 */ }
-        const spring = 'cubic-bezier(0.34, 1.56, 0.64, 1)';
-        const settle = (el, delay, dur) => {
-            if (el && el.animate) {
-                el.animate([
-                    { opacity: 0, transform: 'translateY(-18px) scale(1.05)' },
-                    { opacity: 1, transform: 'translateY(0) scale(1)' }
-                ], { duration: dur || 560, delay: delay, easing: spring, fill: 'backwards' });
-            }
-        };
-        settle(document.getElementById('cardStack'), 0, 620);
-        settle(document.querySelector('#earnTab .recent-tasks-header'), 100, 480);
-        settle(document.getElementById('recentEarnTasks'), 170, 480);
-        settle(document.querySelector('#earnTab .section-title-container'), 240, 480);
-        settle(document.getElementById('categoryEarnTasks'), 310, 520);
+        try { if (window.__bootStage) window.__bootStage('正在建立实时连接…'); } catch (e) { /* 忽略 */ }
+        setTimeout(() => { try { __bootFinishLoadingPage(); } catch (e) { /* 忽略 */ } }, 4000);
     }
 }
 
@@ -8004,9 +8052,9 @@ async function handlePostLoginDataInit(source = 'login', useIncremental = false)
     }
 
     // [v9.2.3] 始终全量加载（无论 hasProfile=true/false，loadAll 都会去云端拉取）
-    // [v9.34.2] 分阶段冷启动：交易仅先加载第 1 页供首屏渲染，剩余页后台续载
-    // （首屏依赖的余额/任务/运行中/每日统计均为小查询，不再被 5600+ 条交易的串行翻页阻塞）
-    await DAL.loadAll({ progressive: true });
+    // [v9.37.2] 取消渐进加载：交易并行分页一次拉全（约 1 轮网络往返），
+    // 加载页等到「全量数据 + 实时就绪」再放行交互，不再有"首屏可交互"中间态
+    await DAL.loadAll();
     // [v9.23.0] subscribeAll 后台化：先收尾再后台建 watch，避免阻塞首屏
     DAL.subscribeAll().catch(err => {
         console.warn('[v9.23.0] [handlePostLoginDataInit] 后台 subscribeAll 失败:', err?.message || err);

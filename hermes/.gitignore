@@ -1,7 +1,0 @@
-# Hermes 部署工程 git 忽略：绝不提交凭据/本地环境
-.env
-**/.env
-runtime.env
-**/runtime.env
-*.local
-node_modules/

@@ -9,7 +9,7 @@
       Do NOT update the version number in <title> or any other place.
       The user designates the version number at the START of an update cycle.
     -->
-    <title>时间银行 - Time Bank v9.37.1</title>
+    <title>时间银行 - Time Bank v9.37.2</title>
 
     <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' fill='%231a2744'/%3E%3Ctext x='16' y='22' text-anchor='middle' font-size='20' fill='white'%3E⏳%3C/text%3E%3C/svg%3E">
     <link rel="manifest" href="manifest.json">
@@ -276,23 +276,32 @@
         <div class="header">
             <h1>时间银行</h1>
         </div>
-        <div class="version-subtitle">TimeBank v9.37.1 · Time Bot 伙伴 · 气泡对话 · 背景图生图</div>
+        <div class="version-subtitle">TimeBank v9.37.2 · Time Bot 伙伴 · 气泡对话 · 背景图生图</div>
 
         <div class="main-container">
 
         <!-- [v9.29.1] 数据加载指示器：全量数据到达前显示（居中圆圈 + 计时），到达后 JS 标记 .done -->
+        <!-- [v9.37.2] 加载页现在一直守到「全量数据 + 实时就绪」(T15) 才收起，不再中途放行"首屏可交互" -->
         <div id="earnLoadingIndicator" class="earn-loading-indicator">
             <div class="earn-loading-quote" id="earnLoadingQuote"></div>
             <div class="earn-loading-spinner"></div>
             <div class="earn-loading-text">数据加载中 <span id="earnLoadingTimer">0.0</span>s</div>
+            <div class="earn-loading-stage" id="earnLoadingStage">正在启动…</div>
         </div>
         <script>
         // [v9.29.1] 加载计时 + 12s 安全兖底（防止数据加载失败时内容永久隐藏）
+        // [v9.37.2] 新增 window.__bootStage()：由各启动阶段回填真实进度文案（替代纯空转）
         (function() {
             var start = performance.now(), el = document.getElementById('earnLoadingTimer');
             window.__earnLoadingInterval = setInterval(function() {
                 if (el) el.textContent = ((performance.now() - start) / 1000).toFixed(1);
             }, 100);
+            window.__bootStage = function(label) {
+                try {
+                    var s = document.getElementById('earnLoadingStage');
+                    if (s && label) s.textContent = label;
+                } catch (e) { /* 忽略 */ }
+            };
             setTimeout(function() {
                 var ind = document.getElementById('earnLoadingIndicator');
                 if (ind && !ind.classList.contains('done')) { ind.classList.add('done'); }
@@ -1179,11 +1188,11 @@
                         <span>✅ 已同步</span>
                     </div>
                     <!-- [v9.36.5] 设备名称独立输入框（不再与连接状态同用） -->
+                    <!-- [v9.37.2] 单行显示：标题与输入框同一行；删除保存按钮，失焦（blur）或回车自动保存 -->
                     <div class="setting-group" style="margin-top: 8px; padding: 10px 12px; border: 1px solid var(--border-color); border-radius: 8px;">
-                        <div class="setting-name" style="font-weight: 600; margin-bottom: 6px;">📱 设备名称</div>
-                        <div style="display: flex; gap: 8px;">
-                            <input type="text" id="deviceNameInput" class="form-input" placeholder="输入设备名称" style="flex: 1; padding: 10px 12px; font-size: 14px;" maxlength="20" onkeydown="handleDeviceNameKeydown(event)">
-                            <button class="btn btn-primary" onclick="confirmDeviceName()" style="padding: 10px 16px;">保存</button>
+                        <div style="display: flex; align-items: center; gap: 10px;">
+                            <div class="setting-name" style="font-weight: 600; white-space: nowrap;">📱 设备名称</div>
+                            <input type="text" id="deviceNameInput" class="form-input" placeholder="输入设备名称" style="flex: 1; min-width: 0; padding: 10px 12px; font-size: 14px;" maxlength="20" onkeydown="handleDeviceNameKeydown(event)" onblur="handleDeviceNameBlur()">
                         </div>
                     </div>
                     
@@ -1797,7 +1806,7 @@
                     <div class="about-container" style="padding: 16px 0 8px; line-height: 1.5;">
                         <div class="about-header" style="text-align: center; margin-bottom: 20px; padding-top: 12px;">
                             <div style="font-size: 1.25rem; font-weight: 600; margin-bottom: 4px;">时间银行</div>
-                            <div style="font-size: 0.85rem; color: var(--text-color-light);">版本 v9.37.1</div>
+                            <div style="font-size: 0.85rem; color: var(--text-color-light);">版本 v9.37.2</div>
                         </div>
 
                         <div class="about-meta" style="font-size: 0.9rem; color: var(--text-color);">
@@ -1856,6 +1865,15 @@
                 <!-- 版本更新日志 -->
                 <details>
 <summary>版本更新日志</summary>
+                    <div class="version-history-item">
+                        <p><strong>版本 v9.37.2 (2026-09-22)</strong> 🚀 <b>打开 App 快 3 倍 · 界面不再"半好"</b></p>
+                        <ul>
+                            <li><strong>[Perf]</strong> 🚀 <b>启动从十几秒压到 4 秒左右</b>：实测揪出元凶——一段"等服务器确认"的固定等待（约 10.5 秒），在没有旧连接需要关闭时也照样空转；同时读取 6000+ 条历史记录改为一次并行取回（原来要排队往返 7 次）。</li>
+                            <li><strong>[UX]</strong> 🧭 <b>加载页不再"假装好了"</b>：以前界面能点的时候，数据其实只加载了一半、跨设备实时同步也还没连上（还要再等 7 秒），这期间的操作有出错风险。现在加载页会一直守到"数据全部到位 + 实时同步连上"才放行，并实时显示当前进度（正在验证登录 → 读取全部记录 → 渲染界面 → 建立实时连接）。</li>
+                            <li><strong>[Fix]</strong> 🗑️ <b>删除任务时历史记录清得更干净</b>：以前只删掉本机已加载的那部分，更早的历史会留在云端变成"孤儿记录"——统计和余额继续把它算进去，下次打开又以历史记录冒出来。现在按任务把云端记录一并清理，完成提示里的条数也是真实总数。</li>
+                            <li><strong>[Perf]</strong> 🫖 <b>习惯连胜不再逐个打扰云端</b>：本次修正了连胜的达标统计口径，首次启动会有一批习惯需要回写；已改为界面就绪后分批静默同步，不再拖慢启动。</li>
+                        </ul>
+                    </div>
                     <div class="version-history-item">
                         <p><strong>版本 v9.37.1 (2026-09-19)</strong> ⚙️ <b>AI 设置更清爽 · 生图报错说人话</b></p>
                         <ul>

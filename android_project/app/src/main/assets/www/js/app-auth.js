@@ -139,19 +139,34 @@ function updateDeviceIdDisplay() {
 }
 
 // [v7.2.4] 确认设备名称
+// [v9.37.2] 已删除保存按钮：失焦 / 回车自动提交；空值或未改动则回填原名
+let _deviceNameSaving = false;   // [v9.37.2] 防重入：回车提交后紧跟的 blur 不再重复提交
 async function confirmDeviceName() {
     const deviceNameInput = document.getElementById('deviceNameInput');
     const newName = deviceNameInput?.value.trim() || '';
     const oldName = localStorage.getItem('tb_device_name') || '';
-    
-    if (newName && newName !== oldName) {
+
+    if (!newName || newName === oldName) {
+        updateDeviceNameDisplay();   // 空值 / 未改动：直接回填，不发请求
+        return;
+    }
+    if (_deviceNameSaving) return;
+    _deviceNameSaving = true;
+    try {
         const success = await setDeviceName(newName);
         if (success) {
             showToast('✅ 设备名称已更新');
         }
+    } finally {
+        _deviceNameSaving = false;
     }
-    
+
     updateDeviceNameDisplay();
+}
+
+// [v9.37.2] 失焦自动保存（删除保存按钮后的提交时机，与回车等价）
+function handleDeviceNameBlur() {
+    confirmDeviceName();
 }
 
 // [v7.2.4] 回车确认设备名称，Escape取消
@@ -159,6 +174,8 @@ function handleDeviceNameKeydown(event) {
     if (event.key === 'Enter') {
         event.preventDefault();
         confirmDeviceName();
+        // [v9.37.2] 收起键盘并触发 blur 统一收口（此时已保存，blur 不会重复提交）
+        if (event.target && typeof event.target.blur === 'function') event.target.blur();
     } else if (event.key === 'Escape') {
         event.preventDefault();
         updateDeviceNameDisplay();
