@@ -1,6 +1,39 @@
 // [v9.11.0] 睡眠云端写入退避：防止网络异常时 saveProfile 堆积阻塞队列
-// 同一 key 5 秒内只允许一次云端写入，超出丢弃旧版本（latest-wins）
+// [v9.37.2] ★ 语义修正：窗口内的写入不再"直接丢弃"，改为「合并尾写」
+//   旧行为：5s 内第二次调用直接跳过/return → 若"开始睡眠"恰好落在窗口内，
+//     云端永远停在 isSleeping=false，平板端再也不会进入睡眠态
+//     （这是跨设备睡眠失效的第二条诱因，第一条是 _.set() 包装体，详见 app-1.js 文件头）
+//   新行为：窗口内记住"最新一次写入"，窗口结束时补发一次（latest-wins 且不丢状态）
 const __sleepCloudSaveDebounce = {};
+const __sleepCloudTailWrite = {};   // key -> { timer }
+
+// 统一的退避+尾写入口（返回 true=已立即执行 / false=已排入尾写）
+function __sleepCloudWrite(key, windowMs, writeFn) {
+    const now = Date.now();
+    const elapsed = now - (__sleepCloudSaveDebounce[key] || 0);
+    const pending = __sleepCloudTailWrite[key];
+    if (pending) { clearTimeout(pending.timer); __sleepCloudTailWrite[key] = null; }
+    if (elapsed >= windowMs) {
+        __sleepCloudSaveDebounce[key] = now;
+        writeFn();
+        return true;
+    }
+    const delay = windowMs - elapsed;
+    __sleepCloudTailWrite[key] = {
+        timer: setTimeout(() => {
+            __sleepCloudTailWrite[key] = null;
+            __sleepCloudSaveDebounce[key] = Date.now();
+            try { writeFn(); } catch (e) { console.warn('[Sleep] 尾写失败:', e?.message || e); }
+        }, delay)
+    };
+    console.log(`[Sleep] 云端写入合并：${key} 已排入尾写（${delay}ms 后发出，不丢弃）`);
+    return false;
+}
+
+// 写入失败时清除退避标记，使下一次调用可立即重试（保留 v9.11.0 的 latest-wins 重试语义）
+function __sleepCloudWriteFailed(key) {
+    delete __sleepCloudSaveDebounce[key];
+}
 
 // [v7.32.0] 保存睡眠设置 - 参考屏幕时间系统重构
 function saveSleepSettings() {
@@ -78,23 +111,17 @@ function saveSleepSettings() {
 
         // [v9.8.0] 双写：deviceSleepSettings.${currentDeviceId}（向后兼容老版本）+ sleepSettingsShared（v9.8.0 跨设备权威，与任务系统一致）
         const updateKey = `deviceSleepSettings.${currentDeviceId}`;
-        // [v9.11.0] 5s 退避 + latest-wins 保护：防止网络异常时 saveProfile 堆积阻塞队列
-        const __sleepCK = 'sleepSettings';
-        const __nowSS = Date.now();
-        if (__nowSS - (__sleepCloudSaveDebounce[__sleepCK] || 0) < 5000) {
-            console.log('[saveSleepSettings] 云端写入跳过：距上次写入不足 5s');
-        } else {
-            __sleepCloudSaveDebounce[__sleepCK] = __nowSS;
-            DAL.saveProfile({ [updateKey]: _.set(cloudSettings), sleepSettingsShared: _.set(cloudSettings) })
+        // [v9.11.0] 5s 退避 → [v9.37.2] 合并尾写（窗口内不丢写）
+        // [v9.37.2] 去掉 _.set()：云函数 saveProfile 已负责包一层，客户端再包会存成命令包装体
+        __sleepCloudWrite('sleepSettings', 5000, () => {
+            DAL.saveProfile({ [updateKey]: cloudSettings, sleepSettingsShared: cloudSettings })
                 .then(() => console.log('[saveSleepSettings] 云端双写成功'))
                 .catch(e => {
                     console.error('[saveSleepSettings] 云端同步失败:', e.message, e);
                     // 失败后清除退避标记，下次可立即重试（latest-wins 不依赖历史版本）
-                    if (__sleepCloudSaveDebounce[__sleepCK] === __nowSS) {
-                        delete __sleepCloudSaveDebounce[__sleepCK];
-                    }
+                    __sleepCloudWriteFailed('sleepSettings');
                 });
-        }
+        });
     } else {
         console.warn('[saveSleepSettings] 云端同步跳过 - 条件不满足');
     }
@@ -134,23 +161,18 @@ function saveSleepState() {
             clientId: clientId  // [v9.8.0] 防本机回环（clientId 在 app-1.js L49 定义，与任务系统 tb_running 一致）
         };
 
-        // [v9.11.0] 5s 退避 + latest-wins 保护
-        const __sleepCK2 = 'sleepState';
-        const __nowSS2 = Date.now();
-        if (__nowSS2 - (__sleepCloudSaveDebounce[__sleepCK2] || 0) < 5000) {
-            console.log('[saveSleepState] 云端写入跳过：距上次写入不足 5s');
-        } else {
-            __sleepCloudSaveDebounce[__sleepCK2] = __nowSS2;
-            DAL.saveProfile({ sleepStateShared: _.set(sharedState) })
+        // [v9.11.0] 5s 退避 → [v9.37.2] ★ 合并尾写：睡眠状态是"必须送达"的关键事件
+        // 旧行为若在此丢写，云端会长期停留在错误状态（平板端永远进不了睡眠态）
+        // [v9.37.2] 去掉 _.set()：云函数已包一层，客户端再包会存成命令包装体
+        __sleepCloudWrite('sleepState', 5000, () => {
+            DAL.saveProfile({ sleepStateShared: sharedState })
                 .then(() => console.log('[saveSleepState] 云端同步成功:', sharedState.isSleeping ? '睡眠中' : '未睡眠'))
                 .catch(e => {
                     console.error('[saveSleepState] 云端同步失败:', e.message);
                     // 失败后清除退避，下次可立即重试
-                    if (__sleepCloudSaveDebounce[__sleepCK2] === __nowSS2) {
-                        delete __sleepCloudSaveDebounce[__sleepCK2];
-                    }
+                    __sleepCloudWriteFailed('sleepState');
                 });
-        }
+        });
     } else {
         console.warn('[saveSleepState] 云端同步跳过 - 条件不满足');
     }
@@ -217,49 +239,49 @@ function clearSleepHistoryCache() {
 // [v7.11.3] 保存睡眠设置到云端共享字段
 function saveSleepSettingsShared(reason = 'save') {
     if (!isLoggedIn() || !DAL.profileId) return;
-    // [v9.11.0] 5s 退避
-    const __ck3 = 'sleepSettingsShared';
-    const __n3 = Date.now();
-    if (__n3 - (__sleepCloudSaveDebounce[__ck3] || 0) < 5000) return;
-    __sleepCloudSaveDebounce[__ck3] = __n3;
     const sharedSettings = { ...sleepSettings };
     if (!sharedSettings.lastUpdated) {
         sharedSettings.lastUpdated = new Date().toISOString();
         sleepSettings.lastUpdated = sharedSettings.lastUpdated;
     }
-    DAL.saveProfile({ sleepSettingsShared: _.set(sharedSettings) })
-        .then(() => console.log('[SleepSettingsShared] 云端同步成功, reason:', reason))
-        .catch(e => {
-            console.error('[SleepSettingsShared] 云端同步失败:', e.message);
-            if (__sleepCloudSaveDebounce[__ck3] === __n3) delete __sleepCloudSaveDebounce[__ck3];
-        });
+    // [v9.11.0] 5s 退避 → [v9.37.2] 合并尾写；去掉 _.set() 命令包装（详见 app-1.js 文件头）
+    __sleepCloudWrite('sleepSettingsShared', 5000, () => {
+        DAL.saveProfile({ sleepSettingsShared: sharedSettings })
+            .then(() => console.log('[SleepSettingsShared] 云端同步成功, reason:', reason))
+            .catch(e => {
+                console.error('[SleepSettingsShared] 云端同步失败:', e.message);
+                __sleepCloudWriteFailed('sleepSettingsShared');
+            });
+    });
 }
 
 // [v7.11.3] 保存睡眠状态到云端共享字段
 // [v7.16.0] 统一睡眠状态，不再区分午睡/夜间
 function saveSleepStateShared(reason = 'save') {
     if (!isLoggedIn() || !DAL.profileId) return;
-    // [v9.11.0] 5s 退避
-    const __ck4 = 'sleepStateShared';
-    const __n4 = Date.now();
-    if (__n4 - (__sleepCloudSaveDebounce[__ck4] || 0) < 5000) return;
-    __sleepCloudSaveDebounce[__ck4] = __n4;
     const sharedState = {
         isSleeping: sleepState.isSleeping,
         sleepStartTime: sleepState.sleepStartTime,
         lastUpdated: sleepState.lastUpdated || Date.now()
     };
-    DAL.saveProfile({ sleepStateShared: _.set(sharedState) })
-        .then(() => console.log('[SleepStateShared] 云端同步成功, reason:', reason))
-        .catch(e => {
-            console.error('[SleepStateShared] 云端同步失败:', e.message);
-            if (__sleepCloudSaveDebounce[__ck4] === __n4) delete __sleepCloudSaveDebounce[__ck4];
-        });
+    // [v9.11.0] 5s 退避 → [v9.37.2] 合并尾写（旧实现在窗口内直接 return，静默丢写）
+    // [v9.37.2] 去掉 _.set() 命令包装
+    __sleepCloudWrite('sleepStateShared', 5000, () => {
+        DAL.saveProfile({ sleepStateShared: sharedState })
+            .then(() => console.log('[SleepStateShared] 云端同步成功, reason:', reason))
+            .catch(e => {
+                console.error('[SleepStateShared] 云端同步失败:', e.message);
+                __sleepCloudWriteFailed('sleepStateShared');
+            });
+    });
 }
 
 // [v7.11.3] 从云端共享设置应用到本地
 // [v7.33.8] 修复：全新安装时（localUpdated=0），旧格式云端数据不应覆盖代码默认值
 function applySleepSettingsFromCloud(cloudSettings, source = 'cloud', force = false) {
+    if (!cloudSettings) return false;
+    // [v9.37.2] 防御性解包：历史脏数据（_.set() 命令包装体）在应用前先还原
+    cloudSettings = __unwrapProfileField(cloudSettings);
     if (!cloudSettings) return false;
     const cloudUpdated = Date.parse(cloudSettings.lastUpdated || '') || 0;
     const localUpdated = Date.parse(sleepSettings.lastUpdated || '') || 0;
@@ -288,6 +310,12 @@ function applySleepSettingsFromCloud(cloudSettings, source = 'cloud', force = fa
 // [v7.11.3] 从云端共享状态应用到本地
 // [v9.8.0] 新增：clientId 防本机回环 + 检测"被其他端结束"自动触发 doSleepSettlement
 function applySleepStateFromCloud(cloudState, source = 'cloud') {
+    if (!cloudState) return false;
+    // [v9.37.2] ★ 防御性解包：历史脏数据（_.set() 命令包装体）在应用前先还原。
+    // 未解包时 cloudState.lastUpdated === undefined → cloudUpdated = 0，
+    // 下方 `cloudUpdated > localUpdated` 恒为 false → 跨设备睡眠状态**静默失效**
+    // （用户反馈"手机开睡眠、平板无法结束"的直接根因）。
+    cloudState = __unwrapProfileField(cloudState);
     if (!cloudState) return false;
 
     // [v9.8.0] 防本机回环（参考 tb_running L4107-L4119，null-safe：旧数据无 clientId 字段时跳过判断）
@@ -432,7 +460,8 @@ function initSleepSettings() {
                     lastUpdated: latest.state.lastUpdated || Date.now(),
                     clientId: 'migrated-from-device-' + latest.deviceId
                 };
-                DAL.saveProfile({ sleepStateShared: _.set(migrated) })
+                // [v9.37.2] 去掉 _.set()：命令对象会被序列化成包装体写进云端
+                DAL.saveProfile({ sleepStateShared: migrated })
                     .catch(e => console.error('[initSleepSettings] 状态迁移失败:', e.message));
             }
         }
@@ -444,7 +473,8 @@ function initSleepSettings() {
                 console.log('[initSleepSettings] 升级迁移: deviceSleepSettings[' + latest.deviceId + '] → sleepSettingsShared');
                 const migratedSettings = { ...latest.settings };
                 if (!migratedSettings.lastUpdated) migratedSettings.lastUpdated = new Date().toISOString();
-                DAL.saveProfile({ sleepSettingsShared: _.set(migratedSettings) })
+                // [v9.37.2] 去掉 _.set()：命令对象会被序列化成包装体写进云端
+                DAL.saveProfile({ sleepSettingsShared: migratedSettings })
                     .catch(e => console.error('[initSleepSettings] 设置迁移失败:', e.message));
                 // 本地也应用
                 sleepSettings = { ...sleepSettings, ...migratedSettings };
@@ -494,7 +524,8 @@ function initSleepSettings() {
                 try {
                     const migratedSettings = { ...cloudSleep };
                     if (!migratedSettings.lastUpdated) migratedSettings.lastUpdated = new Date().toISOString();
-                    DAL.saveProfile({ sleepSettingsShared: _.set(migratedSettings) })
+                    // [v9.37.2] 去掉 _.set()：命令对象会被序列化成包装体写进云端
+                    DAL.saveProfile({ sleepSettingsShared: migratedSettings })
                         .then(() => console.log('[initSleepSettings] per-device → sleepSettingsShared 迁移完成（fix）'))
                         .catch(e => console.error('[initSleepSettings] per-device 迁移失败:', e.message));
                 } catch (e) {
@@ -2965,7 +2996,7 @@ function showWakeConfirmModal() {
             <p style="margin-bottom: 24px;">确认起床吗？</p>
             <div style="display: flex; gap: 12px;">
                 <button class="btn btn-secondary" onclick="closeWakeConfirmModal()" style="flex: 1;">继续睡眠</button>
-                <button class="btn btn-primary" onclick="closeWakeConfirmModal(); endSleep();" style="flex: 1;">确认起床</button>
+                <button class="btn btn-primary" onclick="closeWakeConfirmModal(); endUnifiedSleep();" style="flex: 1;">确认起床</button>
             </div>
         </div>
     `;
@@ -4195,7 +4226,9 @@ function onSleepUnlock() {
 // 触发起床（由 Android 原生调用，或用户手动）
 function onSleepWakeUp() {
     if (!sleepState.isSleeping) return;
-    endSleep();
+    // [v9.37.2] 修复：原调用 endSleep() 在全项目未定义 → ReferenceError，"确认起床"点了没反应。
+    // 统一走 endUnifiedSleep()（智能判定夜间/小睡 + 完整结算入账）
+    endUnifiedSleep();
 }
 
 // ========== [v5.2.0] 屏幕时间管理 ==========

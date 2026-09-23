@@ -149,6 +149,16 @@
             gap: 16px;
         }
         .earn-loading-indicator.done { display: none; }
+        /* [v9.37.2] 加载页阶段文案：由 __bootStage() 回填真实进度（连接→登录→读取→渲染→实时） */
+        .earn-loading-stage {
+            font-size: 0.74rem;
+            color: rgba(255,255,255,0.42);
+            letter-spacing: 0.02em;
+            min-height: 1em;
+        }
+        /* ==================== [v9.37.3] 加载圈：基础旋转环 ====================
+           只动 transform: rotate（合成层），启动期主线程有 ~0.6~1.2s 不可切分任务时也不会卡。
+           （曾尝试秒刻扫盘/进度条等更花的形式，最终按需求回到最基础的旋转环。） */
         .earn-loading-spinner {
             width: 34px;
             height: 34px;
@@ -157,18 +167,10 @@
             border-radius: 50%;
             animation: earnSpin 0.75s linear infinite;
         }
+        /* 只旋转 transform → 合成层：启动期主线程被占住也不会停 */
         @keyframes earnSpin { to { transform: rotate(360deg); } }
-        .earn-loading-text {
-            font-size: 0.82rem;
-            color: rgba(255,255,255,0.55);
-            font-variant-numeric: tabular-nums;
-        }
-        /* [v9.37.2] 加载页阶段文案：由 __bootStage() 回填真实进度（连接→登录→读取→渲染→实时） */
-        .earn-loading-stage {
-            font-size: 0.74rem;
-            color: rgba(255,255,255,0.42);
-            letter-spacing: 0.02em;
-            min-height: 1em;
+        @media (prefers-reduced-motion: reduce) {
+            .earn-loading-spinner { animation-duration: 1.6s; }
         }
         .earn-loading-quote {
             max-width: 340px;

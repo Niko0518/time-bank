@@ -170,7 +170,9 @@ function rememberDeletedTaskCategory(task) {
     };
 
     if (isLoggedIn()) {
-        DAL.saveProfile({ deletedTaskCategoryMap: _.set(deletedTaskCategoryMap) }).catch(err => {
+        // [v9.37.2] 去掉 _.set() 命令包装：否则云端存的是 {fieldName,operands,operator}，
+        // normalizeDeletedTaskCategoryMap() 读回来的 map 是空的 → 已删任务的分类映射丢失
+        DAL.saveProfile({ deletedTaskCategoryMap: deletedTaskCategoryMap }).catch(err => {
             console.error('[rememberDeletedTaskCategory] 云端同步失败:', err.message || err);
         });
     }

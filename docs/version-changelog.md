@@ -4,6 +4,38 @@
 >
 > 用户-facing 的精简版本请见 `index.html` 关于页。
 
+## v9.37.3 (2026-09-23) — 睡眠/Profile 跨设备同步根因修复（`_.set()` 命令体入库存成包装体）+ 手机启动提速 + 加载圈回归
+
+### 核心变更
+
+1. **⚠️ 数据完整性根因（用户反馈："手机开启睡眠，平板无法结束，因为平板根本没进入睡眠状态"）**：`DAL.saveProfile` 的调用点用 `_.set(x)` 包装取值。`_.set()` 是 SDK 命令对象，经 `callMutation` → `app.callFunction` 的 **JSON 序列化**后变成 `{fieldName:{}, operands:[x], operator:'set'}`；云函数 `saveProfile` 见是普通对象又包一层 → **命令体被当成"值"存进 `tb_profile`**（MCP 直读核实）。读取端 `applySleepStateFromCloud` 取 `cloudState.lastUpdated` = `undefined` → `cloudUpdated = 0`，门控 `0 > localUpdated` **恒为 false** → 静默 `return false`（无任何日志/提示），跨设备睡眠状态永久失效；`applySleepSettingsFromCloud` 同理（`enabled` 亦为 `undefined`）。同款坑 v9.0.8 修过（categoryColors/collapsedCategories），当时只在读取端打补丁、未清生产者。
+2. **P1 生产者（11 处）**：`app-sleep.js`(7) / `app-systems.js`(3) / `app-reports.js`(1) 去掉 `_.set()`，改传普通对象（云函数本就负责包一层）。
+3. **P2 读取端统一解包**：新增 `__unwrapProfileField()` / `__unwrapProfileData()`（浅层 + `device*` 映射第二层），在 `loadProfile`、Profile watch 两处入口统一解包；两个 `apply*Sleep*FromCloud()` 加防御性解包。实测首启精确命中 12 个脏字段。
+4. **P3 启动自愈回写（幂等）**：`__healProfileWrappers()` 由"加载时记录的脏字段路径"驱动 —— **不可用自愈时再检查 `profileData`（那时已被解包，检查恒为空，首版实现即踩此坑）**；延迟 4s、取已被 watch 刷新为解包后的最新值，故回写"仅改形态、不改内容"；`sleepStateShared` 的 `lastUpdated/clientId` 原样保留 → 他端新写入的 `lastUpdated` 更大，会拒绝旧值，不会误触发"被其他端结束睡眠"结算。重启后 0 条日志（幂等）。
+5. **`DAL.profileData` 同步修复**：Profile watch 原先只更新全局 `profileData`（`DAL.profileData` 停留启动快照），导致 `getAutoDetectProcessedDates()`、`app-auth` 设备名恢复、`collectAutoDetectRawRecords()` 跨设备聚合长期读旧值。现 watch 同时刷新 `DAL.profileData`。
+6. **P4 `endSleep()` 未定义**：全项目仅 2 处调用、0 处定义 → 起床确认弹窗"确认起床"与 `onSleepWakeUp()`（原生唤醒回调）必抛 `ReferenceError`，睡眠结束不了。统一改走 `endUnifiedSleep()`。
+7. **P5 睡眠云端写入不再丢写**：4 个写入点原为"5s 窗口内直接丢弃/`return`"，改为 `__sleepCloudWrite()` 合并尾写（latest-wins + 窗口结束补发；失败清退避标记，保留立即重试语义）。原行为下"开始睡眠"若落在窗口内，云端会长期停在 `isSleeping=false`。
+8. **手机启动提速（实测驱动）**：预热查询改「仅冷连接时执行」（手机实测 2776ms → 0，复用 `loadAll` 后已热的连接）；watch 错峰 50→20ms（−120ms）；索引与 `_ts` 预热合并单遍；`_ts` 预解析排序（6379 条省 31ms）；推荐缓存延后到"推荐模式才计算"；桌面小组件更新让到入场后（手机 74ms / 平板 5~7ms）；长任务让出主线程（0ms 定时器）。
+9. **加载页回归基础加载圈**：删除 `earnLoadingTimer` 秒表（主线程阻塞时数字卡住→结束后跳变，观感如死机），改为纯 `transform: rotate`（合成层持续转动）+ `prefers-reduced-motion` 降速；新增 `__bootStages` 阶段历史 + longtask 探针，按 `startTime` 回查当时生效文案（避免把阻塞归到错误阶段）。
+
+### 验证（真机 YLP-W00 平板 + 另一台手机，均 force-stop 冷启动）
+
+- 平板日志：`[initSleepSettings] 云端配置: exists(format=shared),enabled=true`（改前恒为 `enabled=undefined`）；**`[Sleep] 已应用云端状态: init-shared ts=1790144301915`**（改前门控恒 false，此日志不可能出现）。
+- 自愈链路：手机首启命中 12 脏字段 → `自愈回写完成`；平板（当时仍跑旧版）又用 `_.set()` 写脏 3 字段 → 新版再次自愈；最终重启 **包装体相关日志 0 条**，MCP 直读 `sleepStateShared` 已是普通对象且内容原样保留。
+- 三次 `push + pm install`，`lastUpdateTime` 14:36:24 → 14:37:30 → 14:39:40 递增；并直读 APK 内 `app-1.js` 校验含新代码（防构建缓存导致的假成功）。
+- `node --check` 6 个脚本通过；`read_lints` 0 诊断；`_.set(` 调用残留 0（29 处全为注释）；`endSleep(` 残留 0（仅注释）。
+- 未做：真·两机"手机开睡眠 → 平板显示睡眠中"端到端（同一时刻仅单机在线；且伪造 `isSleeping:true` 会产生虚假睡眠记录与结算），改以"门控被打开 + 状态确实被应用"的日志为证。
+
+### 文件
+
+- 前端：`js/app-1.js`、`js/app-sleep.js`、`js/app-systems.js`、`js/app-reports.js`、`index.html`、`css/main.css`
+
+### 已知遗留 / 后续可优化
+
+- 睡眠修复的代码注释沿用了写码当时的 `[v9.37.2]` 标签（未回改，避免误伤已提交的历史注释），实际随 v9.37.3 发布。
+- 建议两台设备都升到本版：旧版仍会继续写脏字段（虽会被新版启动自愈），且旧版读不到已修复的形态。
+- `deviceSleepState.*` 旧字段在该用户文档中已不存在（v9.8.0 迁移完成），回退分支保留但无数据。
+
 ## v9.37.2 (2026-09-22) — 冷启动重构：移除「首屏可交互」中间态 + 交易并行分页 + 删除级联云端兜底
 
 ### 核心变更

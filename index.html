@@ -9,7 +9,7 @@
       Do NOT update the version number in <title> or any other place.
       The user designates the version number at the START of an update cycle.
     -->
-    <title>时间银行 - Time Bank v9.37.2</title>
+    <title>时间银行 - Time Bank v9.37.3</title>
 
     <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' fill='%231a2744'/%3E%3Ctext x='16' y='22' text-anchor='middle' font-size='20' fill='white'%3E⏳%3C/text%3E%3C/svg%3E">
     <link rel="manifest" href="manifest.json">
@@ -276,7 +276,7 @@
         <div class="header">
             <h1>时间银行</h1>
         </div>
-        <div class="version-subtitle">TimeBank v9.37.2 · Time Bot 伙伴 · 气泡对话 · 背景图生图</div>
+        <div class="version-subtitle">TimeBank v9.37.3 · Time Bot 伙伴 · 气泡对话 · 背景图生图</div>
 
         <div class="main-container">
 
@@ -284,29 +284,56 @@
         <!-- [v9.37.2] 加载页现在一直守到「全量数据 + 实时就绪」(T15) 才收起，不再中途放行"首屏可交互" -->
         <div id="earnLoadingIndicator" class="earn-loading-indicator">
             <div class="earn-loading-quote" id="earnLoadingQuote"></div>
-            <div class="earn-loading-spinner"></div>
-            <div class="earn-loading-text">数据加载中 <span id="earnLoadingTimer">0.0</span>s</div>
+            <!-- [v9.37.3] 基础加载圈：只有 transform: rotate 在动（合成层），
+                 启动期主线程被占住时也不会卡；不依赖任何 JS 计时。 -->
+            <div class="earn-loading-spinner" role="status" aria-live="polite" aria-label="正在加载"></div>
             <div class="earn-loading-stage" id="earnLoadingStage">正在启动…</div>
         </div>
         <script>
-        // [v9.29.1] 加载计时 + 12s 安全兖底（防止数据加载失败时内容永久隐藏）
-        // [v9.37.2] 新增 window.__bootStage()：由各启动阶段回填真实进度文案（替代纯空转）
+        // [v9.29.1] 12s 安全兖底（防止数据加载失败时内容永久隐藏）
+        // [v9.37.2] 新增 window.__bootStage()：由各启动阶段回填真实进度文案
+        // [v9.37.3] 进度条由阶段推进（transform 过渡走合成层，不随主线程阻塞而冻结）
         (function() {
-            var start = performance.now(), el = document.getElementById('earnLoadingTimer');
-            window.__earnLoadingInterval = setInterval(function() {
-                if (el) el.textContent = ((performance.now() - start) / 1000).toFixed(1);
-            }, 100);
+            // [v9.37.3-DEBUG] 阶段历史：长任务只能在结束后才能被观测，
+            //   若读取"此刻"的文案会把阻塞归到错误阶段；故按 startTime 回查当时生效的文案
+            window.__bootStages = [{ t: performance.now(), label: '正在启动…' }];
             window.__bootStage = function(label) {
                 try {
                     var s = document.getElementById('earnLoadingStage');
                     if (s && label) s.textContent = label;
+                    if (label) window.__bootStages.push({ t: performance.now(), label: label });
                 } catch (e) { /* 忽略 */ }
             };
+            // [v9.37.3-DEBUG] 主线程长任务探针：定位"加载页计时冻结/跳变"的元凶
+            // 原理：CSS 旋转动画跑在合成线程上，主线程被同步长任务占住时它照转，
+            //       但 setInterval 驱动的秒数无法更新（表现为数字卡住 → 结束后一次性跳变）。
+            try {
+                if (window.PerformanceObserver) {
+                    window.__bootLongTasks = [];
+                    var __ltPo = new PerformanceObserver(function(list) {
+                        try {
+                            list.getEntries().forEach(function(e) {
+                                if (window.__bootProfile && window.__bootProfile.t15_subscribeDone) return;
+                                var d = Math.round(e.duration), st = Math.round(e.startTime);
+                                window.__bootLongTasks.push({ start: st, dur: d });
+                                // 按 startTime 回查阻塞发生时真正生效的阶段文案
+                                var lbl = '?', h = window.__bootStages || [];
+                                for (var i = 0; i < h.length; i++) { if (h[i].t <= st) { lbl = h[i].label; } else { break; } }
+                                if (d >= 50) {
+                                    console.log('[v9.37.3-DEBUG] 主线程阻塞 ' + d + 'ms @' + st + 'ms 阶段=' + lbl);
+                                }
+                            });
+                        } catch (e2) { /* 忽略 */ }
+                    });
+                    __ltPo.observe({ entryTypes: ['longtask'] });
+                    // 启动结束（__bootFinishLoadingPage）时断开，避免日常使用期刷日志
+                    window.__bootLongTaskPo = __ltPo;
+                }
+            } catch (e) { /* 忽略 */ }
             setTimeout(function() {
                 var ind = document.getElementById('earnLoadingIndicator');
                 if (ind && !ind.classList.contains('done')) { ind.classList.add('done'); }
                 document.body.classList.add('data-ready');
-                clearInterval(window.__earnLoadingInterval);
             }, 12000);
             // [v9.29.1] 开屏名言：100 句随机展示
             var quotes = [
@@ -1806,7 +1833,7 @@
                     <div class="about-container" style="padding: 16px 0 8px; line-height: 1.5;">
                         <div class="about-header" style="text-align: center; margin-bottom: 20px; padding-top: 12px;">
                             <div style="font-size: 1.25rem; font-weight: 600; margin-bottom: 4px;">时间银行</div>
-                            <div style="font-size: 0.85rem; color: var(--text-color-light);">版本 v9.37.2</div>
+                            <div style="font-size: 0.85rem; color: var(--text-color-light);">版本 v9.37.3</div>
                         </div>
 
                         <div class="about-meta" style="font-size: 0.9rem; color: var(--text-color);">
@@ -1865,6 +1892,17 @@
                 <!-- 版本更新日志 -->
                 <details>
 <summary>版本更新日志</summary>
+                    <div class="version-history-item">
+                        <p><strong>版本 v9.37.3 (2026-09-23)</strong> 😴 <b>手机开睡眠，平板也能结束 · 手机启动再提速</b></p>
+                        <ul>
+                            <li><strong>[Fix]</strong> 😴 <b>手机开始睡眠，平板上现在也能看到并结束</b>：这是一个存在已久的同步故障——睡眠状态确实上传了，但保存时的"打包方式"不对，另一台设备读出来只能得到一串无效内容，于是永远显示"未开始"，只能回到手机才能结束。现已修好，并且两端的睡眠状态与睡眠计划（入睡/起床时间、各项倍率、小睡时段与时长）都会即时互通。</li>
+                            <li><strong>[Fix]</strong> 🌅 <b>起床确认弹窗点"确认起床"没反应</b>：该按钮指向了一个早已不存在的旧函数，点击只会静默失败。现已改走统一的结束睡眠流程（自动判定夜间/小睡并正常结算入账）。</li>
+                            <li><strong>[Fix]</strong> 📱 <b>设备名称不再被重置</b>：设备名和跨设备的应用使用记录也受上面同一个"打包方式"问题影响，读回来是空值（表现为设备名偶尔变回默认、两台设备的使用记录合不到一起）。现已一并修复，并在启动时自动把云端已损坏的数据改回正确格式——你不需要做任何操作。</li>
+                            <li><strong>[Fix]</strong> ☁️ <b>同步不再"悄悄丢写"</b>：修复了短时间内连续保存时可能被直接丢弃的问题，改为稍后自动补发最新一次，避免出现"本机明明显示睡眠中、云端却还是未睡眠"的割裂。</li>
+                            <li><strong>[Perf]</strong> 🚀 <b>手机启动进一步提速</b>：按真机实测逐项揪出启动期的"白等"和无谓顺序——重复的预检请求（手机实测白等 2.7 秒）、桌面小组件更新抢在界面出现之前、推荐计算挤占首屏。已按影响大小前移或延后，平板同样受益。</li>
+                            <li><strong>[UX]</strong> 🌀 <b>加载页更诚实了</b>：原来那个实时增长的秒数在手机忙的时候会卡住不动、最后突然跳一大格，看着像死机。现改为一个纯旋转的加载圈——它不依赖页面计算，再忙也照常转，一眼就知道"还在加载，没卡"。</li>
+                        </ul>
+                    </div>
                     <div class="version-history-item">
                         <p><strong>版本 v9.37.2 (2026-09-22)</strong> 🚀 <b>打开 App 快 3 倍 · 界面不再"半好"</b></p>
                         <ul>

@@ -246,9 +246,13 @@ function saveScreenTimeSettings() {
         
         console.log('[saveScreenTimeSettings] 准备保存到云端:', cloudSettings);
         
-        // 使用 _.set 来更新嵌套字段
+        // [v9.37.2] 修复：不再用 _.set() 包装。
+        // 根因：客户端 _.set() 经 callMutation → callFunction 的 JSON 序列化后变成
+        //   {fieldName, operands, operator} 命令体，被云函数再包一层后**当成"值"存进云端**，
+        //   读取端 .enabled/.lastUpdated 等一律 undefined（详见 app-1.js 文件头说明）。
+        //   云函数 saveProfile 本就负责包一层，客户端直接传普通对象即可。
         const updateKey = `deviceScreenTimeSettings.${currentDeviceId}`;
-        DAL.saveProfile({ [updateKey]: _.set(cloudSettings) })
+        DAL.saveProfile({ [updateKey]: cloudSettings })
             .then(() => console.log('[saveScreenTimeSettings] 云端同步成功'))
             .catch(e => {
                 console.error('[saveScreenTimeSettings] 云端同步失败:', e.message, e);
@@ -276,8 +280,10 @@ function saveDeviceSpecificData() {
             lastUpdated: new Date().toISOString()
         };
         
+        // [v9.37.2] 去掉 _.set() 命令包装（原因同上）。未修时该字段存的是包装体，
+        // 导致 app-auth 设备名恢复、collectAutoDetectRawRecords 跨设备聚合全部取不到值。
         const updateKey = `deviceSpecificData.${currentDeviceId}`;
-        DAL.saveProfile({ [updateKey]: _.set(deviceData) }).catch(e => {
+        DAL.saveProfile({ [updateKey]: deviceData }).catch(e => {
             console.warn('[saveDeviceSpecificData] 云端同步失败:', e.message);
         });
     } catch (e) {
@@ -1581,7 +1587,9 @@ function saveFinanceSettings() {
     
     // 同步到云端
     if (isLoggedIn()) {
-        // [v8.2.10] 修复：直接传递普通对象，由 DAL.saveProfile 统一处理 _.set()
+        // [v8.2.10] 修复：直接传递普通对象
+        // [v9.37.2] 纠正历史注释：包装由**云函数** saveProfile 负责；客户端一律不得再用 _.set()
+        //   （客户端 _.set() 会被序列化成 {fieldName,operands,operator} 并当值存库，详见 app-1.js 文件头）
         const settingsToSave = {
             enabled: financeSettings.enabled,
             depositEnabled: financeSettings.depositEnabled,
@@ -3279,9 +3287,11 @@ function getAutoDetectProcessedDates() {
 function saveAutoDetectProcessedDates(processedDates) {
     localStorage.setItem('autoDetectProcessedDates', JSON.stringify(processedDates));
     if (isLoggedIn()) {
-        const _ = cloudbase.database().command;
+        // [v9.37.2] 去掉 _.set() 命令包装（原因同上）；此前该字段存的是包装体，
+        // getAutoDetectProcessedDates() 读回来是 {fieldName,operands,operator}，
+        // 去重键整体失效（有重复补录/漏补录风险）
         if (DAL?.profileData) DAL.profileData.autoDetectProcessedDates = processedDates;
-        DAL.saveProfile({ autoDetectProcessedDates: _.set(processedDates) })
+        DAL.saveProfile({ autoDetectProcessedDates: processedDates })
             .catch(e => console.warn('[AutoDetect] Failed to sync processedDates:', e.message));
     }
 }

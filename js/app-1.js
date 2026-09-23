@@ -1,4 +1,4 @@
-﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿// ⚠️ 版本更新规则 (必读)：
+﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿// ⚠️ 版本更新规则 (必读)：
 // 1. APP_VERSION 和版本日志的更新【必须】由用户明确下达命令后才能修改
 // 2. 用户会在更新开始前告知本次版本号
 // 3. 版本日志应在整个版本更新完成后才添加
@@ -12,7 +12,7 @@
 // [v9.3.1] 架构重构：悬浮窗定时器状态以原生 Service 为唯一事实来源。修复 30+ 分钟后"任务消失/计时被吞"根因
 // [v9.3.2] Bug 1 修复：stopTask/cancelTask 静默期追踪 + __onFloatingTimerAction 恢复逻辑改为"云端权威源"（修复 v9.3.1 的"任务复活"回归）
 // [v9.3.3 final] 原生层云端同步保活：CloudSyncScheduler（WorkManager 周期任务） + __onNativeCloudDelta + visibilitychange always-reconcile + JS 心跳失败上报
-const APP_VERSION = 'v9.37.2';
+const APP_VERSION = 'v9.37.3';
 
 // [v9.3.3 final] App 启动时间戳（用于"初始化中"状态窗口判定）
 // 注：声明为 const 而非 let，避免被覆盖
@@ -2613,6 +2613,23 @@ const ACTIVE_SYNC_FORCE_PULL_INTERVAL_MS = 5 * 60 * 1000; // 5 分钟兜底强�
 //      都有误算误写回风险（数据完整性优先）
 // 现策略：加载页一直等到「全量数据 + 实时就绪」再放行交互 —— 单一事实状态，无窗口、无门控。
 
+/**
+ * [v9.37.3] 让出主线程（0ms 定时器）
+ *
+ * ⚠️ 实测结论：**不要在启动期用它切分渲染相关的长任务**（保留仅供将来非渲染场景复用）。
+ * 背景：加载页的秒数由 setInterval 驱动，主线程被长同步任务占住时会"数字卡住 → 结束后跳变"，
+ *   直觉做法是在长任务之间 await 一次把它切碎。但本项目主题大量使用 CSS 变量
+ *   （`--glass-*` / `--cat-rgb` / accent 等）与 47+ 处 `backdrop-filter`，
+ *   每次让出都会触发一轮**全局样式重算/布局**，切块 = 多次布局。
+ * 实测（真机 6379 条交易，同一设备连续对比）：
+ *   - 未切块：长任务 330ms + 189ms，T14→首帧绘制 346ms，HTML→实时就绪 3795ms
+ *   - 切块后：长任务 214/451/593ms，T14→首帧绘制 892ms，HTML→实时就绪 4368ms（更差）
+ * 故启动期改为"减少工作量 + 让反馈不依赖主线程（合成层进度条）"，见 index.html 的加载页。
+ */
+function __yieldToUI() {
+    return new Promise(resolve => setTimeout(resolve, 0));
+}
+
 // [v9.34.2] 交易文档→tx 对象转换（从 loadAllTransactions 抽取，后台续载复用同一口径）
 // 字段规则与 v9.23.0 安全投影一致：data 缺失时顶层字段兜底
 function __normalizeTxDoc(doc) {
@@ -2869,7 +2886,10 @@ function stopActiveSync() {
  */
 function buildTransactionIndex() {
     transactionIndex.clear();
+    // [v9.37.3] 顺带在同一遍循环里预热 _ts：原先"索引一遍 + ensureAllTs 一遍"要扫两份 6300+ 条，
+    //   弱机上双倍成本；合并成单遍后总成本减半（_ts 仍是懒计算的安全派生字段）
     for (const tx of transactions) {
+        if (!tx._ts) tx._ts = new Date(tx.timestamp).getTime();
         if (!tx.taskId) continue;
         if (!transactionIndex.has(tx.taskId)) {
             transactionIndex.set(tx.taskId, []);
@@ -3020,6 +3040,107 @@ function auditTaskFields(taskList) {
     return { totalMissing: details.length, details: details };
 }
 
+// ========== [v9.37.2] Profile「_.set() 命令包装体」解包与自愈 ==========
+// 背景（生产事故级，用户反馈："手机开启睡眠，平板无法结束，因为平板根本没进入睡眠状态"）：
+//   客户端曾用 `_.set(x)` 包装 DAL.saveProfile 的取值。`_.set()` 返回的是 SDK 命令对象，
+//   经 callMutation → app.callFunction 的 JSON 序列化后变成
+//   {fieldName:{}, operands:[x], operator:'set'}，云函数 saveProfile 见是普通对象再包一层，
+//   最终**把命令包装体当成"值"存进了云端**（已用 MCP 直读 tb_profile 核实）。
+//   读取端拿到包装体后 .lastUpdated / .enabled / .deviceName 等一律 undefined：
+//   - applySleepStateFromCloud: cloudUpdated = undefined||0 = 0，门控 `0 > localUpdated` 恒 false
+//     → 静默 return false，跨设备睡眠状态**永久不同步**（无任何日志/提示）
+//   - applySleepSettingsFromCloud: 同上 → 跨设备睡眠配置不同步
+//   - collectAutoDetectRawRecords / app-auth 设备名恢复: deviceSpecificData[dev].xxx 取不到
+// 同款坑 v9.0.8 修过（categoryColors/collapsedCategories），当时只在读取端打了补丁、
+//   未清理生产者，故本次补齐三管齐下：
+//   ① 生产者：所有调用点去掉 `_.set()`，直接传普通对象（云函数本就负责包一层）
+//   ② 读取端：统一解包（本函数），历史脏数据立刻可用
+//   ③ 自愈：启动后一次性把云端包装体展开重写（__healProfileWrappers），新老数据彻底收敛
+function __unwrapProfileField(v) {
+    if (!v || typeof v !== 'object' || Array.isArray(v)) return v;
+    // 命令包装体特征：{ operator:'set', operands:[真实值], fieldName:{} }
+    if (v.operator === 'set' && Array.isArray(v.operands) && v.operands.length > 0) {
+        return v.operands[0];
+    }
+    return v;
+}
+
+// 是否为「设备ID → 对象」映射字段（需解包第二层）
+function __isDeviceKeyedField(key) {
+    return key === 'deviceSpecificData'
+        || key === 'deviceScreenTimeSettings'
+        || key === 'deviceSleepSettings'
+        || key === 'deviceSleepState'
+        || /^device[A-Z]/.test(key);
+}
+
+// 解包整份 profile 文档（浅层 + 设备映射第二层）
+// 返回 { data, healed }；healed = 实际修复的字段路径（供自愈回写与日志）
+function __unwrapProfileData(doc) {
+    if (!doc || typeof doc !== 'object') return { data: doc, healed: [] };
+    const out = { ...doc };
+    const healed = [];
+    for (const key of Object.keys(out)) {
+        const before = out[key];
+        const after = __unwrapProfileField(before);
+        if (after !== before) { out[key] = after; healed.push(key); }
+        if (__isDeviceKeyedField(key) && after && typeof after === 'object' && !Array.isArray(after)) {
+            let touched = false;
+            const map = { ...after };
+            for (const dk of Object.keys(map)) {
+                const b2 = map[dk];
+                const a2 = __unwrapProfileField(b2);
+                if (a2 !== b2) { map[dk] = a2; touched = true; healed.push(key + '.' + dk); }
+            }
+            if (touched) out[key] = map;
+        }
+    }
+    return { data: out, healed };
+}
+
+// [v9.37.2] 一次性自愈回写（幂等）：把云端仍是命令包装体的字段展开重写
+// 幂等：只有本次确实发现包装体才写；写完后云端即正确形态，下次 healed=[] 直接跳过。
+// 安全：写入内容 = 刚读到的云端权威数据（仅改形态、不改内容）；
+//   排程在启动完成数秒后，避免与首屏写入抢队列；期间 profile watch 会持续刷新 DAL.profileData，
+//   故自愈取的是"此刻最新的"profileData 而非启动快照。
+let __profileHealDone = false;
+// 启动加载（loadProfile）时发现"云端仍是包装体"的字段路径集合，作为自愈回写的依据。
+// ⚠️ 必须由"加载时"记录，不能靠自愈时再检查 profileData——那时它已被解包，检查结果恒为空。
+const __profileHealedPaths = new Set();
+async function __healProfileWrappers(reason = 'boot') {
+    if (__profileHealDone) return;
+    try {
+        if (typeof isLoggedIn === 'function' && !isLoggedIn()) return;
+        const paths = Array.from(__profileHealedPaths);
+        if (!paths.length) { __profileHealDone = true; return; }
+        // 取当前 profileData（已被 profile watch 持续刷新为「解包后的最新值」），
+        // 故回写内容 = 云端最新权威数据，仅改形态不改内容；
+        // sleepStateShared 的 lastUpdated/clientId 原样保留 → 若期间他端写入更新状态，
+        // 其 lastUpdated 更大，会拒绝这里的旧值，不会误触发"被其他端结束睡眠"结算。
+        const cur = (typeof DAL !== 'undefined' && DAL) ? DAL.profileData : null;
+        if (!cur) return;
+        const patch = {};
+        const done = [];
+        paths.forEach(path => {
+            const parts = path.split('.');
+            let val;
+            if (parts.length === 1) val = cur[parts[0]];
+            else if (cur[parts[0]] && typeof cur[parts[0]] === 'object') val = cur[parts[0]][parts[1]];
+            if (val === undefined) return;      // 字段已不存在 → 跳过（不写 undefined）
+            patch[path] = __unwrapProfileField(val);
+            done.push(path);
+        });
+        if (!done.length) { __profileHealDone = true; return; }
+        console.log(`[v9.37.2] Profile 自愈回写（${reason}）: ${done.join(', ')}`);
+        await DAL.saveProfile(patch);
+        __profileHealedPaths.clear();
+        __profileHealDone = true;
+        console.log('[v9.37.2] Profile 自愈回写完成');
+    } catch (e) {
+        console.warn('[v9.37.2] Profile 自愈回写失败（不影响功能，读取端已解包）:', e?.message || e);
+    }
+}
+
 const DAL = {
     // ========== 初始化 ==========
     async init() {
@@ -3027,7 +3148,7 @@ const DAL = {
         try {
             window.__bootProfile = window.__bootProfile || {};
             window.__bootProfile.t5_dalInit = performance.now();
-            if (window.__bootStage) window.__bootStage('正在读取全部记录…');
+            if (window.__bootStage) window.__bootStage('正在读取全部记录…', 0.45);
         } catch(e) {}
         console.log('[DAL.init] Starting...');
 
@@ -3648,7 +3769,15 @@ const DAL = {
             if (res.data && res.data.length > 0) {
                 const doc = res.data[0];
                 this.profileId = doc._id || doc.id;
-                this.profileData = doc;
+                // [v9.37.2] 统一解包：历史脏数据（_.set() 命令包装体）在读取端立即还原，
+                // 使跨设备睡眠状态/配置、设备名、自动检测原始记录等立即可用（详见文件头说明）
+                const __unwrapped = __unwrapProfileData(doc);
+                this.profileData = __unwrapped.data;
+                if (__unwrapped.healed.length) {
+                    // 记录脏字段路径供启动后自愈回写（见 __healProfileWrappers）
+                    __unwrapped.healed.forEach(p => __profileHealedPaths.add(p));
+                    console.warn('[v9.37.2] [DAL.loadProfile] 检测到 _.set() 包装体，已解包:', __unwrapped.healed.join(', '));
+                }
                 console.log('[DAL.loadProfile] Found profile, ID:', this.profileId);
                 return this.profileData;
             }
@@ -3674,10 +3803,22 @@ const DAL = {
         // [v9.0.2] 保存 profile 快照用于回滚
         const profileSnapshot = this.profileData ? JSON.parse(JSON.stringify(this.profileData)) : null;
 
+        // [v9.37.2] ★ 写入口防呆：拒绝并自动解包 `_.set()` 命令对象
+        // 根因见文件头说明：`_.set(x)` 经 callFunction JSON 序列化后是 {fieldName,operands,operator}，
+        // 云函数再包一层就会把命令体当值存库。此处统一解包，任何调用方误传都不会再污染云端。
+        const safeData = {};
+        for (const [__k, __v] of Object.entries(data)) {
+            const __un = __unwrapProfileField(__v);
+            if (__un !== __v) {
+                console.warn(`[v9.37.2] [DAL.saveProfile] 字段 ${__k} 传入的是 _.set() 包装体，已自动解包（请改调用方为普通对象）`);
+            }
+            safeData[__k] = __un;
+        }
+
         callMutation('saveProfile', {
             _openid: currentUid,
             profileId: this.profileId,
-            data: data
+            data: safeData
         }, {
             onRollback: () => {
                 // 回滚：恢复 profile 到修改前
@@ -3689,7 +3830,8 @@ const DAL = {
             }
         });
 
-        for (const [key, value] of Object.entries(data)) {
+        for (const [key, value] of Object.entries(safeData)) {
+            // [v9.37.2] safeData 已做 _.set() 解包；此处保留 $set 兼容（历史调用方写法）
             const actualValue = value && typeof value === 'object' && '$set' in value ? value.$set : value;
             if (key.includes('.')) {
                 const parts = key.split('.');
@@ -4156,6 +4298,8 @@ const DAL = {
         
         this.transactionCache.clear();
         const txMap = new Map();
+        // [v9.37.3-DEBUG] 后处理细分打点（定位主线程长任务构成）
+        const __pp0 = performance.now();
         
         // 去重逻辑
         allDocs.forEach(doc => {
@@ -4168,14 +4312,20 @@ const DAL = {
                 txMap.set(tx.id, { tx, docId: doc._id });
             }
         });
+        const __pp1 = performance.now();
         
         const transactions = [];
         txMap.forEach(({ tx, docId }) => {
             this.transactionCache.set(tx.id, docId);
             transactions.push(tx);
         });
+        const __pp2 = performance.now();
         
-        transactions.sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp));
+        // [v9.37.3] 用预解析的 _ts 排序：原实现每次比较构造 2 个 Date，6379 条实测耗 31ms
+        if (typeof ensureAllTs === 'function') ensureAllTs(transactions);
+        transactions.sort((a, b) => (b._ts || 0) - (a._ts || 0));
+        const __pp3 = performance.now();
+        console.log(`[v9.37.3-DEBUG] 交易后处理: normalize=${(__pp1 - __pp0).toFixed(0)}ms, 建数组+缓存=${(__pp2 - __pp1).toFixed(0)}ms, 排序=${(__pp3 - __pp2).toFixed(0)}ms (n=${transactions.length})`);
         return transactions;
         } catch (queryError) {
             // [v7.9.0] 数据库查询失败时，尝试从本地缓存恢复
@@ -4767,11 +4917,19 @@ const DAL = {
         // 根因：日志显示 5 个 watch 几乎同时（<100ms）建立并同时失败（wsclient.send timedout）
         // 解决方案：在 watch 之前先发一次查询，强制 SDK 准备 WebSocket
         try {
-            console.log('[DAL.subscribeAll] 预热 WebSocket...');
-            await db.collection('tb_profile').limit(1).get();
-            // [v9.23.0] 预热等待 200 → 50ms：经验证 SDK WebSocket 握手 50ms 已足够
-            await new Promise(r => setTimeout(r, 50));
-            console.log('[DAL.subscribeAll] 预热完成，开始建 watch');
+            // [v9.37.3] ★ 预热查询改为「仅冷连接时执行」
+            // 实测：手机上这次 tb_profile 探测查询竟耗时 **2776ms**（平板 200~560ms），
+            //   而它的唯一目的是"强制 SDK 完成 WebSocket 握手，避免 5 个 watch 抢未就绪连接"（v9.0.11 的修复）。
+            //   但启动路径上 loadAll 刚刚成功跑完 8 次查询（7 页交易 + 4 张小表），连接必然已热，
+            //   此时再探测纯属白等 → 跳过（非启动路径/久未加载时仍保留预热，失败重连兜底不变）。
+            const __connWarm = window.__loadAllJustFinishedAt && (Date.now() - window.__loadAllJustFinishedAt < 10000);
+            if (__connWarm) {
+                console.log('[DAL.subscribeAll] 连接已热（刚完成全量加载），跳过预热查询，直接建 watch');
+            } else {
+                console.log('[DAL.subscribeAll] 预热 WebSocket...');
+                await db.collection('tb_profile').limit(1).get();
+                console.log('[DAL.subscribeAll] 预热完成，开始建 watch');
+            }
         } catch (warmupErr) {
             // [v9.12.4] 预热查询失败说明 SDK/登录态不可用，必须让调用方知道失败
             console.error('[DAL.subscribeAll] 预热查询失败，无法建立 Watch:', warmupErr?.message);
@@ -4780,7 +4938,7 @@ const DAL = {
 
         // [v9.23.0] 错峰建 watch：5 个 watch 间加 50ms 间隔（200 → 50）
         // 9.22.0 测试：5 个 watch 间 50ms 间隔已足够错峰，更短可加快整体建立速度
-        const __watchStaggerMs = 50;
+        const __watchStaggerMs = 20;   // [v9.37.3] 50 → 20ms：仍足以错峰，5 个 watch 省约 120ms
         // [v6.6.0] 防止重复订阅：先取消现有订阅
         await this.unsubscribeAll();
         
@@ -5138,8 +5296,19 @@ const DAL = {
                         console.log('📡 [DAL] Profile 变更');
                         for (const change of snapshot.docChanges) {
                             if (change.dataType === 'update') {
-                                const doc = change.doc;
+                                // [v9.37.2] 统一解包 + 同步 DAL.profileData（修复两处问题）：
+                                //   1) 云端历史脏数据（_.set() 包装体）在 watch 路径同样要解包，
+                                //      否则跨设备睡眠状态/配置判空依旧（用户反馈的直接原因）
+                                //   2) 原实现只更新全局 profileData，DAL.profileData 停留在启动快照，
+                                //      导致 getAutoDetectProcessedDates / 设备名恢复 / 跨设备原始记录
+                                //      聚合读到的永远是旧值
+                                const __unwrappedDoc = __unwrapProfileData(change.doc);
+                                const doc = __unwrappedDoc.data;
                                 profileData = doc;
+                                DAL.profileData = doc;
+                                if (__unwrappedDoc.healed.length) {
+                                    console.warn('[v9.37.2] [DAL] Profile 回推含包装体字段，已解包:', __unwrappedDoc.healed.join(', '));
+                                }
                                 // [v7.1.7] 通知设置已改为本地存储，不再从云端同步
                                 setCategoryColors(doc.categoryColors || []);
                                 setCollapsedCategories(doc.collapsedCategories || []);
@@ -5990,6 +6159,13 @@ const DAL = {
                 }
             }
         } catch (e2) {}
+
+        // [v9.37.2] Profile 脏数据自愈：延迟 4s 执行
+        // （等首屏渲染 + watch 建立完成，避免与首屏写入抢云函数队列；
+        //   幂等：无包装体字段时不产生任何云端写入）
+        try {
+            setTimeout(() => { __healProfileWrappers('loadAll-tail'); }, 4000);
+        } catch (e3) {}
 
         // [v9.2.3] 数据加载完成 → 标记 __dataLoaded=true，subscribeAll 才能显示"已同步 ✅"
         // 关键修复：把"已同步"状态与"实际数据已加载"绑定，避免用户看到"已同步"但列表为空
@@ -7757,7 +7933,10 @@ function __bootFinishLoadingPage() {
     window.__earnEntrancePlayed = true;
     try {
         if (window.__bootStage) window.__bootStage('准备就绪');
-        if (window.__earnLoadingInterval) clearInterval(window.__earnLoadingInterval);
+        // [v9.37.3-DEBUG] 启动结束：断开长任务探针（启动期诊断用，日常不再监听）
+        try {
+            if (window.__bootLongTaskPo) { window.__bootLongTaskPo.disconnect(); window.__bootLongTaskPo = null; }
+        } catch (e) { /* 忽略 */ }
         const indicator = document.getElementById('earnLoadingIndicator');
         if (indicator) indicator.classList.add('done');
         document.body.classList.add('data-ready');
@@ -7804,7 +7983,14 @@ function updateAllUI() {
     updateRecentTasks(); __mark('updateRecentTasks');
     updateCategoryTasks(); __mark('updateCategoryTasks');
     updateBalance(); __mark('updateBalance');
-    updateWidgets(); __mark('updateWidgets'); // [v5.10.0] 同步更新桌面小组件
+    // [v9.37.3] 首屏这次把"桌面小组件更新"让到入场之后：它走 Android bridge，实测手机 74ms / 平板 5~7ms，
+    //   且对首屏可见内容毫无贡献；后续调用照旧同步执行
+    if (__measure) {
+        setTimeout(() => { try { updateWidgets(); } catch (e) { /* 忽略 */ } }, 1200);
+    } else {
+        updateWidgets();
+    }
+    __mark('updateWidgets'); // [v5.10.0] 同步更新桌面小组件
     updateBalanceModeUI(); __mark('updateBalanceModeUI'); // [v7.3.0] 更新均衡模式UI
     updateTurboModeUI(); __mark('updateTurboModeUI'); // [v9.34.0] 更新Turbo模式UI
     updateWatchStatusUI(); __mark('updateWatchStatusUI'); // [v7.30.8] 更新监听状态显示
@@ -7819,12 +8005,25 @@ function updateAllUI() {
     try {
         window.__bootProfile = window.__bootProfile || {};
         window.__bootProfile.t14_uiUpdated = performance.now();
-    } catch(e) {}
+        } catch(e) {}
+        // [v9.37.3-DEBUG] T14 → 首帧布局/绘制完成：把"JS 逻辑耗时"与"样式/布局/绘制耗时"分开
+        // 仅在启动期（加载页未收起）测量，避免日常每次 updateAllUI 都刷日志
+        if (!window.__earnEntrancePlayed) {
+            try {
+                const __t14 = performance.now();
+                requestAnimationFrame(() => setTimeout(() => {
+                    try {
+                        window.__bootProfile.t14_paintDone = performance.now();
+                        console.log(`[v9.37.3-DEBUG] T14→首帧布局/绘制完成: ${(performance.now() - __t14).toFixed(0)}ms`);
+                    } catch (e2) { /* 忽略 */ }
+                }, 0));
+            } catch (e) { /* 忽略 */ }
+        }
     // [v9.29.1] 首次数据渲染完成：解除全部隐藏 + 移除加载指示器 + 卡片从展开态收起到位
     // [v9.37.2] 上述动作已整体移入 __bootFinishLoadingPage()，改由「实时就绪」(T15) 释放；
     //   此处只负责推进进度文案 + 挂 4s 兜底（subscribeAll 异常时也不让加载页卡死）。
     if (!window.__earnEntrancePlayed) {
-        try { if (window.__bootStage) window.__bootStage('正在建立实时连接…'); } catch (e) { /* 忽略 */ }
+        // [v9.37.3] 阶段文案已提前到 subscribeAll 启动处设置，这里只保留兜底定时器
         setTimeout(() => { try { __bootFinishLoadingPage(); } catch (e) { /* 忽略 */ } }, 4000);
     }
 }
@@ -8059,6 +8258,9 @@ async function handlePostLoginDataInit(source = 'login', useIncremental = false)
     DAL.subscribeAll().catch(err => {
         console.warn('[v9.23.0] [handlePostLoginDataInit] 后台 subscribeAll 失败:', err?.message || err);
     });
+    // [v9.37.3] 阶段文案提前到"实时连接"：原实现该文案在首屏渲染（updateAllUI）内部才设置，
+    //   于是"文案刚变"与"紧接着的布局阻塞"同时发生，观感上像是切换阶段导致的跳变
+    try { if (window.__bootStage) window.__bootStage('正在建立实时连接…'); } catch (e) { /* 忽略 */ }
     // 收尾
     // [v9.34.2-diag] cleanupDemoDataOnLogin 位于 loadAll 与首屏渲染之间，测量其耗时
     const __cleanupStart = performance.now();
@@ -10027,8 +10229,14 @@ function updateRecentTasks() {
         PINNED_MINI_CARDS.recent.forEach(id => { if (!taskIds.has(id)) _unpinMiniCard(id, false, 'recent'); });
     }
     // [v9.15.0] 保持推荐缓存与最新数据同步（不实际渲染推荐任务，只更新缓存）
+    // [v9.37.3] 首屏这次改为延后计算：推荐缓存只在"推荐模式"下才被渲染，而切页（switchTab）与
+    //   数据变更（addTransaction）都会重算它，所以首屏没必要等；实测这是手机上 updateRecentTasks 的大头
     if (typeof recomputeRecommendations === 'function') {
-        recomputeRecommendations();
+        if (window.__earnEntrancePlayed) {
+            recomputeRecommendations();
+        } else {
+            setTimeout(() => { try { recomputeRecommendations(); } catch (e) { /* 忽略 */ } }, 1200);
+        }
     }
     const earnTasks = tasks.filter(t => ['reward', 'continuous', 'continuous_target'].includes(t.type));
     const spendTasks = tasks.filter(t => ['instant_redeem', 'continuous_redeem'].includes(t.type));
