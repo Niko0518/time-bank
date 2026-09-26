@@ -456,7 +456,8 @@ function showPieTooltip(meta, slice, clientX, clientY, isMoving = false) {
         }
         if (taskTransactions.length > 0) {
             const recordRows = taskTransactions.map(t => {
-                const dateStr = new Date(t.timestamp).toLocaleDateString('zh-CN', { month: 'numeric', day: 'numeric' });
+                // [v9.38.0] 展示用真实发生时刻（排序仍用 timestamp，见上方 sort）
+                const dateStr = new Date(getDisplayTime(t)).toLocaleDateString('zh-CN', { month: 'numeric', day: 'numeric' });
                 return `<div class="trend-tooltip-row" style="padding-left: 8px; opacity: 0.85;"><span style="font-size: 0.75rem;">· ${dateStr}</span><span style="font-size: 0.75rem;">${formatTime(Math.abs(t.amount))}</span></div>`;
             }).join('');
             detailHtml = `<div style="border-top: 1px solid rgba(255,255,255,0.15); padding-top: 2px;"><div class="trend-tooltip-row" style="opacity: 0.7; font-size: 0.7rem;"><span>最近记录</span><span></span></div>${recordRows}</div>`;
@@ -1015,8 +1016,9 @@ function showSystemTaskHistory(taskName, typeKey = 'earn', fromPie = false) {
                 title = transaction.note || transaction.description || taskName;
             }
             
-            const dateTimeStr = formatDateTime(transaction.timestamp);
-            
+            // [v9.38.0] 展示用真实发生时刻；时刻未知则显示 —:—
+            const dateTimeStr = formatRecordTime(transaction);
+
             return `<div class="history-item" id="history-item-${transaction.id}">
                         <div class="history-info" title="${escapeHtml(transaction.description || '')}">
                             <div class="history-description">
@@ -1253,8 +1255,9 @@ function filterSystemHistoryByDate(dateStr) {
             else {
                 title = transaction.note || transaction.description || currentSystemTaskName;
             }
-            
-            const timeStr = new Date(transaction.timestamp).toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' });
+
+            // [v9.38.0] 展示用真实发生时刻；时刻未知则显示 —:—
+            const timeStr = formatRecordTimeHM(transaction);
             
             return `<div class="history-item">
                         <div class="history-info">
@@ -4796,6 +4799,19 @@ async function checkAbstinencePlanExpiry() {
 
 function clearFormErrors() { document.querySelectorAll('.form-input.error, .form-select.error').forEach(el => el.classList.remove('error')); document.querySelectorAll('.error-message.show').forEach(el => el.classList.remove('show')); }
 
+// [v9.38.0] 修复历史遗留缺陷：showFieldError 的实现曾在早期重构中被删除，但 13 处调用仍在，
+// 导致任何表单校验失败时抛 ReferenceError → 提示不显示、弹窗卡住（静默失败）。
+// 与 clearFormErrors 配对：输入框加 .error，<id>Error 提示元素加 .show（.error-message 默认隐藏，.show 才显示）。
+function showFieldError(id, message) {
+    const input = document.getElementById(id);
+    if (input) input.classList.add('error');
+    const msgEl = document.getElementById(id + 'Error');
+    if (msgEl) {
+        msgEl.textContent = message || '';
+        msgEl.classList.add('show');
+    }
+}
+
 // --- Task Actions ---
 async function completeTask(taskId, fromVoice = false) {
     lastLocalActionTime = Date.now();
@@ -6191,7 +6207,7 @@ async function stopTask(taskId, fromVoice = false) {
             }
             const penaltyDesc = isNegativeBalance ? ' (负余额预警)' : '';
 
-            currentBalance -= finalCost;
+            // [v9.38.0-fix] 修复余额重复计账：扣费由下方 addTransaction(type:'spend') 统一处理，此处不再重复扣减
             task.completionCount = (task.completionCount || 0) + 1;
             task.lastUsed = Date.now();
             addTransaction({
@@ -6340,6 +6356,10 @@ async function redeemTask(taskId) {
             description: description,
             negativeBalanceWarning: isNegativeBalance,
             negativeBalancePenaltyApplied: false,
+            // [导出格式 v2] 原始量 = 任务配置的基础消耗（不含额度定价与倍率）；
+            // amount 为计价结果，倍率/额度信息见 description 与 balanceAdjust
+            quantitySeconds: baseCost,
+            durationSource: 'user',
             clientId: clientId // [v7.37.5] 添加设备标识
         });
 
@@ -6440,8 +6460,9 @@ function showTaskHistory(taskId) {
             if (iconPrefix) iconPrefix += ' ';
             title = iconPrefix + title;
 
-            const dateTimeStr = formatDateTime(transaction.timestamp);
-            
+            // [v9.38.0] 展示用真实发生时刻；时刻未知则显示 —:—
+            const dateTimeStr = formatRecordTime(transaction);
+
             return `<div class="history-item" id="history-item-${transaction.id}">
                         <div class="history-info" title="${transaction.description}">
                             <div class="history-description">
@@ -6642,9 +6663,10 @@ function filterHistoryByDate(dateStr) {
 
             // [v9.29.3] 日期筛选激活时，详情行只显示具体时间（HH:MM）
             // 原因：筛选本身已标明日期，再显示"x天前"或日期是无效重复
+            // [v9.38.0] 展示用真实发生时刻；时刻未知则显示 —:—
             const dateTimeStr = currentHistorySelectedDate
-                ? new Date(transaction.timestamp).toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' })
-                : formatDateTime(transaction.timestamp);
+                ? formatRecordTimeHM(transaction)
+                : formatRecordTime(transaction);
             
             return `<div class="history-item" id="history-item-${transaction.id}">
                         <div class="history-info" title="${transaction.description}">
@@ -6917,10 +6939,16 @@ function showBackdateModal(taskId) {
         document.getElementById('backdateCountMode').classList.remove('hidden');
     }
     
+    // [v9.38.0] 重置「发生时刻」（可选，留空＝只记日期）；仅「按次」类任务显示，计时类保持原样
+    document.getElementById('backdateOccurredTime').value = '';
+    document.getElementById('backdateOccurredTimeGroup').classList.toggle('hidden', isDurationTask);
+
     document.getElementById('backdateModal').classList.add('show');
 }
 
 function hideBackdateModal() { document.getElementById('backdateModal').classList.remove('show'); currentBackdateTaskId = null; }
+
+
 
 // [v5.6.0] 手动检测补录功能已删除，改用自动补录系统
 
@@ -6929,7 +6957,8 @@ function switchBackdateMode(mode) {
     currentBackdateMode = mode;
     document.getElementById('backdateDurationMode').classList.toggle('hidden', mode !== 'duration');
     document.getElementById('backdateRangeMode').classList.toggle('hidden', mode === 'duration');
-    document.querySelectorAll('#backdateModal .mode-switch button').forEach(btn => btn.classList.toggle('active', btn.dataset.mode === mode));
+    // [v9.38.0] 选择器限定到模式开关容器（等价原行为，避免误伤弹窗内其它 mode-switch 按钮）
+    document.querySelectorAll('#backdateModeSwitchContainer .mode-switch button').forEach(btn => btn.classList.toggle('active', btn.dataset.mode === mode));
     clearFormErrors();
 }
 
@@ -6959,7 +6988,7 @@ async function saveBackdate(event) {
     let hasError = false;
     let totalSeconds = 0;
     let completionCount = 0;
-    
+
     if (currentBackdateMode === 'count') {
         completionCount = parseInt(document.getElementById('backdateCount').value);
         if (isNaN(completionCount) || completionCount < 1) {
@@ -6992,7 +7021,31 @@ async function saveBackdate(event) {
     }
     
     if (hasError) return;
-    
+
+    // [v9.38.0] 补录「发生时刻」口径（规则见 assets/www/data-dictionary.md 第 5 节）：
+    //   · 用户给了时刻（「按起止时间」模式的开始时间，或「按次」类填的「发生时刻(可选)」）
+    //     → 时刻可信：user / minute
+    //   · 补录「今天」且未给时刻 → 此刻即发生时刻：live / minute
+    //   · 补录历史日期且未给时刻 → 只选了日期，发生时刻未知：occurredAt=null / estimated / date
+    //   注意：timestamp（入账时刻）语义保持不变，仍按原规则取 12:00 占位或当前时刻，
+    //         以免影响云同步增量游标、每日归日与本地排序；真实发生时刻只写入 occurredAt。
+    let txOccurredAt = null;
+    let txTimeSource = (dateStr === todayStr) ? 'live' : 'estimated';
+    let txTimePrecision = (dateStr === todayStr) ? 'minute' : 'date';
+    const filledTimeStr = (currentBackdateMode === 'range')
+        ? ((document.getElementById('backdateStartTime').value || '').trim())
+        : ((document.getElementById('backdateOccurredTime').value || '').trim()); // 计时类该输入框已隐藏 → 恒为空
+    if (filledTimeStr) {
+        const filledMoment = new Date(`${dateStr}T${filledTimeStr}`);
+        if (!isNaN(filledMoment.getTime())) {
+            txOccurredAt = filledMoment.toISOString();
+            txTimeSource = 'user';
+            txTimePrecision = 'minute';
+        }
+    } else if (dateStr === todayStr) {
+        txOccurredAt = backdateTimestamp.toISOString();
+    }
+
     let totalAmountEarned = 0;
     let totalAmountSpent = 0;
     let didHabitBackdate = false;
@@ -7184,11 +7237,21 @@ async function saveBackdate(event) {
             //       倍率修改后会让"1小时 ×2"显示成"40分 ×3"。
             // 旧交易无此字段 → buildBackdateDetail 用 ?? 兜底到当前倍率，行为不变
             taskMultiplierAtCreate: task.multiplier,
+            // [导出格式 v2] 补录语义显式声明（规则见 assets/www/data-dictionary.md 第 5 节）：
+            //   · 用户填了具体时刻 → timeSource=user（可信）
+            //   · 补录「今天」且未填时刻 → timeSource=live（此刻即发生时刻）
+            //   · 补录历史日期且未填时刻 → occurredAt=null（发生时刻未知，只保留日期）
+            entryMode: 'backfill',
+            occurredAt: txOccurredAt,
+            timeSource: txTimeSource,
+            timePrecision: txTimePrecision,
+            durationSource: 'user', // 补录时长由用户填写/估算，非系统计时
             clientId: clientId // [v7.37.5] 添加设备标识，使Watch去重生效
         });
         
         if (transactionType === 'earn') {
-            currentBalance += amount;
+            // [v9.38.0-fix] 修复余额重复计账：addTransaction 内部已更新 currentBalance 并写入 balanceAfter，
+            // 补录路径不再重复累加 —— 历史缺陷使本地余额比流水净额高出"历次补录金额之和"（实测 360+360+1080=1800）。
             totalAmountEarned += amount;
             // [v9.1.0] dailyChanges 由云端 tb_daily 推送，删除本地写入
             task.completionCount = (task.completionCount || 0) + 1;
@@ -7196,7 +7259,7 @@ async function saveBackdate(event) {
             // 对齐 stopTask 等正常完成路径的语义
             task.lastUsed = Date.now();
         } else {
-            currentBalance -= amount;
+            // [v9.38.0-fix] 同上：余额已在 addTransaction 内更新，此处不再重复扣减
             totalAmountSpent += amount;
             // [v9.1.0] dailyChanges 由云端 tb_daily 推送，删除本地写入
             // [v9.17.3] spend 类型（如 instant_redeem）也更新 lastUsed，确保排序及时刷新

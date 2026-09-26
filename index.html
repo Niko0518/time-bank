@@ -9,7 +9,7 @@
       Do NOT update the version number in <title> or any other place.
       The user designates the version number at the START of an update cycle.
     -->
-    <title>时间银行 - Time Bank v9.37.3</title>
+    <title>时间银行 - Time Bank v9.38.1</title>
 
     <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' fill='%231a2744'/%3E%3Ctext x='16' y='22' text-anchor='middle' font-size='20' fill='white'%3E⏳%3C/text%3E%3C/svg%3E">
     <link rel="manifest" href="manifest.json">
@@ -276,7 +276,7 @@
         <div class="header">
             <h1>时间银行</h1>
         </div>
-        <div class="version-subtitle">TimeBank v9.37.3 · Time Bot 伙伴 · 气泡对话 · 背景图生图</div>
+        <div class="version-subtitle">TimeBank v9.38.1 · Time Bot 伙伴 · 气泡对话 · 背景图生图</div>
 
         <div class="main-container">
 
@@ -1201,7 +1201,7 @@
                     <!-- [v7.34.0] 数据管理按钮 2x2 布局（位于同步状态上方） -->
                     <div style="margin-bottom: 8px;">
                         <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 8px;">
-                            <button class="btn btn-secondary" onclick="exportData()" style="padding: 10px 8px; font-size: 0.85rem;">📤 导出数据</button>
+                            <button class="btn btn-secondary" onclick="showExportModal()" style="padding: 10px 8px; font-size: 0.85rem;">📤 导出数据</button>
                             <button class="btn btn-secondary" onclick="document.getElementById('importFile').click()" style="padding: 10px 8px; font-size: 0.85rem;">📥 导入数据</button>
                             <button class="btn btn-secondary" onclick="trustThisDeviceAsAuthoritative()" style="padding: 10px 8px; font-size: 0.85rem;">☁️ 上传云端</button>
                             <button class="btn btn-secondary" onclick="clearAllData()" style="padding: 10px 8px; font-size: 0.85rem;">🗑️ 清空数据</button>
@@ -1833,7 +1833,7 @@
                     <div class="about-container" style="padding: 16px 0 8px; line-height: 1.5;">
                         <div class="about-header" style="text-align: center; margin-bottom: 20px; padding-top: 12px;">
                             <div style="font-size: 1.25rem; font-weight: 600; margin-bottom: 4px;">时间银行</div>
-                            <div style="font-size: 0.85rem; color: var(--text-color-light);">版本 v9.37.3</div>
+                            <div style="font-size: 0.85rem; color: var(--text-color-light);">版本 v9.38.1</div>
                         </div>
 
                         <div class="about-meta" style="font-size: 0.9rem; color: var(--text-color);">
@@ -1892,6 +1892,26 @@
                 <!-- 版本更新日志 -->
                 <details>
 <summary>版本更新日志</summary>
+                    <div class="version-history-item">
+                        <p><strong>版本 v9.38.1 (2026-09-26)</strong> 🧹 <b>数据一次搬干净 · 代码瘦身</b></p>
+                        <ul>
+                            <li><strong>[Core]</strong> 🧹 <b>历史数据一次性迁移</b>：以前每笔记录的"时间可信度"是每次打开、每次导出时临时算出来的；现已把结果**写进数据本身**（6,436 条全部写入本地与云端）。顺带修复了 144 条早期睡眠记录——它们原本只把入睡时间写在文字描述里，现在解析成了真实时刻，时间流图和 AI 分析都能用上了。</li>
+                            <li><strong>[Core]</strong> ✂️ <b>删掉一批已经失效的兼容代码</b>：迁移完成后，导出时的字段推算、读取时的解包/自愈、索引自愈等"以防万一"的兜底层已全部删除，代码更少、行为不变（删除前后导出数据逐字段一致）。</li>
+                            <li><strong>[Fix]</strong> ⚡ <b>启动更快一点</b>：移除了每次启动都要空跑一遍的自愈与迁移检查。</li>
+                        </ul>
+                    </div>
+                    <div class="version-history-item">
+                        <p><strong>版本 v9.38.0 (2026-09-26)</strong> 🏦 <b>导出带说明书 · 补录可填真实时刻 · 余额更准</b></p>
+                        <ul>
+                            <li><strong>[Feat]</strong> 📤 <b>导出数据前可以先选范围</b>：新增「全部 / 近 1·3·6·12 个月 / 自定义区间」。默认"全部"和以前完全一样（一键导出完整备份）；选范围导出的是分析用片段（文件名 <code>timebank_analysis_*.json</code>），导入时会被拒绝，不会误把片段当备份覆盖完整历史。</li>
+                            <li><strong>[Feat]</strong> ⏰ <b>补录可以填写真实发生时刻</b>：补录弹窗新增「发生时间」——默认"只记得是这一天"（和以前行为完全一致，只记日期、不编造时刻）；如果你还记得大概几点，选"我记得具体时刻"填上，记录就会带上真实时间。</li>
+                            <li><strong>[Feat]</strong> 🤖 <b>导出文件自带"使用说明书"</b>：导出文件现在内置字段说明、时间可信度标记与常见陷阱，AI 分析时不再需要猜字段含义，也不会把"补录"当成"真的发生在中午 12 点"。</li>
+                            <li><strong>[Fix]</strong> 🛡️ <b>余额记账更准了</b>：修复了 5 处"记一次账、余额却动两次"的历史缺陷（补录、计时消费、每日利息、屏幕时间结算与补结算）——此前本地显示的余额会比流水明细偏高，且每补录一次就多偏一点。修复后两者完全一致（云端权威余额始终是正确的，更新后会自动对齐）。</li>
+                            <li><strong>[Fix]</strong> 🧠 <b>AI 不再被"假时间"误导</b>：AI 分析作息时段时，不再把补录记录的占位时间（中午 12 点）当成你真实的下午活动——时刻未知的记录会被跳过，填了真实时刻的记录才会参与时段统计。</li>
+                            <li><strong>[Fix]</strong> 📝 <b>弹窗填写错误提示恢复正常</b>：修复一个历史遗留问题——表单校验失败时用来显示红字提示的函数早已丢失，弹窗会"点了保存没反应"。现在错误提示正常显示。</li>
+                            <li><strong>[UX]</strong> 🌅 <b>睡眠记录归属更合理</b>："这一夜"统一归到醒来那天（如 19 号深夜入睡、20 号早上醒来 → 记在 20 号），历史睡眠记录也会自动补上真实的入睡时刻；导出数据里同样明确标注。</li>
+                        </ul>
+                    </div>
                     <div class="version-history-item">
                         <p><strong>版本 v9.37.3 (2026-09-23)</strong> 😴 <b>手机开睡眠，平板也能结束 · 手机启动再提速</b></p>
                         <ul>
@@ -3152,6 +3172,14 @@
                     <label class="form-label">补录日期 *</label>
                     <input type="date" id="backdateDate" class="form-input" required>
                 </div>
+                <!-- [v9.38.0] 发生时刻（可选）——仅「按次」类任务显示，沿用原有表单样式：
+                     留空 = 只记得是这一天（只记录日期，不编造时刻）；填写 = 记录你给的真实时刻。
+                     计时类任务不显示本项（「按起止时间」模式的开始时间本身即发生时刻）。 -->
+                <div class="form-group" id="backdateOccurredTimeGroup">
+                    <label class="form-label">发生时刻（可选）</label>
+                    <input type="time" id="backdateOccurredTime" class="form-input">
+                    <div class="error-message" id="backdateOccurredTimeError"></div>
+                </div>
                 <div class="form-group" id="backdateModeSwitchContainer">
                     <label class="form-label">补录模式</label>
                     <div class="mode-switch">
@@ -3199,6 +3227,45 @@
                     <button type="submit" class="btn btn-primary">确认补录</button>
                 </div>
             </form>
+        </div>
+    </div>
+
+    <!-- [v9.38.0] 导出范围选择：全部 / 近 1·3·6·12 个月 / 自定义区间 -->
+    <div class="modal" id="exportModal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <div class="modal-title">导出数据</div>
+                <button class="close-btn" onclick="hideExportModal()">×</button>
+            </div>
+            <div class="form-group">
+                <label class="form-label">导出范围</label>
+                <div class="export-range-grid">
+                    <button type="button" class="active" data-range="all" onclick="selectExportRange('all')">全部</button>
+                    <button type="button" data-range="1" onclick="selectExportRange('1')">近 1 个月</button>
+                    <button type="button" data-range="3" onclick="selectExportRange('3')">近 3 个月</button>
+                    <button type="button" data-range="6" onclick="selectExportRange('6')">近 6 个月</button>
+                    <button type="button" data-range="12" onclick="selectExportRange('12')">近 12 个月</button>
+                    <button type="button" data-range="custom" onclick="selectExportRange('custom')">自定义</button>
+                </div>
+            </div>
+            <div id="exportCustomRangeWrap" class="hidden">
+                <div class="form-group">
+                    <label class="form-label">开始日期</label>
+                    <input type="date" id="exportRangeFrom" class="form-input">
+                </div>
+                <div class="form-group">
+                    <label class="form-label">结束日期</label>
+                    <input type="date" id="exportRangeTo" class="form-input">
+                </div>
+                <div class="error-message" id="exportRangeError"></div>
+            </div>
+            <p style="font-size: 0.78rem; color: var(--text-color-light); margin: 4px 0 0; line-height: 1.6;">
+                范围导出仅用于分析，文件名为 <code>timebank_analysis_*.json</code>，<b>不能用于恢复数据</b>（导入时会被拒绝）。
+            </p>
+            <div class="form-buttons">
+                <button type="button" class="btn btn-secondary" onclick="hideExportModal()">取消</button>
+                <button type="button" class="btn btn-primary" onclick="confirmExport()">开始导出</button>
+            </div>
         </div>
     </div>
 

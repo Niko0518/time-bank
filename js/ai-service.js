@@ -927,8 +927,11 @@ ${JSON.stringify(taskNames)}
                 const slotStat = {};
                 Object.keys(slots).forEach(k => slotStat[k] = { e: 0, s: 0 });
                 txs.forEach(t => {
-                    const ts = typeof t.timestamp === 'number' ? t.timestamp : new Date(t.timestamp).getTime();
-                    const h = new Date(ts).getHours();
+                    // [v9.38.0] 时段分布改用「可信发生时刻」：时刻未知（补录未填/系统占位值）的记录跳过，
+                    // 否则入账占位值（12:00/23:00）会污染时段统计（原实现把所有补录都算进下午档）
+                    const occMs = (typeof getReliableOccurredMs === 'function') ? getReliableOccurredMs(t) : null;
+                    if (occMs === null) return;
+                    const h = new Date(occMs).getHours();
                     for (const [k, [a, b]] of Object.entries(slots)) {
                         if (h >= a && h < b) {
                             if (t.type === 'earn') slotStat[k].e += t.amount || 0;
@@ -1548,8 +1551,10 @@ ${JSON.stringify(taskNames)}
 
             let totalDays = 0;
             if (typeof transactions !== 'undefined' && transactions.length > 0) {
-                const firstTx = [...transactions].sort((a, b) => a.timestamp - b.timestamp)[0];
-                const firstDate = new Date(firstTx?.timestamp || now);
+                // [v9.38.0] 排序修复：timestamp 混有 ISO 字符串与毫秒数，原实现相减得 NaN（取错"最早一条"）
+                const _tsOf = x => typeof x.timestamp === 'number' ? x.timestamp : new Date(x.timestamp).getTime();
+                const firstTx = [...transactions].sort((a, b) => _tsOf(a) - _tsOf(b))[0];
+                const firstDate = new Date(firstTx ? _tsOf(firstTx) : now);
                 totalDays = Math.max(1, Math.ceil((now - firstDate.getTime()) / MS_PER_DAY));
             }
 
@@ -2038,14 +2043,21 @@ ${JSON.stringify(taskNames)}
         }
 
         if (transactions && transactions.length > 0) {
-            const sorted = [...transactions].sort((a, b) => (a.timestamp || 0) - (b.timestamp || 0));
+            // [v9.38.0] 排序修复：timestamp 可能是 ISO 字符串或毫秒数，原实现直接相减得 NaN（排序失效）
+            const _ms = t => typeof t.timestamp === 'number' ? t.timestamp : new Date(t.timestamp).getTime();
+            const sorted = [...transactions].sort((a, b) => _ms(a) - _ms(b));
             const recent = sorted.slice(-1000);
             prompt += `【交易记录】（最近 ${recent.length} 条，时间为『本地时间』，已含星期，据此分析工作日/周末差异）\n`;
+            prompt += `说明：时间列为 --:-- 表示该记录只记得日期、发生时刻未知（多为补录或系统结算），分析时段习惯时请忽略该列。\n`;
             const WEEKS = ['周日', '周一', '周二', '周三', '周四', '周五', '周六'];
             recent.forEach(tx => {
-                const d = new Date(tx.timestamp);
+                // [v9.38.0] 时间列改用「可信发生时刻」：补录填了时刻用真实时刻；
+                // 时刻未知则显示 --:--（不再把入账占位值 12:00 当真实时间喂给模型）
+                const occMs = (typeof getReliableOccurredMs === 'function') ? getReliableOccurredMs(tx) : null;
+                const baseMs = occMs !== null ? occMs : _ms(tx);
+                const d = new Date(baseMs);
                 const date = `${d.getMonth() + 1}-${d.getDate()}(${WEEKS[d.getDay()] || ''})`;
-                const time = `${d.getHours()}:${String(d.getMinutes()).padStart(2, '0')}`;
+                const time = occMs !== null ? `${d.getHours()}:${String(d.getMinutes()).padStart(2, '0')}` : '--:--';
                 const type = tx.type === 'earn' ? '收入' : '支出';
                 const mins = Math.round((tx.amount || 0) / 60);
                 prompt += `${date},${time},${type},${tx.taskName || ''},${mins},${tx.category || '未分类'}\n`;

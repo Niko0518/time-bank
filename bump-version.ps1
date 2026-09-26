@@ -8,7 +8,7 @@
 #   1. 自动从 app-1.js 读取当前版本号
 #   2. 替换全部"纯版本号位置"（title / 副标题 / 关于页 / APP_VERSION /
 #      CACHE_NAME / sw 注释 / versionName / versionCode 自动+1 / AGENTS.md 当前版本）
-#   3. 双端同步（权威源 -> 根目录 PWA 副本，5 条 Copy-Item 串行执行 + 失败即停）
+#   3. 双端同步（权威源 -> 根目录 PWA 副本，6 条 Copy-Item 串行执行 + 失败即停）
 #   4. diff 强校验（权威源 vs 根目录副本）
 #   5. 旧版本号残留扫描（仅版本位置，不碰历史注释 / 历史版本日志）
 #   6. 输出汇总
@@ -111,11 +111,12 @@ if ($vcMatch.Success) {
 # ---------- 3. 双端同步 ----------
 Write-Host "`n[2/6] 双端同步（权威源 -> 根目录）" -ForegroundColor Cyan
 $syncPairs = @(
-    @{ Src = Join-Path $www 'index.html';      Dst = $rootIndex },
-    @{ Src = Join-Path $www 'sw.js';           Dst = $rootSw },
-    @{ Src = Join-Path $www 'manifest.json';   Dst = Join-Path $root 'manifest.json' },
-    @{ Src = Join-Path $www 'css\*';           Dst = $rootCss },
-    @{ Src = Join-Path $www 'js\*';            Dst = $rootJs }
+    @{ Src = Join-Path $www 'index.html';            Dst = $rootIndex },
+    @{ Src = Join-Path $www 'sw.js';                 Dst = $rootSw },
+    @{ Src = Join-Path $www 'manifest.json';         Dst = Join-Path $root 'manifest.json' },
+    @{ Src = Join-Path $www 'data-dictionary.md';    Dst = Join-Path $root 'data-dictionary.md' },
+    @{ Src = Join-Path $www 'css\*';                 Dst = $rootCss },
+    @{ Src = Join-Path $www 'js\*';                  Dst = $rootJs }
 )
 foreach ($p in $syncPairs) {
     try {
@@ -130,11 +131,17 @@ foreach ($p in $syncPairs) {
 # ---------- 4. diff 强校验 ----------
 Write-Host "`n[3/6] diff 强校验（权威源 vs 根目录副本）" -ForegroundColor Cyan
 $diffPairs = @(
-    @( (Join-Path $www 'index.html'),   $rootIndex ),
-    @( (Join-Path $www 'sw.js'),        $rootSw ),
-    @( (Join-Path $www 'js\app-1.js'),  (Join-Path $root 'js\app-1.js') ),
-    @( (Join-Path $www 'js\app-2.js'),  (Join-Path $root 'js\app-2.js') ),
-    @( (Join-Path $www 'css\main.css'), (Join-Path $root 'css\main.css') )
+    @( (Join-Path $www 'index.html'),          $rootIndex ),
+    @( (Join-Path $www 'sw.js'),               $rootSw ),
+    @( (Join-Path $www 'data-dictionary.md'),  (Join-Path $root 'data-dictionary.md') ),
+    @( (Join-Path $www 'js\app-1.js'),         (Join-Path $root 'js\app-1.js') ),
+    @( (Join-Path $www 'js\app-2.js'),         (Join-Path $root 'js\app-2.js') ),
+    @( (Join-Path $www 'js\app-auth.js'),      (Join-Path $root 'js\app-auth.js') ),
+    @( (Join-Path $www 'js\app-reports.js'),   (Join-Path $root 'js\app-reports.js') ),
+    @( (Join-Path $www 'js\app-systems.js'),   (Join-Path $root 'js\app-systems.js') ),
+    @( (Join-Path $www 'js\ai-brain.js'),      (Join-Path $root 'js\ai-brain.js') ),
+    @( (Join-Path $www 'js\ai-service.js'),    (Join-Path $root 'js\ai-service.js') ),
+    @( (Join-Path $www 'css\main.css'),        (Join-Path $root 'css\main.css') )
 )
 $diffErrors = 0
 foreach ($pair in $diffPairs) {

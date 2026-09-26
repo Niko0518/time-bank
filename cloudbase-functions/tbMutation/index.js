@@ -28,6 +28,34 @@ const TABLES = {
     DAILY:       'tb_daily'
 };
 
+// [v9.38.0] 导出格式 v2 语义字段白名单
+// 背景：这些字段原本只存在于 `data` 快照（嵌套对象无法建索引/直接查询）。
+// 现同时提到顶层，使其**可查询、可分页、可建索引**；读取端 __normalizeTxDoc 会做双向兜底。
+// 写入端见 www/js/app-reports.js 的 addTransaction（字段语义见 www/data-dictionary.md 第 3-5 节）。
+// 老记录不含这些字段 → 顶层不写入（保持 null/undefined），不影响读取与导出。
+const SEMANTIC_TX_FIELDS = [
+    'occurredAt',      // 事件发生时刻（ISO 8601 含时区；null = 时刻未知）
+    'createdAt',       // 记录写入时刻
+    'entryMode',       // live | backfill | auto | import
+    'timeSource',      // live | user | estimated | auto
+    'timePrecision',   // exact | minute | date
+    'businessDate',    // 归属日 YYYY-MM-DD
+    'durationSource',  // timer | user | auto | null
+    'taskType',        // user | system
+    'quantitySeconds', // 不含倍率的原始量（秒）
+    'balanceAfter'     // 该笔入账后的余额（秒）
+];
+
+function _pickSemanticFields(tx) {
+    const out = {};
+    if (!tx || typeof tx !== 'object') return out;
+    for (let i = 0; i < SEMANTIC_TX_FIELDS.length; i++) {
+        const k = SEMANTIC_TX_FIELDS[i];
+        if (tx[k] !== undefined) out[k] = tx[k];
+    }
+    return out;
+}
+
 // [v9.3.2] Bug 2 修复：建索引确保 _updateTime 增量查询性能
 // CloudBase 文档 _updateTime 字段由系统自动维护
 // 但 _updateTime > X 的范围查询需要复合索引（_openid + _updateTime）才能高效
@@ -36,51 +64,14 @@ const TABLES = {
 // 旧实现只在请求路径上建 1 个索引，且把「已初始化」标记写在 await 之前（失败后本实例永不重试）。
 // 现改为：① 覆盖扫描发现的全部缺失索引；② 仅在全部尝试结束后置位标记（失败下次仍会重试）。
 // 说明：这些索引已由 v9.37.0 的离线脚本一次性创建，此处仅作为自愈兜底。
-const INDEX_DEFS = [
-    // tb_transaction：存在性检查（add/update/delete 每笔交易都会查）与批量改名
-    { collection: TABLES.TRANSACTION, name: 'idx_openid_txId', keys: [['_openid', '1'], ['txId', '1']] },
-    { collection: TABLES.TRANSACTION, name: 'idx_openid_taskId', keys: [['_openid', '1'], ['taskId', '1']] },
-    // tb_task / tb_running：按 taskId 定位单条
-    { collection: TABLES.TASK, name: 'idx_openid_taskId', keys: [['_openid', '1'], ['taskId', '1']] },
-    { collection: TABLES.RUNNING, name: 'idx_openid_taskId', keys: [['_openid', '1'], ['taskId', '1']] },
-    // 增量同步（getNativeDelta 按 _openid + _updateTime 排序翻页）
-    { collection: TABLES.RUNNING, name: 'idx_openid_updateTime', keys: [['_openid', '1'], ['_updateTime', '-1']] },
-    { collection: TABLES.TASK, name: 'idx_openid_updateTime', keys: [['_openid', '1'], ['_updateTime', '-1']] },
-    { collection: TABLES.PROFILE, name: 'idx_openid_updateTime', keys: [['_openid', '1'], ['_updateTime', '-1']] },
-    { collection: TABLES.DAILY, name: 'idx_openid_updateTime', keys: [['_openid', '1'], ['_updateTime', '-1']] },
-    // tb_daily / tb_profile：按 date / _openid 定位
-    { collection: TABLES.DAILY, name: 'idx_openid_date', keys: [['_openid', '1'], ['date', '1']] },
-    { collection: TABLES.PROFILE, name: 'idx_openid', keys: [['_openid', '1']] },
-    // tb_ai_messages：对话历史 / 报告查询（_openid + type + createdAt 排序，最高频的 AI 读路径）
-    { collection: 'tb_ai_messages', name: 'idx_openid_type_createdAt', keys: [['_openid', '1'], ['type', '1'], ['createdAt', '-1']] }
-];
-
-let indexesInitialized = false;
-async function ensureIndexes() {
-    if (indexesInitialized) return;
-    indexesInitialized = true;
-    // [v9.37.0] 关键修正：当前 node-sdk（3.x）**没有 createIndex 方法**
-    // （线上实测日志：`db.collection(...).createIndex is not a function`），
-    // 即历史上这段「索引自愈」从未真正生效，只产生了噪音日志。
-    // 本次已改用云 API（tcb RunCommands / CommandType=CREATE_INDEX）一次性创建全部索引：
-    //   tb_transaction (_openid,txId)、(_openid,taskId)
-    //   tb_running     (_openid,taskId)、(_openid,_updateTime)
-    //   tb_task        (_openid,taskId)、(_openid,_updateTime)
-    //   tb_profile     (_openid)、(_openid,_updateTime)
-    //   tb_daily       (_openid,date)、(_openid,_updateTime)
-    //   tb_ai_messages (_openid,type,createdAt)
-    // 后续如需新增索引：云 API RunCommands，或控制台「数据库 → 索引管理」。
-    console.log('[v9.37.0] 索引由云 API 统一维护（本函数不再尝试 createIndex）');
-}
-
+// [v9.38.1] 已删除 INDEX_DEFS / ensureIndexes()：
+// node-sdk（3.x）本就没有 createIndex 方法，这段"索引自愈"从未真正生效，只产生噪音日志。
+// 线上索引实际由云 API RunCommands 统一维护（见本文件顶部 v9.37.0 说明）。
 exports.main = async (event, context) => {
     const uid = context.OPENID || event._openid || event.data?._openid || null;
     if (!uid) {
         return { code: 401, message: '未授权：请先登录' };
     }
-
-    // [v9.3.2] 首次调用时建索引（幂等）
-    await ensureIndexes();
 
     const { action, data = {} } = event;
 
@@ -102,7 +93,10 @@ exports.main = async (event, context) => {
                     return { code: 0, message: '交易已存在（幂等）', id: existRes.data[0]._id };
                 }
 
-                const doc = {
+                // [v9.38.0] 语义字段来源：前端传的是整笔 tx（= data.data），故先从快照取
+                const tx = data.data || data;
+
+                const doc = Object.assign({
                     _openid: uid,
                     txId: txId,
                     taskId: data.taskId,
@@ -116,11 +110,10 @@ exports.main = async (event, context) => {
                     isSystem: data.isSystem || false,
                     rawSeconds: data.rawSeconds || null,
                     data: data.data || {}
-                };
+                }, _pickSemanticFields(tx)); // [v9.38.0] 语义字段提到顶层（可查询）
 
                 const addRes = await db.collection(TABLES.TRANSACTION).add(doc);
 
-                const tx = data.data || data;
                 const balanceDelta = tx.type === 'earn' ? tx.amount : -tx.amount;
                 if (balanceDelta !== 0) {
                     await _updateCachedBalance(uid, balanceDelta);
@@ -151,7 +144,7 @@ exports.main = async (event, context) => {
 
                 const tx = data.data || data;
 
-                const updateData = {
+                const updateData = Object.assign({
                     txId: txId,
                     taskId: data.taskId,
                     taskName: data.taskName,
@@ -164,7 +157,7 @@ exports.main = async (event, context) => {
                     isSystem: data.isSystem || false,
                     rawSeconds: data.rawSeconds || null,
                     data: tx
-                };
+                }, _pickSemanticFields(tx)); // [v9.38.0] 顶层语义字段同步更新
 
                 await db.collection(TABLES.TRANSACTION).doc(docId).update(updateData);
 
@@ -224,6 +217,51 @@ exports.main = async (event, context) => {
                 }
 
                 return { code: 0, message: '交易删除成功' };
+            }
+
+            // [v9.38.1] 一次性数据迁移：把语义字段（occurredAt / timeSource / businessDate ...）
+            // 批量写入历史交易（同时写顶层与 data 快照）。
+            // 特点：① 批量（默认 200/批，内部 20 并发）② **不触发余额 / 每日汇总重算**（纯字段写入）
+            // ③ 幂等（重复写入同值无副作用）④ 不存在的 txId 计入 missing，不报错。
+            case 'bulkPatchTransactions': {
+                const { items } = data;
+                if (!Array.isArray(items) || items.length === 0) {
+                    return { code: 400, message: '缺少 items 或 items 为空' };
+                }
+                const MAX_ITEMS = 200;
+                if (items.length > MAX_ITEMS) {
+                    return { code: 400, message: `items 数量超限（${MAX_ITEMS}）` };
+                }
+
+                const BULK_FIELDS = SEMANTIC_TX_FIELDS.concat(['taskNameAtTime', 'categoryAtTime', 'sourceDeviceLabel']);
+                let ok = 0, fail = 0, missing = 0;
+                const CONC = 20;
+
+                const doOne = async (it) => {
+                    const txId = it && it.txId;
+                    const fields = it && it.fields;
+                    if (!txId || !fields) { fail++; return; }
+                    const patch = {};
+                    for (let i = 0; i < BULK_FIELDS.length; i++) {
+                        const k = BULK_FIELDS[i];
+                        if (fields[k] !== undefined) { patch[k] = fields[k]; patch['data.' + k] = fields[k]; }
+                    }
+                    if (Object.keys(patch).length === 0) { fail++; return; }
+                    try {
+                        const res = await db.collection(TABLES.TRANSACTION)
+                            .where({ _openid: uid, txId: txId })
+                            .update(patch);
+                        // where().update() 在无匹配文档时 updated=0
+                        if (res && typeof res.updated === 'number' && res.updated === 0) missing++;
+                        else ok++;
+                    } catch (e) { fail++; }
+                };
+
+                for (let i = 0; i < items.length; i += CONC) {
+                    await Promise.all(items.slice(i, i + CONC).map(doOne));
+                }
+
+                return { code: 0, message: '批量语义字段写入完成', ok: ok, fail: fail, missing: missing };
             }
 
             case 'renameTransactionTaskName': {

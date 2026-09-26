@@ -1083,7 +1083,183 @@ function clearAllFailedMutations() {
     setTimeout(() => showFailedMutations(), 100);
 }
 
-function exportData() {
+// ========== [导出格式 v2] AI 分析友好化 ==========
+// 目的：让导出文件自带「说明书 + 字段字典 + 可信度标记」，外部分析方无需阅读源码即可正确理解数据。
+// 说明书唯一维护点：assets/www/data-dictionary.md（导出时读取并嵌入 meta.readme）
+const TB_EXPORT_FORMAT_VERSION = '2.0';
+const TB_DICT_FILE = 'data-dictionary.md';
+
+const TB_DICT_FALLBACK = [
+    '# TimeBank 导出数据说明书（精简兜底版）',
+    '',
+    '> 设备上未能读取 data-dictionary.md，以下为核心规则；完整版见应用安装包内该文件。',
+    '',
+    '## 时间字段（三个时间别搞混）',
+    '- timestamp：入账时刻（同步/排序/每日汇总用），**不要直接当作事件发生时刻**',
+    '- occurredAt：事件发生时刻（分析主字段），可能为 null',
+    '- createdAt：记录写入时刻；与 timestamp 相差越大越可能是事后补录',
+    '- 排序与余额链一律按 timestamp；分析一律按 occurredAt',
+    '',
+    '## 可信度体系',
+    '- timeSource=live / timePrecision=exact：实时记录，任何分析可用',
+    '- timeSource=user / timePrecision=minute：补录时用户填写的时刻（有回忆误差），时间点分析可用',
+    '- timeSource=estimated / timePrecision=date：补录时只记得日期，**禁止用于时间点分析**',
+    '- timeSource=auto：系统生成 —— 看 timePrecision：exact 可用（如睡眠入睡时刻）；date 表示时刻未知，仅可做日级分析（利息/屏幕时间/自动补录）',
+    '- 硬规则：occurredAt 为 null 时，禁止回退使用 timestamp 作为发生时刻',
+    '',
+    '## 单位与常见陷阱',
+    '- 时间货币单位统一为【秒】；amount 含额度定价与倍率，**不可当作时长**',
+    '- 需要时长请使用 quantitySeconds（不含倍率的原始量）',
+    '- 勿按任务名聚合（任务会改名、设备名会混入名称），请按 taskId',
+    '- 勿用 dailyChanges 替代 transactions 明细，以 transactions 为准',
+    '- businessDate 为只到日的归属日期；睡眠记录例外：按「醒来日」归属（"这一夜" = businessDate − 1 天）',
+    '- 界面/导出的时间展示以可信发生时刻为准；时刻未知显示为 --:--，时段类分析应忽略',
+    '- meta.checksum.diffSeconds = 按流水推算的余额 − 实际余额；非 0 不代表数据丢失（余额调整/退款等），v9.38.0 起写入路径的重复计账已修复'
+].join('\n');
+
+// 字段字典（机器可读镜像；人类可读版见 data-dictionary.md 第 2 节）
+const TB_EXPORT_FIELDS = {
+    'timestamp': { type: 'string', format: 'ISO8601', semantic: '入账时刻', note: '用于同步/排序/每日汇总归日；勿直接当作发生时刻' },
+    'occurredAt': { type: 'string|null', format: 'ISO8601', semantic: '事件发生时刻', note: '分析主字段；null 表示时刻未知' },
+    'createdAt': { type: 'string', format: 'ISO8601', semantic: '记录写入时刻' },
+    'businessDate': { type: 'string|null', format: 'YYYY-MM-DD', semantic: '只到日的归属日期', note: '睡眠记录例外：按醒来日归属（"这一夜" = businessDate − 1 天）' },
+    'entryMode': { enum: ['live', 'backfill', 'auto', 'import'] },
+    'timeSource': { enum: ['live', 'user', 'estimated', 'auto'], note: 'estimated 表示时刻不可信' },
+    'timePrecision': { enum: ['exact', 'minute', 'date', 'derived'] },
+    'type': { enum: ['earn', 'spend'], note: 'amount 恒为正数，方向由本字段决定' },
+    'amount': { type: 'number', unit: 'seconds', note: '含额度定价与倍率，不可当作时长' },
+    'quantitySeconds': { type: 'number|null', unit: 'seconds', note: '不含倍率的原始量' },
+    'durationSource': { enum: ['timer', 'user', 'auto', null], note: '原始量的来源：系统计时 / 用户填写 / 系统推算' },
+    'balanceAfter': { type: 'number|null', unit: 'seconds', note: '该笔入账后的余额（仅 2026-09-26 起的新记录写入）' },
+    'taskId': { type: 'string|null', note: '历史上有 UUID 与 epoch 两种写法；约 4.7% 为 null' },
+    'taskNameAtTime': { type: 'string', note: '当时名称快照；任务可改名，聚合请用 taskId' },
+    'categoryAtTime': { type: 'string|null' },
+    'taskType': { enum: ['user', 'system'] },
+    'rawSeconds': { type: 'number|null', unit: 'seconds' },
+    'sourceDeviceLabel': { type: 'string|null' },
+    'sleepData': { type: 'object|null', note: 'sleepType=night|nap；durationMinutes 单位为【分钟】' }
+};
+
+// 特殊数据类型登记表（新增特殊类型时在此追加，并在 data-dictionary.md 第 6 节登记）
+const TB_SPECIAL_DATA_TYPES = [
+    { kind: 'sleep_night', match: "sleepData.sleepType === 'night'", meaning: '夜间睡眠结算', aiGuidance: 'entryMode=auto（系统结算）；occurredAt=入睡时刻=点击入睡并放下手机的时刻，非真正睡着时刻；夜晚归属：入睡时刻本地小时<12 则该夜归前一天' },
+    { kind: 'sleep_nap', match: "sleepData.sleepType === 'nap'", meaning: '日间小睡', aiGuidance: '与夜间睡眠独立结算；不含 plannedBedtime 等字段' },
+    { kind: 'interest', match: "isSystem && systemType === 'interest'", meaning: '余额利息（整日累计）', aiGuidance: '非用户行为，行为分析应排除；occurredAt=null / timePrecision=date（timestamp 为昨日 23:59 占位值）' },
+    { kind: 'screen_time', match: "isSystem && systemType === 'screen-time'", meaning: '屏幕时间消耗（整日累计）', aiGuidance: '系统扣减项；occurredAt=null / timePrecision=date（timestamp 为当日 23:00 占位值）' },
+    { kind: 'auto_makeup', match: "autoDetectType === 'makeup' 或描述以「自动补录:」开头", meaning: '系统自动补录漏记', aiGuidance: 'entryMode=auto；occurredAt=null；timePrecision=date（timestamp 为当日 23:00 占位值）→ 时刻未知，禁止时间点分析' },
+    { kind: 'auto_correction', match: "autoDetectType === 'correction' 或描述以「自动修正:」开头", meaning: '系统自动修正多记', aiGuidance: 'entryMode=auto；occurredAt=null；timePrecision=date → 时刻未知，禁止时间点分析' },
+    { kind: 'habit_reward', match: 'isStreakAdvancement === true', meaning: '习惯连胜奖励', aiGuidance: '金额由奖励规则生成，不可当时长' },
+    { kind: 'balance_adjust', match: '存在 balanceAdjust 字段', meaning: '余额调整/历史惩罚', aiGuidance: '不属于行为记录' },
+    { kind: 'backfill_estimated', match: "timePrecision === 'date'", meaning: '时刻未知的补录', aiGuidance: '禁止时间点分析；仅可用于按天分析' }
+];
+
+let __tbDictCache = null;
+
+// 读取说明书源文件（失败时降级为精简兜底版，保证导出永不失败）
+async function loadDataDictionary() {
+    if (__tbDictCache) return __tbDictCache;
+    try {
+        const res = await fetch(TB_DICT_FILE, { cache: 'no-store' });
+        if (res && res.ok) {
+            const text = await res.text();
+            if (text && text.trim().length > 300) {
+                __tbDictCache = { text: text, source: 'file' };
+                return __tbDictCache;
+            }
+        }
+    } catch (e) {
+        console.warn('[导出] 读取 data-dictionary.md 失败，使用精简兜底版:', e);
+    }
+    __tbDictCache = { text: TB_DICT_FALLBACK, source: 'fallback' };
+    return __tbDictCache;
+}
+
+// 从描述文案解析原始量（如「(45分)」「(1小时)」「(1小时30分)」），用于历史数据回填 quantitySeconds
+function tbParseQuantitySeconds(t) {
+    if (typeof t.quantitySeconds === 'number') return t.quantitySeconds;
+    if (typeof t.rawSeconds === 'number') return t.rawSeconds;
+    const m = (t.description || '').match(/\((\d+)\s*(小时|分)(?:\s*(\d+)\s*分)?\)/);
+    if (!m) return null;
+    if (m[2] === '小时') return parseInt(m[1], 10) * 3600 + (m[3] ? parseInt(m[3], 10) * 60 : 0);
+    return parseInt(m[1], 10) * 60 + (m[3] ? parseInt(m[3], 10) * 60 : 0);
+}
+
+// 语义回填：为历史记录补出 entryMode / timeSource / timePrecision / occurredAt / businessDate 等字段
+// 规则见 data-dictionary.md 第 5 节；仅生成导出副本，不修改内存中的原始交易
+// [v9.38.0] 时间语义部分**不再是本地实现**：统一委托给 app-reports.js 的 resolveTransactionTime()
+//           （全库唯一判定实现），避免"导出 / 界面展示 / 时间流图"三处口径分叉。
+//           改判定规则只改那一处。
+// [v9.38.1] 已删除 enrichTransactionForExport()：
+// 语义字段（occurredAt / timeSource / timePrecision / businessDate / quantitySeconds ...）自 v9.38.1 起
+// **随数据本身持久化**（一次性迁移已写入云端 + 本地），导出 / 界面 / 时间流图一律**直接读字段**。
+// 新记录仍由 addTransaction()（app-reports.js）在写入端注入同名字段，语义保持一致。
+
+// ==================== [v9.38.0] 导出范围选择弹窗 ====================
+// 说明：范围导出的逻辑（meta.scope、文件名标记、导入拒绝）早已就绪，这里只补界面入口。
+// 「全部」＝全量备份（原有行为），其余为分析用片段。
+let selectedExportRange = 'all'; // 'all' | '1' | '3' | '6' | '12' | 'custom'
+
+function showExportModal() {
+    const modal = document.getElementById('exportModal');
+    if (!modal) { exportData(); return; }   // 兜底：弹窗缺失时退回全量导出
+    selectedExportRange = 'all';
+    const todayStr = getLocalDateString(new Date());
+    const toEl = document.getElementById('exportRangeTo');
+    const fromEl = document.getElementById('exportRangeFrom');
+    if (toEl) { toEl.value = todayStr; toEl.max = todayStr; }
+    if (fromEl) {
+        const d = new Date();
+        d.setMonth(d.getMonth() - 6);
+        fromEl.value = getLocalDateString(d);
+        fromEl.max = todayStr;
+    }
+    selectExportRange('all');
+    modal.classList.add('show');
+}
+
+function hideExportModal() {
+    const modal = document.getElementById('exportModal');
+    if (modal) modal.classList.remove('show');
+}
+
+function selectExportRange(range) {
+    selectedExportRange = range;
+    document.querySelectorAll('#exportModal .export-range-grid button')
+        .forEach(btn => btn.classList.toggle('active', btn.dataset.range === range));
+    const wrap = document.getElementById('exportCustomRangeWrap');
+    if (wrap) wrap.classList.toggle('hidden', range !== 'custom');
+    const err = document.getElementById('exportRangeError');
+    if (err) err.textContent = '';
+}
+
+async function confirmExport() {
+    let options;
+    if (selectedExportRange === 'all') {
+        options = undefined;                    // 不传参 = 全量导出（同旧行为）
+    } else if (selectedExportRange === 'custom') {
+        const from = (document.getElementById('exportRangeFrom').value || '').trim();
+        const to = (document.getElementById('exportRangeTo').value || '').trim();
+        const errEl = document.getElementById('exportRangeError');
+        if (!from || !to) { if (errEl) errEl.textContent = '请选择开始与结束日期'; return; }
+        if (from > to) { if (errEl) errEl.textContent = '开始日期不能晚于结束日期'; return; }
+        options = { from: from, to: to };
+    } else {
+        const months = parseInt(selectedExportRange, 10);
+        const today = new Date();
+        // 按本地日期回推 N 个月（setMonth 自动处理跨月天数）
+        const start = new Date(today.getFullYear(), today.getMonth() - months, today.getDate());
+        options = { from: getLocalDateString(start), to: getLocalDateString(today) };
+    }
+    hideExportModal();
+    try {
+        await exportData(options);
+    } catch (e) {
+        console.error('[confirmExport] 导出失败:', e);
+        if (typeof showAlert === 'function') showAlert('导出失败：' + ((e && e.message) || '未知错误'));
+    }
+}
+
+async function exportData(options) {
     const migratedTransactions = transactions.map(t => { 
         if (t.type) return t; 
         const isEarn = t.amount > 0; 
@@ -1095,14 +1271,119 @@ function exportData() {
             taskName: t.taskName || (task ? task.name : '未知任务'),
             isStreakAdvancement: t.isStreakAdvancement || false // Ensure flag exists on export
         }; 
-    }).map(({ _ts, ...rest }) => rest); // [v9.28.0-perf] 剥离派生字段 _ts，不导出 
+    })
+    // [v9.38.1] 语义字段已持久化，不再需要导出时回填（原 enrichTransactionForExport 已删除）
+      .map(({ _ts, ...rest }) => rest);          // [v9.28.0-perf] 剥离派生字段 _ts，不导出
+
+    // [导出格式 v2] 加载说明书（源文件 data-dictionary.md；读取失败自动降级为精简兜底版）
+    const __dict = await loadDataDictionary();
+
+    // [导出格式 v2] 范围过滤（参数预留：当前无界面入口，不传 options 即为全量导出）
+    const __opt = (options && typeof options === 'object') ? options : {};
+    // 纯日期（YYYY-MM-DD）按【本地时间】解析：起 = 当日 00:00:00.000，止 = 当日 23:59:59.999
+    // （若直接 new Date('2026-03-25') 会被当成 UTC 零点 = 本地 08:00，漏掉当天 0-8 点的记录）
+    const __parseBound = (v, isEnd) => {
+        if (!v) return null;
+        if (typeof v === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(v)) {
+            const p = v.split('-').map(Number);
+            return new Date(p[0], p[1] - 1, p[2], isEnd ? 23 : 0, isEnd ? 59 : 0, isEnd ? 59 : 0, isEnd ? 999 : 0).getTime();
+        }
+        const ms = new Date(v).getTime();
+        return isNaN(ms) ? null : ms;
+    };
+    const __fromMs = __parseBound(__opt.from, false);
+    const __toMs   = __parseBound(__opt.to, true);
+    const __isRange = !!(__fromMs || __toMs);
+    const __effMs = (t) => {
+        // 范围切分按 occurredAt 优先；时刻未知（补录）时按入账时刻兜底
+        const v = t.occurredAt || t.timestamp;
+        const ms = v ? new Date(v).getTime() : 0;
+        return isNaN(ms) ? 0 : ms;
+    };
+    let exportTransactions = migratedTransactions;
+    let __openingBalance = 0;
+    if (__isRange) {
+        __openingBalance = migratedTransactions
+            .filter(t => __fromMs && __effMs(t) < __fromMs)
+            .reduce((s, t) => s + (t.type === 'earn' ? t.amount : -t.amount), 0);
+        exportTransactions = migratedTransactions.filter(t => {
+            const ms = __effMs(t);
+            if (__fromMs && ms < __fromMs) return false;
+            if (__toMs && ms > __toMs) return false;
+            return true;
+        });
+    } 
     
     // [v4.0.0] Use current in-memory state, not localStorage
     const d = {
+        // [导出格式 v2] 元信息：说明书 / 字段字典 / 特殊数据类型登记 / 自检信息
+        // 说明：readme 为 Markdown 全文；readmeSource=fallback 表示未能读取 data-dictionary.md
+        meta: {
+            exportFormatVersion: TB_EXPORT_FORMAT_VERSION,
+            readmeVersion: '1.0',
+            readmeSource: __dict.source,
+            readme: __dict.text,
+            exportedAt: new Date().toISOString(),
+            appVersion: APP_VERSION,
+            timezone: (function () {
+                try { return Intl.DateTimeFormat().resolvedOptions().timeZone || 'Asia/Shanghai'; } catch (e) { return 'Asia/Shanghai'; }
+            })(),
+            tzOffsetMinutes: -new Date().getTimezoneOffset(),
+            scope: __isRange ? {
+                mode: 'range',
+                from: __fromMs ? new Date(__fromMs).toISOString() : null,
+                to: __toMs ? new Date(__toMs).toISOString() : null,
+                fromLocal: __fromMs ? getLocalDateString(new Date(__fromMs)) : null,
+                toLocal: __toMs ? getLocalDateString(new Date(__toMs)) : null,
+                boundary: '按本地时区取整日边界（起=00:00:00.000，止=23:59:59.999）',
+                openingBalance: __openingBalance,
+                closingBalance: __openingBalance + exportTransactions.reduce((s, t) => s + (t.type === 'earn' ? t.amount : -t.amount), 0),
+                authoritativeTotalBalance: currentBalance,
+                balanceNote: 'openingBalance / closingBalance 为**按流水推算**的余额（逐笔累加），与实际 currentBalance 可能存在差额（见 checksum.diffSeconds）',
+                sliceBy: 'occurredAt ?? timestamp（补录记录发生时刻未知，按入账时刻兜底）',
+                note: '分析用数据片段：仅包含指定时间范围，不可用于数据恢复。'
+            } : {
+                mode: 'full',
+                openingBalance: 0,
+                closingBalance: currentBalance,
+                authoritativeTotalBalance: currentBalance
+            },
+            counts: {
+                transactions: exportTransactions.length,
+                tasks: tasks.length,
+                nights: exportTransactions.filter(t => t.sleepData && t.sleepData.sleepType === 'night').length,
+                naps: exportTransactions.filter(t => t.sleepData && t.sleepData.sleepType === 'nap').length,
+                backfill: exportTransactions.filter(t => t.entryMode === 'backfill').length,
+                timeUnknown: exportTransactions.filter(t => t.timeSource === 'estimated').length
+            },
+            checksum: (function () {
+                const __earn = exportTransactions.filter(t => t.type === 'earn').reduce((s, t) => s + (t.amount || 0), 0);
+                const __spend = exportTransactions.filter(t => t.type === 'spend').reduce((s, t) => s + (t.amount || 0), 0);
+                const __net = __earn - __spend;
+                // 本次导出覆盖范围内的"推算余额"：全量 = 流水净额；范围 = 期初 + 区间净额
+                const __derived = __isRange ? (__openingBalance + __net) : __net;
+                return {
+                    earnSeconds: __earn,
+                    spendSeconds: __spend,
+                    netSeconds: __net,
+                    derivedBalance: __derived,
+                    currentBalance: currentBalance,
+                    diffSeconds: __derived - currentBalance,
+                    note: 'netSeconds = earnSeconds − spendSeconds（本次导出范围内）；'
+                        + 'derivedBalance = 按流水推算的余额（全量导出即流水净额，范围导出为 期初余额 + 区间净额）；'
+                        + 'diffSeconds = derivedBalance − currentBalance。'
+                        + ' diffSeconds 非 0 说明存在未记为交易的余额变动（余额调整 / 退款 / 云端余额覆盖等），'
+                        + '**不代表数据丢失**。注：v9.38.0 之前部分写入路径存在余额重复计账（v9.38.0 起已修复），'
+                        + '修复前写入的历史 balanceAfter 可能带当时偏差。做流水分析请以 transactions 为准。'
+                };
+            })(),
+            fields: TB_EXPORT_FIELDS,
+            specialData: TB_SPECIAL_DATA_TYPES
+        },
         version: APP_VERSION,
         currentBalance,
         tasks,
-        transactions: migratedTransactions,
+        transactions: exportTransactions,
         categoryColors: [...categoryColors],
         collapsedCategories: [...collapsedCategories], // [v9.2.0] 改造 B: 导出本端当前状态，导入时仅在目标端无 localStorage 时生效
         dailyChanges,
@@ -1167,12 +1448,21 @@ function exportData() {
     
     const jsonStr = JSON.stringify(d, null, 2);
     // [v7.31.1] 修复：使用本地日期而非UTC日期生成备份文件名
-    const fileName = `timebank_backup_${getLocalDateString(new Date())}.json`;
+    const __dateTag = getLocalDateString(new Date());
+    const __rangeFrom = (__isRange && __fromMs) ? getLocalDateString(new Date(__fromMs)) : 'start';
+    const __rangeTo = (__isRange && __toMs) ? getLocalDateString(new Date(__toMs)) : __dateTag;
+    // [导出格式 v2] 范围导出（分析用片段）使用独立文件名，避免与完整备份混淆
+    const fileName = __isRange
+        ? `timebank_analysis_${__rangeFrom}_${__rangeTo}.json`
+        : `timebank_backup_${__dateTag}.json`;
+    // [导出格式 v2] 说明书只内置于 meta.readme，不再单独输出文件
     
     // 检测 Android 环境，直接调用原生保存
     if (typeof Android !== 'undefined' && Android.saveFileDirectly) {
         Android.saveFileDirectly(jsonStr, fileName);
-        showNotification('📁 数据已导出', '文件已保存到 Download 文件夹', 'achievement');
+        showNotification('📁 数据已导出',
+            __isRange ? `分析片段已保存：${fileName}` : `已保存到 Download：${fileName}`,
+            'achievement');
     } else {
         // Web 浏览器使用传统方式
         const b = new Blob([jsonStr], { type: 'application/json' }); 
@@ -1181,7 +1471,7 @@ function exportData() {
         a.download = fileName; 
         a.click(); 
         URL.revokeObjectURL(a.href); 
-        showNotification('📁 数据已导出', '所有历史数据已更新为最新格式。', 'achievement');
+        showNotification('📁 数据已导出', '数据（含内置说明书）已下载。', 'achievement');
     }
 }
 
@@ -1312,6 +1602,20 @@ function importData(event) {
         try {
             let d = JSON.parse(e.target.result);
             if (!d.version || !Array.isArray(d.tasks)) throw new Error('无效的数据格式');
+
+            // [导出格式 v2] 拒绝「分析用数据片段」：范围导出只含指定区间，导入会覆盖全部历史
+            if (d.meta && d.meta.scope && d.meta.scope.mode === 'range') {
+                const __fi = document.getElementById('importFile');
+                if (__fi) __fi.value = '';
+                showAlert(
+                    '这是一份「分析用数据片段」，只包含 ' +
+                    (d.meta.scope.from ? String(d.meta.scope.from).slice(0, 10) : '?') + ' ~ ' +
+                    (d.meta.scope.to ? String(d.meta.scope.to).slice(0, 10) : '?') +
+                    ' 的记录，不能用于恢复数据。\n\n恢复数据请使用「完整备份」文件（timebank_backup_*.json）。',
+                    '无法导入'
+                );
+                return;
+            }
             
             // 检查登录状态 - 同时检查 isLoggedIn() 和 auth.hasLoginState()
             const loggedIn = isLoggedIn();
@@ -2690,7 +2994,7 @@ function applyDataState(data) {
     }
 }
 
-function repairAndMigrateData(data) { if (!data.transactions || !Array.isArray(data.transactions) || !Array.isArray(data.tasks)) { return data; } let repairedCount = 0; const taskNameMap = new Map(data.tasks.map(task => [task.name, task.id])); data.transactions.forEach(t => { if (t.isSystem) return; let needsUpdate = false; if (!t.taskId && t.description) { const match = t.description.match(/"([^"]+)"/); if (match && match[1]) { const taskNameInDesc = match[1]; if (taskNameMap.has(taskNameInDesc)) { t.taskId = taskNameMap.get(taskNameInDesc); if (!t.taskName) { t.taskName = taskNameInDesc; } repairedCount++; needsUpdate = true; } } } if (!t.type) { const isEarn = t.amount > 0; t.type = isEarn ? 'earn' : 'spend'; t.amount = Math.abs(t.amount); needsUpdate = true; } }); if (repairedCount > 0) { console.log(`[Data Repair] Successfully repaired ${repairedCount} transactions by adding missing task IDs.`); } return data; }
+function repairAndMigrateData(data) { if (!data.transactions || !Array.isArray(data.transactions) || !Array.isArray(data.tasks)) { return data; } if (data.meta && data.meta.exportFormatVersion) { return data; } /* [导出格式 v2] 新格式自带 meta 与语义字段（entryMode/timeSource/occurredAt 等），无需旧格式修补 */ let repairedCount = 0; const taskNameMap = new Map(data.tasks.map(task => [task.name, task.id])); data.transactions.forEach(t => { if (t.isSystem) return; let needsUpdate = false; if (!t.taskId && t.description) { const match = t.description.match(/"([^"]+)"/); if (match && match[1]) { const taskNameInDesc = match[1]; if (taskNameMap.has(taskNameInDesc)) { t.taskId = taskNameMap.get(taskNameInDesc); if (!t.taskName) { t.taskName = taskNameInDesc; } repairedCount++; needsUpdate = true; } } } if (!t.type) { const isEarn = t.amount > 0; t.type = isEarn ? 'earn' : 'spend'; t.amount = Math.abs(t.amount); needsUpdate = true; } }); if (repairedCount > 0) { console.log(`[Data Repair] Successfully repaired ${repairedCount} transactions by adding missing task IDs.`); } return data; }
 
 function renderColorSelectors(editingColor = null) { const usedColors = Array.from(categoryColors.values()); const render = (containerId, colors) => { const container = document.getElementById(containerId); container.innerHTML = colors.map(color => { const isUsed = usedColors.includes(color); const isDisabled = isUsed && color !== editingColor; const isSelected = color === currentSelectedColor; return `<div class="color-swatch ${isDisabled ? 'disabled' : ''} ${isSelected ? 'selected' : ''} ${isUsed && !isDisabled ? 'used' : ''}" style="background-color: ${color};" data-color="${color}"><span class="checkmark">✔</span></div>`; }).join(''); }; render('earnColorSelector', earnColors); render('spendColorSelector', spendColors); }
 function handleColorSelection(event) { const swatch = event.target.closest('.color-swatch'); if (!swatch || swatch.classList.contains('disabled')) return; currentSelectedColor = swatch.dataset.color; const selector = swatch.parentElement; selector.querySelectorAll('.color-swatch').forEach(s => s.classList.remove('selected')); swatch.classList.add('selected'); }

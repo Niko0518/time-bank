@@ -8542,3 +8542,33 @@ body:not(.data-ready) .voice-fab {
         background: rgba(255, 255, 255, .06);
     }
 }
+
+/* ==================== [v9.38.0] 导出范围选择（3 列网格按钮） ==================== */
+.export-range-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr 1fr;
+    gap: 8px;
+}
+.export-range-grid button {
+    padding: 10px 4px;
+    font-size: 0.85rem;
+    border-radius: 8px;
+    border: 1px solid var(--border-color, #ddd);
+    background: var(--bg-secondary, #f5f5f5);
+    color: var(--text-color, #333);
+    cursor: pointer;
+    transition: background 0.15s ease;
+}
+.export-range-grid button.active {
+    background: var(--color-primary, #4a7dff);
+    color: #fff;
+    border-color: transparent;
+}
+[data-theme="dark"] .export-range-grid button {
+    background: rgba(255, 255, 255, 0.06);
+    border-color: rgba(255, 255, 255, 0.12);
+}
+[data-theme="dark"] .export-range-grid button.active {
+    background: var(--color-primary, #4a7dff);
+    border-color: transparent;
+}

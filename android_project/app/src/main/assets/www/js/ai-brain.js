@@ -696,7 +696,10 @@ ${inputsText}
             const done = txs.filter(t => this._ts(t) >= today && this._ts(t) < today + this.DAY_MS);
             if (!done.length) return '今天还没有任何记录，从一件小事开始吧。';
             const lines = done.slice(-8).map(t => {
-                const hhmm = new Date(this._ts(t)).toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' });
+                // [v9.38.0] 展示用真实发生时刻；时刻未知则显示 —:—（上方 done 的当日筛选仍用 _ts，属内部逻辑，不改）
+                const hhmm = (typeof formatRecordTimeHM === 'function')
+                    ? formatRecordTimeHM(t)
+                    : new Date(t.timestamp).toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' });
                 return `${hhmm} ${t.type === 'earn' ? '获取' : '消费'} ${t.taskName || '未命名'} ${this._dur(t.amount || 0)}`;
             });
             return `今天已记录 ${done.length} 笔：\n` + lines.join('\n');

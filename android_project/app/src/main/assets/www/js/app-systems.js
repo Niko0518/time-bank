@@ -1927,9 +1927,9 @@ async function settleDailyInterest(forDate = null) {
             timestamp: yesterdayEndTime.toISOString()
         });
         
-        // 更新余额
-        currentBalance += interestAmount;
-        
+        // [v9.38.0-fix] 修复余额重复计账：addTransaction 已按 type（存/贷）更新 currentBalance，
+        // 此处不再重复累加（与 v9.17.8 在屏幕时间/自动补录路径的修复同一模式，当时漏掉了利息路径）
+
         // 更新统计
         if (isDeposit) {
             financeStats.totalDepositInterest += interestAmount;
@@ -3975,6 +3975,13 @@ function createAutoMakeup(task, dateStr, makeupMinutes, actualMinutes, recordedM
         isAutoDetected: true,
         autoDetectType: 'makeup',
         isBackdate: true,
+        // [导出格式 v2] 系统自动补录：日期可信、**时刻未知**（timestamp 为 23:00 占位值，非真实发生时刻）
+        // 分析规则见 assets/www/data-dictionary.md 第 6 节 auto_makeup
+        entryMode: 'auto',
+        occurredAt: null,
+        timeSource: 'auto',
+        timePrecision: 'date',
+        durationSource: 'auto',
         balanceAdjust: hasBalanceAdjust ? { multiplier: balanceMultiplier, originalAmount: adjustedSeconds } : undefined,
         autoDetectData: {
             actualMinutes,
@@ -4087,6 +4094,13 @@ function createAutoCorrection(task, dateStr, correctionMinutes, actualMinutes, r
         isAutoDetected: true,
         autoDetectType: 'correction',
         isBackdate: true,
+        // [导出格式 v2] 系统自动修正：日期可信、**时刻未知**（timestamp 为 23:00 占位值）
+        // 分析规则见 assets/www/data-dictionary.md 第 6 节 auto_correction
+        entryMode: 'auto',
+        occurredAt: null,
+        timeSource: 'auto',
+        timePrecision: 'date',
+        durationSource: 'auto',
         autoDetectData: {
             actualMinutes,
             recordedMinutes,
@@ -4427,8 +4441,8 @@ async function addManualScreenTimeRecord() {
     // [v9.15.2→v9.34.0] 超限惩罚已取消：与 autoSettleScreenTime 路径一致，超出部分不再 ×1.2
     let overLimitPenalty = null;
 
-    const balanceChange = isReward ? absAmount : -absAmount;
-    currentBalance += balanceChange;
+    const balanceChange = isReward ? absAmount : -absAmount; // [v9.38.0-fix] 保留声明以防后续引用
+    // [v9.38.0-fix] 修复余额重复计账：余额统一由下方 addTransaction() 按 type 更新（同 v9.17.8 模式，此处不再重复累加）
 
     const [year, month, day] = dateStr.split('-').map(Number);
     const dateObj = new Date(year, month - 1, day);
@@ -4929,8 +4943,7 @@ function executeHistoricalSettlement() {
         const isReward = diff >= 0;
         const absAmount = Math.abs(diffSeconds);
         
-        // 更新余额
-        currentBalance += diffSeconds;
+        // [v9.38.0-fix] 修复余额重复计账：余额由下方 addTransaction() 统一更新，此处不再重复累加
         totalChange += diffSeconds;
         
         // 计算该日期对应的 dailyChanges key

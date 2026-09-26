@@ -4,6 +4,80 @@
 >
 > 用户-facing 的精简版本请见 `index.html` 关于页。
 
+## v9.38.1 (2026-09-26) — 语义字段一次性迁移（6,436 条）+ 删除失效兜底层（屎山治理第一步）
+
+> 背景：v9.36.7 代码健康审计指出病根为"同一数据多种存法 + 读时推导"。本版利用"产品未上线、无需向前兼容"的窗口做减法。
+
+### 核心变更
+
+1. **一次性数据迁移（云端 + 本地，6,436 条）**：历史交易的语义字段（`occurredAt / createdAt / entryMode / timeSource / timePrecision / businessDate / durationSource / taskType / quantitySeconds / taskNameAtTime / categoryAtTime / sourceDeviceLabel`）原本由 `enrichTransactionForExport → resolveTransactionTime` 在**每次导出/展示/画图时现场推导**；现一次性写入数据本身。
+   - **计算复用唯一实现**（设备端 `enrichTransactionForExport()`），**不在云端复制一份逻辑**——这是本次最重要的设计决策（复制一份即制造第二个真理来源，正是屎山病根）。
+   - 新增云函数 action **`bulkPatchTransactions`**：批量（200/批、内部 20 并发）、**纯字段写入**（同时写顶层与 `data.*`），**不触发余额 / 每日汇总重算**，幂等、可续跑，返回 `ok/fail/missing`。
+   - 设备端迁移例程 `__migrateSemanticFields()`：以 localStorage 标记幂等，失败保留未完标记下次续跑；迁移完成后该例程**连同推导代码一并删除**（迁移版 → 清理版两次构建，版本号均为 9.38.1）。
+2. **删除失效兜底层**：
+   - `enrichTransactionForExport()`（app-auth.js，导出时推导）→ 删除，导出直接读字段。
+   - 读取侧不再调用 `resolveTransactionTime()`：`getReliableOccurredMs()` / `resolveFlowAnchor()` 改为**直接读持久化字段**（判定：occurredAt 为空 或 `timePrecision==='date'` → 时刻未知；`anchorIsStart` 改由 `entryMode==='backfill' && timeSource==='user'` + 计时类任务判定）。`resolveTransactionTime()` 仅保留给**写入端**（`addTransaction` 注入新记录）。
+   - Profile 解包/自愈三层：`__unwrapProfileData` / `__isDeviceKeyedField` / `__healProfileWrappers` / `__profileHealedPaths` → 删除（迁移前 MCP 直读核实云端 **0 处** `_.set()` 包装体残留，v9.37.3 自愈已完成使命；生产者 11 处早已改为传普通对象）。保留最小护栏：`DAL.saveProfile` 内仍兜底解包一次、`app-sleep.js` 两处防御性解包保留。
+   - `__normalizeTxDoc` 双向兜底 → 单向（data 优先、顶层兜底）。
+   - 云函数 `INDEX_DEFS` + `ensureIndexes()`（node-sdk 无 `createIndex`，纯空转噪音日志）→ 删除。
+3. **顺带修复的历史数据**：144 条 2026-01~07 的**老格式睡眠记录**（入睡/醒来时刻只写在 description 文本里）在迁移中被 `parseLegacySleepRange()` 解析为真实 `occurredAt`，`timePrecision` 由 `date` 升级为 `exact` → 时间流图与 AI 分析首次可用这部分数据。
+
+### 验证
+
+- 迁移前：云端缺 `occurredAt` = 6,436（本账号）；迁移后 = **0**（32 批 ×200，全部 `fail:0 missing:0`）。
+- 等价性（与迁移前全量导出基线 6,434 条逐项对照）：
+  - `entryMode=backfill` 571 = 571 ✅ 完全一致
+  - `occurredAt=null` 1,888 → **1,744**（−144 = 老睡眠升级，预期改进）
+  - `timeSource=user` 16 → **163**（+144 升级 + 新增记录）
+  - 6 条代表性样本（补录仅日期 / 补录有时刻 / 结构化睡眠 / 老格式睡眠 / 利息 / 屏幕时间 / 实时记录）**逐字段一致**；`createdAt` 为 null 的记录与基线一致（非迁移引入）。
+- 清理版 APK：内嵌文件确认 enrich / 自愈 / 迁移例程 / 双向兜底**均已不存在**；冷启动 logcat 无 `Uncaught/ReferenceError/TypeError`。
+- 后续导出将由字段直接提供（不再有推导路径），等价性由"删前 = 删后"保证。
+
+### 文件
+
+- 前端：`js/app-1.js`（迁移例程→删除、profile 解包/自愈删除、归一简化）、`js/app-auth.js`（删除 enrich）、`js/app-reports.js`（读取侧改直读字段）、`index.html`
+- 云函数：`cloudbase-functions/tbMutation/index.js`（新增 `bulkPatchTransactions`；删除 `ensureIndexes`/`INDEX_DEFS`）
+
+### 已知遗留
+
+- 12 处"一次性迁移"死代码（v9.1.0 dailyChanges / v9.8.0 sleep 状态 ×2 / v9.18.2 分类行数 / v9.19.x 卡片顺序 / v9.24.0 / v9.31.0 / v9.36.5 / v7.20.0 主题 / ai-service 旧设置）**本次未删**——需逐处确认无云端副作用后再删，留 9.38.2。
+- `parseLegacySleepRange()` 保留：它不是兼容层，而是从文本提取结构化信息（迁移后时间流图仍需它取"醒来时刻"）。
+- 拆分 `app-1.js`（14k 行）、根目录 PWA 副本与商业版分叉清理 → 9.39+。
+
+## v9.38.0 (2026-09-26) — 导出格式 v2「AI 分析友好化」+ P2 界面（补录真实时刻 / 导出范围）+ 余额重复计账全量修复（5 处）
+
+### 核心变更
+
+1. **导出格式 v2（`app-auth.js`）**：`TB_EXPORT_FORMAT_VERSION='2.0'`；`meta.readme` 内嵌 `data-dictionary.md`（`readmeSource=file/fallback`，不再单独输出说明书文件）；交易记录新增 11 个语义字段（`occurredAt / createdAt / entryMode / timeSource / timePrecision / businessDate / durationSource / taskType / quantitySeconds / balanceAfter` + 任务/分类快照）；`enrichTransactionForExport` 改「已有值优先」推导，避免覆盖用户填写的真实时刻。`checksum` 给出 `netSeconds / derivedBalance / diffSeconds`（diffSeconds 语义统一为"按流水推算的余额 − 权威余额"，全量/范围导出一致）。
+2. **范围导出**：`exportData({from,to})` 纯日期按本地整日边界解析；范围文件写 `meta.scope`、文件名 `timebank_analysis_*`，**导入时被拒绝**（防误把片段当备份恢复）；`sw.js` 缓存清单加入 `data-dictionary.md`。
+3. **时间可信度体系**：`timeSource`（live/user/estimated/auto）× `timePrecision`（exact/minute/date/derived）；硬规则 `occurredAt=null` 时禁止回退 `timestamp` 当发生时刻。睡眠归属日统一「醒来日」（`businessDate` 带例外说明："这一夜" = businessDate − 1）；历史睡眠记录启动期幂等升级出 `occurredAt`（入睡时刻，`timePrecision=derived`）。
+4. **P2-① 补录真实时刻**：补录弹窗新增「发生时间」二选一——默认「只记得是这一天」（与原行为完全一致，不编造时刻）；「我记得具体时刻」→ `occurredAt=所选日期+该时刻`、`timeSource=user`、`timePrecision=minute`；「按起止时间」模式整组隐藏（开始时间即真实时刻）。**`timestamp` 语义不变**（云同步游标/每日归日不受影响）。
+5. **P2-② 导出范围弹窗**：`#exportModal`（全部 / 近 1·3·6·12 个月 / 自定义 + 起止日期）；「全部」走原全量路径（行为不变）；弹窗缺失时兜底回退全量导出。
+6. **⚠️ 余额重复计账全量修复（5 处）**：全量审计 20 个 `addTransaction` 调用点 × 全部 `currentBalance ±=` 交叉比对，删除 **补录（earn/spend）、计时消费扣费、利息结算、屏幕时间结算、屏幕时间补结算** 5 处重复累加 → 余额由 `addTransaction` **单点更新**（此前实测偏差 = 各路径金额之和，如补录 360+360+1080=1800）。保留 8 处**合法**手动变更（习惯奖励合并补偿 ×2、撤回回滚 ×2、利息去重 ×2、暂存清理退款）。修复前写入的历史 `balanceAfter` 仍带当时偏差；云端 `cachedBalance` / `tb_daily` 始终正确。
+7. **AI 时间口径（`ai-service.js` / `ai-brain.js`）**：时段分布与 prompt「交易记录」时间列改用 `getReliableOccurredMs()`（时刻未知跳过 / 显示 `--:--` 并提示模型忽略该列），不再把补录占位值 12:00 当真实时段；修复 2 处 `timestamp` 混型（ISO 字符串与毫秒混存）排序得 NaN（"最早一条"与总天数可能取错）。按日归属/范围过滤保持 `timestamp`（入账日=归属日，语义正确）。
+8. **云函数 `tbMutation`**：`SEMANTIC_TX_FIELDS`（10 字段）+ `_pickSemanticFields()`，交易增改时把语义字段同步写**顶层**（嵌套在 `data` 内无法建索引/查询）；前端 `TX_PROJECTION` 加 10 字段、`__normalizeTxDoc` 顶层与 `data` **双向兜底**。配置 `Timeout` 15s→30s（与 `cloudbaserc.json` 对齐；`migrateDailyChanges` 上限 10000 条，15s 偏紧）。
+9. **缺陷修复**：`showFieldError()` 的实现曾在早期重构中被删除但 **13 处调用仍在**（任何表单校验失败抛 `ReferenceError` → 提示不显示、弹窗静默卡住）→ 按与 `clearFormErrors()` 配对的约定补回；`switchBackdateMode` 的选择器限定到 `#backdateModeSwitchContainer`（避免误清「发生时间」开关选中态）。
+10. **工具**：`bump-version.ps1` 同步清单 6→9 条；diff 强校验清单加入 `app-reports.js / app-systems.js / ai-brain.js / ai-service.js`。
+
+### 验证（真机）
+
+- 设备实测（补录「洗澡（昨天）」→ 导出）：11 个语义字段 **6,433/6,433** 全覆盖（缺失 0）、`counts` 自检通过、说明书内嵌 8,458 字符、导出目录仅生成 **1 个文件**；新补录记录 `entryMode=backfill / occurredAt=null / timeSource=estimated / timePrecision=date / businessDate=昨天` 与历史推导口径一致（backfill 569→570）。
+- 云函数：`updateFunctionCode` `ModTime 11:10:58` `CodeResult=success`；对补录记录执行**语义等价** `updateTransaction`（金额/类型/时刻与库中一致 → `balanceDelta=0`）后回读，顶层 `entryMode/occurredAt/createdAt/businessDate/timeSource/timePrecision/durationSource/taskType/balanceAfter` 全部就位（可查询）。
+- 余额审计：修复后全库仅剩 8 处 `currentBalance ±=`，逐一核对合法；4 个改动 JS `node --check` + `read_lints` 0 诊断；APK 内嵌文件含 `v9.38.0-fix` 标记 ×7、`--:--` ×3；冷启动 logcat 无 `Uncaught/ReferenceError/SyntaxError`；`index.html` div 标签平衡。
+- 多次 build+push+`pm install`，`lastUpdateTime` 11:07:58 → 11:21:26 → 13:11:17 → 13:14:46 递增。
+
+### 文件
+
+- 前端：`index.html`、`css/main.css`、`js/app-1.js`、`js/app-2.js`、`js/app-auth.js`、`js/app-reports.js`、`js/app-systems.js`、`js/ai-service.js`、`js/ai-brain.js`、`sw.js`、`data-dictionary.md`（新增）
+- 云函数：`cloudbase-functions/tbMutation/index.js`
+- 工具/文档：`bump-version.ps1`、`AGENTS.md`、`log&data/`（方案、总结）
+
+### 已知遗留
+
+- 语义字段索引未建（当前无服务端查询路径；现有索引由 v9.37.0 云 API RunCommands 统一维护，见 `tbMutation` 内 `INDEX_DEFS` 注释）。
+- zip 分片导出 / `aggregates` 聚合区（需新增原生二进制保存接口）未做。
+- `timebank-commercial/` 独立副本（v9.36.6）未同步本版改动。
+
 ## v9.37.3 (2026-09-23) — 睡眠/Profile 跨设备同步根因修复（`_.set()` 命令体入库存成包装体）+ 手机启动提速 + 加载圈回归
 
 ### 核心变更

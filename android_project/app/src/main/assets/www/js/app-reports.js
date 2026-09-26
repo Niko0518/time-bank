@@ -37,6 +37,70 @@ function addTransaction(transaction) {
     }
     // [v9.28.0-perf] 注入 _ts 派生字段，后续排序/过滤不再重复 new Date()
     transaction._ts = new Date(transaction.timestamp).getTime();
+
+    // ===== [导出格式 v2] 语义字段注入：让新数据天生带可信度标记 =====
+    // 字段含义与硬规则见 assets/www/data-dictionary.md 第 3-5 节。
+    // 原则：调用方显式传入的值优先；未传入则按记录类型推导默认值（与历史数据回填规则一致）。
+    // 关键：createdAt 记录**真实写入时刻**，不再依赖"从 id 前 13 位猜测"。
+    try {
+        const _sd = transaction.sleepData;
+        const _isSys = transaction.isSystem === true;
+        let _defEntry, _defSource, _defPrec, _defOccurred;
+        if (_sd && _sd.startTime) {
+            _defEntry  = 'auto';                                  // 睡眠记录由结算流程自动生成
+            _defSource = _sd.manualEntry ? 'user' : 'live';       // 时刻来源：手工录入 / 点击入睡
+            _defPrec   = 'exact';
+            _defOccurred = new Date(Number(_sd.startTime)).toISOString();
+        } else if (_isSys) {
+            // 系统整日累计类（利息 / 屏幕时间等）：timestamp 为当日占位值（如 23:00）→ 时刻未知
+            _defEntry  = 'auto'; _defSource = 'auto'; _defPrec = 'date';
+            _defOccurred = null;
+        } else {
+            _defEntry  = 'live'; _defSource = 'live'; _defPrec = 'exact';
+            _defOccurred = transaction.timestamp;
+        }
+        transaction.createdAt     = transaction.createdAt || new Date().toISOString();
+        transaction.entryMode     = transaction.entryMode || _defEntry;
+        transaction.timeSource    = transaction.timeSource || _defSource;
+        transaction.timePrecision = transaction.timePrecision || _defPrec;
+        transaction.occurredAt    = (transaction.occurredAt !== undefined) ? transaction.occurredAt : _defOccurred;
+        // 归属日（只到日，本地时区）：走唯一实现 —— 睡眠记录按「醒来日」，其余 = occurredAt ?? timestamp
+        if (!transaction.businessDate) {
+            const _tt = resolveTransactionTime(transaction);
+            const _basisMs = (_tt && Number.isFinite(_tt.dateBasisMs)) ? _tt.dateBasisMs : NaN;
+            const _bd = new Date(Number.isFinite(_basisMs) ? _basisMs : (transaction.occurredAt || transaction.timestamp));
+            if (!isNaN(_bd.getTime())) {
+                transaction.businessDate = _bd.getFullYear() + '-' +
+                    String(_bd.getMonth() + 1).padStart(2, '0') + '-' +
+                    String(_bd.getDate()).padStart(2, '0');
+            }
+        }
+        // 任务/分类快照（任务改名或删除后仍可追溯）
+        if (!transaction.taskNameAtTime) transaction.taskNameAtTime = transaction.taskName || null;
+        if (!transaction.categoryAtTime) {
+            let _cat = transaction.category;
+            if (!_cat && transaction.taskId && typeof tasks !== 'undefined' && tasks) {
+                const _t = tasks.find(x => x.id === transaction.taskId);
+                if (_t) _cat = _t.category;
+            }
+            transaction.categoryAtTime = _cat || null;
+        }
+        if (!transaction.taskType) transaction.taskType = _isSys ? 'system' : 'user';
+        if (transaction.sourceDeviceLabel === undefined) {
+            transaction.sourceDeviceLabel = (transaction.taskName && transaction.taskName.indexOf(' · ') > -1)
+                ? (transaction.taskName.split(' · ')[1] || null) : null;
+        }
+        // 原始量：连续类任务已有 rawSeconds，直接作为不含倍率的原始量
+        if (transaction.quantitySeconds === undefined && typeof transaction.rawSeconds === 'number') {
+            transaction.quantitySeconds = transaction.rawSeconds;
+        }
+        // 原始量来源：系统计时 → timer；无时长概念 → null（补录/系统推算由调用方显式指定）
+        if (transaction.durationSource === undefined) {
+            transaction.durationSource = (typeof transaction.rawSeconds === 'number') ? 'timer' : null;
+        }
+    } catch (e) {
+        console.warn('[addTransaction] 语义字段注入异常（不影响写入）:', e);
+    }
     transactions.unshift(transaction);
     transactions.sort((a, b) => getTs(b) - getTs(a));
     markTransactionsDirty(); // [v9.28.0-perf] 置脏缓存
@@ -58,6 +122,8 @@ function addTransaction(transaction) {
     } else {
         currentBalance -= amt;
     }
+    // [导出格式 v2] 记录该笔入账后的余额，供外部校验流水完整性（期初 + 区间净额 = 期末）
+    transaction.balanceAfter = currentBalance;
 
     // [v7.30.1] 云端同步改为 fire-and-forget，不阻塞 UI
     // [v7.32.0-fix] 返回 Promise，允许调用方等待
@@ -322,6 +388,169 @@ function extractRealDurationFromTransaction(t, task) {
     return Math.abs(t.amount);
 }
 
+// [v9.38.0] 解析「老格式」睡眠记录描述里的入睡／醒来时刻
+// 背景：2026-01 ~ 2026-07 的睡眠记录没有结构化 sleepData，时刻**只写在 description 里**，例如：
+//   😴 夜间睡眠: 02:05~10:17 8小时12分钟      💤 日间小睡: 13:00~13:40 40分钟
+// 返回 { startMs, endMs }；无法解析时返回 null。
+// 归属日：以入账时刻（timestamp）所在日为基础；若入睡钟点晚于醒来钟点（跨零点），入睡归**前一天**。
+function parseLegacySleepRange(t) {
+    if (!t) return null;
+    const text = String(t.description || '') + ' ' + String(t.note || '');
+    if (!/睡眠|小睡|午睡/.test(text)) return null;                      // 仅限睡眠类，避免误伤普通任务
+    const m = text.match(/(\d{1,2}):(\d{2})\s*[~～\-—－至到]\s*(\d{1,2}):(\d{2})/);
+    if (!m) return null;
+    const sh = +m[1], sm = +m[2], eh = +m[3], em = +m[4];
+    if (sh > 23 || eh > 23 || sm > 59 || em > 59) return null;
+    const tsMs = t.timestamp ? new Date(t.timestamp).getTime() : NaN;
+    if (!Number.isFinite(tsMs)) return null;
+    const base = new Date(tsMs);
+    const startMin = sh * 60 + sm, endMin = eh * 60 + em;
+    const start = new Date(base.getFullYear(), base.getMonth(), base.getDate(), sh, sm, 0, 0);
+    if (startMin > endMin) start.setDate(start.getDate() - 1);          // 跨零点 → 入睡在前一天
+    const startMs = start.getTime();
+    if (!Number.isFinite(startMs)) return null;
+    // 醒来时刻 = 入睡 + 区间长度（区间长度用 24h 取模，天然处理跨零点）
+    let span = (endMin - startMin + 1440) % 1440;
+    if (span <= 0) span += 1440;
+    return { startMs: startMs, endMs: startMs + span * 60000 };
+}
+
+// ==================== [v9.38.0] 交易「时间语义」——全库唯一判定实现 ====================
+// 这是**唯一**一处回答「一条记录的时刻可不可信、发生时刻是多少」的地方。
+// 所有消费方都必须调用它，**禁止各自复制规则**：
+//   ① 导出增强 enrichTransactionForExport（app-auth.js）
+//   ② 界面展示 formatRecordTime / formatRecordTimeHM（本文件）
+//   ③ 时间流图 getReliableOccurredMs / resolveFlowAnchor（本文件）
+// 规则说明见 assets/www/data-dictionary.md 第 4-5 节。**改判定规则只改这里。**
+//
+// 判定顺序（与改造前的导出侧逐字一致）：
+//   0. 写入端已记录的语义字段（v9.38.0 起的新记录）优先，缺失项才用推导值兜底
+//   1. 睡眠记录（sleepData.startTime）→ auto /（manualEntry ? user : live）/ exact
+//   2. 补录 + timestamp 恰为 12:00:00.000 + 创建滞后 > 30 分钟 → 事后补录，时刻不可信
+//   3. 系统整日累计类（利息 / 屏幕时间 / 自动补录 / 自动修正等 isSystem）→ 时刻不可信
+//   4. 其余补录 → occurredAt = timestamp，minute 级
+//   5. 其余（正常实时记录）→ occurredAt = timestamp，exact 级
+function resolveTransactionTime(t, task) {
+    if (!t) return null;
+
+    const desc = t.description || '';
+    const isBackfill = /^补录[:：]/.test(desc);
+    const isAutoKind = /^自动补录[:：]/.test(desc) || /^自动修正[:：]/.test(desc);
+    const tsMs = t.timestamp ? new Date(t.timestamp).getTime() : NaN;
+    const hasTs = Number.isFinite(tsMs);
+
+    // 创建时刻（判断补录是否"事后补记"用）：优先字段，历史数据从 id 前 13 位（epoch 毫秒）还原
+    let createdAt = t.createdAt || null;
+    if (!createdAt && /^\d{13}/.test(String(t.id || ''))) {
+        createdAt = new Date(Number(String(t.id).slice(0, 13))).toISOString();
+    }
+    const createdMs = createdAt ? new Date(createdAt).getTime() : NaN;
+    const lagMin = (Number.isFinite(createdMs) && hasTs) ? (createdMs - tsMs) / 60000 : null;
+
+    // ---- 第一步：推导值（历史数据规则） ----
+    let dOccurredAt, dEntryMode, dTimeSource, dTimePrecision;
+    const sd = t.sleepData;
+    // 老格式睡眠记录：无 sleepData、属系统记录 → 尝试从 description 解析入睡时刻
+    // （2026-01 ~ 07 的睡眠记录把时刻只写在文本里，见 parseLegacySleepRange）
+    let legacySleep = null;
+    if (!sd && t.isSystem === true && !isAutoKind && /睡眠|小睡|午睡/.test(desc)) {
+        legacySleep = parseLegacySleepRange(t);
+    }
+    if (sd && sd.startTime) {
+        dOccurredAt = new Date(Number(sd.startTime)).toISOString();
+        dEntryMode = 'auto';
+        dTimeSource = sd.manualEntry ? 'user' : 'live';
+        dTimePrecision = 'exact';
+    } else {
+        const d = hasTs ? new Date(tsMs) : null;
+        const isNoonPlaceholder = !!d && d.getHours() === 12 && d.getMinutes() === 0 &&
+            d.getSeconds() === 0 && d.getMilliseconds() === 0;
+        if (isBackfill && isNoonPlaceholder && lagMin !== null && lagMin > 30) {
+            dOccurredAt = null; dEntryMode = 'backfill'; dTimeSource = 'estimated'; dTimePrecision = 'date';
+        } else if (isAutoKind || t.isSystem === true) {
+            dOccurredAt = null; dEntryMode = 'auto'; dTimeSource = 'auto'; dTimePrecision = 'date';
+        } else if (isBackfill) {
+            dOccurredAt = t.timestamp || null;
+            dEntryMode = 'backfill';
+            dTimeSource = (lagMin !== null && lagMin <= 30) ? 'live' : 'user';
+            dTimePrecision = 'minute';
+        } else {
+            dOccurredAt = t.timestamp || null;
+            dEntryMode = 'live'; dTimeSource = 'live'; dTimePrecision = 'exact';
+        }
+    }
+
+    // ---- 第二步：写入端语义字段优先（新记录），缺失项用推导值兜底 ----
+    // 特例（老格式睡眠记录）：`timePrecision === 'date'` 表示"时刻未知"，它是**旧版本的判定结果**，
+    // 而不是用户填写的时间。既然现在能从 description 解析出真实入睡时刻，就把它**升级**为可用，
+    // 口径与 sleepData.manualEntry 的睡眠记录一致（auto / user / exact）。
+    // 注意：绝不覆盖用户填写的 `user` / `live` / `minute` / `exact`。
+    let occurredAt, entryMode, timeSource, timePrecision;
+    if (legacySleep && (!t.timePrecision || t.timePrecision === 'date')) {
+        occurredAt = new Date(legacySleep.startMs).toISOString();
+        entryMode = 'auto';
+        timeSource = 'user';
+        timePrecision = 'exact';
+    } else {
+        occurredAt = (t.occurredAt !== undefined) ? t.occurredAt : dOccurredAt;
+        entryMode = t.entryMode || dEntryMode;
+        timeSource = t.timeSource || dTimeSource;
+        timePrecision = t.timePrecision || dTimePrecision;
+    }
+
+    // 流图专用：仅当**写入端显式标注**了「计时类补录 + 时刻由用户填写」时，
+    // occurredAt 才代表"开始时刻"（结束 = 开始 + 时长）。历史推导的记录不适用
+    // （它们的 occurredAt 就是 timestamp 占位值），故必须限定为写入端字段。
+    const wroteSemantics = !!(t.timePrecision && t.occurredAt !== undefined);
+    const isDurationTask = !!(task && ['continuous', 'continuous_target', 'continuous_redeem'].includes(task.type));
+    const anchorIsStart = wroteSemantics && isDurationTask && entryMode === 'backfill' && timeSource === 'user';
+
+    // ---- 第三步：归属日依据（毫秒）：决定 `businessDate` 落在哪一天 ----
+    // 一般记录 = `occurredAt ?? timestamp`；
+    // **睡眠记录统一按「醒来日」** —— 一夜算作醒来的那天，更符合直觉。
+    // 由此「这一夜」= `businessDate − 1 天`（不必再做"入睡 < 12:00 归前一天"的条件换算）。
+    let dateBasisMs = NaN;
+    if (sd && sd.wakeTime) {
+        const _w = Number(sd.wakeTime);
+        if (Number.isFinite(_w)) dateBasisMs = _w;
+    }
+    if (!Number.isFinite(dateBasisMs) && legacySleep) dateBasisMs = legacySleep.endMs;
+    if (!Number.isFinite(dateBasisMs)) {
+        const _b = occurredAt || t.timestamp;
+        if (_b) dateBasisMs = new Date(_b).getTime();
+    }
+
+    return {
+        occurredAt: occurredAt,
+        entryMode: entryMode,
+        timeSource: timeSource,
+        timePrecision: timePrecision,
+        anchorIsStart: anchorIsStart,
+        createdAt: createdAt,
+        dateBasisMs: dateBasisMs
+    };
+}
+
+// 便捷封装：可信发生时刻（毫秒）；null = 时刻不可信（只记得日期）
+// [v9.38.1] 语义字段已随数据持久化（一次性迁移完成），读取侧**直接读字段**，不再现场推导。
+// 判定规则：occurredAt 为空 / timePrecision === 'date' → 时刻未知（硬规则：绝不回退用 timestamp）。
+function getReliableOccurredMs(t, task) {
+    if (!t || t.occurredAt === undefined || t.occurredAt === null) return null;
+    if (t.timePrecision === undefined || t.timePrecision === 'date') return null;
+    const ms = new Date(t.occurredAt).getTime();
+    return Number.isFinite(ms) ? ms : null;
+}
+
+// 流图锚点：把记录映射为它应该画在哪；返回 null → 不上时间轴
+function resolveFlowAnchor(t, task) {
+    const ms = getReliableOccurredMs(t, task);
+    if (ms === null) return null;
+    // 写入端已持久化的判定依据：计时类任务 + 补录 + 时刻由用户填写 → occurredAt 是**开始时刻**
+    const isDurationTask = !!(task && ['continuous', 'continuous_target', 'continuous_redeem'].includes(task.type));
+    const anchorIsStart = isDurationTask && t.entryMode === 'backfill' && t.timeSource === 'user';
+    return { anchorMs: ms, anchorIsStart: !!anchorIsStart };
+}
+
 // [v5.8.0] 多天连续时间流图状态
 let multiDayFlowState = {
     currentDate: null,   // 当前显示的日期
@@ -370,16 +599,30 @@ function getMultiDayFlowSlots(endDate, days) {
         let taskStartTime;
         let realDurationSeconds;
         if (isSleepRecord) {
-            const sleepStart = t.sleepData?.startTime;
-            const sleepEnd = t.sleepData?.wakeTime;
+            let sleepStart = t.sleepData?.startTime;
+            let sleepEnd = t.sleepData?.wakeTime;
+            if (!sleepStart || !sleepEnd) {
+                // [v9.38.0] 老格式睡眠记录（无 sleepData）：入睡/醒来时刻从 description 解析
+                const legacy = parseLegacySleepRange(t);
+                if (legacy) { sleepStart = legacy.startMs; sleepEnd = legacy.endMs; }
+            }
             if (!sleepStart || !sleepEnd) return;
             taskStartTime = new Date(sleepStart);
             endTime = new Date(sleepEnd);
             realDurationSeconds = Math.max(0, (endTime.getTime() - taskStartTime.getTime()) / 1000);
         } else {
-            endTime = new Date(t.timestamp);
+            // [v9.38.0] 锚点改为「可信发生时刻」：精确补录按 occurredAt 定位；时刻不可信则不画
             realDurationSeconds = extractRealDurationFromTransaction(t, task);
-            taskStartTime = new Date(endTime.getTime() - realDurationSeconds * 1000);
+            const anchor = resolveFlowAnchor(t, task);
+            if (!anchor) return;
+            if (anchor.anchorIsStart) {
+                // 计时类补录·按起止时间：occurredAt 是开始时刻 → 结束 = 开始 + 时长
+                taskStartTime = new Date(anchor.anchorMs);
+                endTime = new Date(anchor.anchorMs + realDurationSeconds * 1000);
+            } else {
+                endTime = new Date(anchor.anchorMs);
+                taskStartTime = new Date(endTime.getTime() - realDurationSeconds * 1000);
+            }
         }
         
         // 检查任务是否与显示范围有交集
@@ -485,16 +728,30 @@ function getFlowTimeSlots(date) {
             let taskStartTime;
             let realDurationSeconds;
             if (isSleepRecord) {
-                const sleepStart = t.sleepData?.startTime;
-                const sleepEnd = t.sleepData?.wakeTime;
+                let sleepStart = t.sleepData?.startTime;
+                let sleepEnd = t.sleepData?.wakeTime;
+                if (!sleepStart || !sleepEnd) {
+                    // [v9.38.0] 老格式睡眠记录（无 sleepData）：入睡/醒来时刻从 description 解析
+                    const legacy = parseLegacySleepRange(t);
+                    if (legacy) { sleepStart = legacy.startMs; sleepEnd = legacy.endMs; }
+                }
                 if (!sleepStart || !sleepEnd) return;
                 taskStartTime = new Date(sleepStart);
                 endTime = new Date(sleepEnd);
                 realDurationSeconds = Math.max(0, (endTime.getTime() - taskStartTime.getTime()) / 1000);
             } else {
-                endTime = new Date(t.timestamp);
+                // [v9.38.0] 锚点改为「可信发生时刻」：精确补录按 occurredAt 定位；时刻不可信则不画
                 realDurationSeconds = extractRealDurationFromTransaction(t, task);
-                taskStartTime = new Date(endTime.getTime() - realDurationSeconds * 1000);
+                const anchor = resolveFlowAnchor(t, task);
+                if (!anchor) return;
+                if (anchor.anchorIsStart) {
+                    // 计时类补录·按起止时间：occurredAt 是开始时刻 → 结束 = 开始 + 时长
+                    taskStartTime = new Date(anchor.anchorMs);
+                    endTime = new Date(anchor.anchorMs + realDurationSeconds * 1000);
+                } else {
+                    endTime = new Date(anchor.anchorMs);
+                    taskStartTime = new Date(endTime.getTime() - realDurationSeconds * 1000);
+                }
             }
             
             const color = getCategoryColorSafe(getTransactionCategory(t));
@@ -1895,7 +2152,8 @@ function showDayDetails(localDateStr) {
         }
         if (iconPrefix) iconPrefix += ' ';
         descLine1 = iconPrefix + descLine1;
-        const timeStr = new Date(transaction.timestamp).toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' });
+        // [v9.38.0] 展示用真实发生时刻；时刻未知则显示 —:—
+        const timeStr = formatRecordTimeHM(transaction);
         return `<div class="history-item">
                     <div class="history-info" title="${transaction.description}">
                         <div class="history-description">
@@ -8076,6 +8334,40 @@ function formatTimeHoursDecimal(seconds) { if (seconds === null || isNaN(seconds
 // [v7.15.1] 格式化为 x.xh 缩写形式（用于走势分析）
 function formatHoursShort(seconds) { if (seconds === null || isNaN(seconds)) return '0h'; const sign = seconds < 0 ? '-' : ''; const absSeconds = Math.abs(seconds); if (absSeconds === 0) return '0h'; const hours = absSeconds / 3600; return `${sign}${hours.toFixed(1)}h`; }
 function formatDateTime(timestamp) { const d = new Date(timestamp), n = new Date(); const diff = (new Date(n.toDateString()) - new Date(d.toDateString())) / 86400000; if (diff === 0) return d.toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' }); if (diff === 1) return '昨天 ' + d.toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' }); if (diff < 7) return `${diff}天前`; return d.toLocaleDateString('zh-CN'); }
+
+// [v9.38.0]「时刻未知」可见化：可信发生时刻缺失时，**时间部分显示 —:—**，
+// 不再显示入账占位值（补录历史 12:00 / 日终系统类 23:00 / 利息 23:59:59 —— 那些都是假的）。
+// 判定与时间流图**共用同一个** getReliableOccurredMs，保证「导出说什么，界面就显示什么」。
+function formatRecordTimeHM(t) {
+    const ms = getReliableOccurredMs(t);
+    if (ms === null) return '—:—';
+    return new Date(ms).toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' });
+}
+
+function formatRecordTime(t) {
+    const ms = getReliableOccurredMs(t);
+    if (ms === null) {
+        // 只保留「日期」信息（归属日仍可信），时间用 —:— 占位
+        const tsMs = (t && t.timestamp) ? new Date(t.timestamp).getTime() : NaN;
+        if (!Number.isFinite(tsMs)) return '—:—';
+        const d = new Date(tsMs), n = new Date();
+        const diff = (new Date(n.toDateString()) - new Date(d.toDateString())) / 86400000;
+        if (diff === 0) return '—:—';
+        if (diff === 1) return '昨天 —:—';
+        if (diff < 7) return `${diff}天前`;
+        return d.toLocaleDateString('zh-CN');
+    }
+    return formatDateTime(new Date(ms));
+}
+
+// [v9.38.0] 展示用「发生时刻」：优先 `occurredAt`（用户填的真实发生时刻），缺失时回退 `timestamp`。
+// 背景：`timestamp` 是**入账时刻**，历史补录会被写成"所选日期的 12:00"占位值 →
+//       界面直接显示它会把 10:00 补录显示成 12:00，与记录里的真实时刻不一致。
+// ⚠️ 仅用于**界面展示**。排序 / 每日归日 / 交易索引 / 去重 / 云同步增量游标必须继续用 `timestamp`。
+function getDisplayTime(t) {
+    if (!t) return null;
+    return t.occurredAt || t.timestamp || null;
+}
 
 // [v5.10.0] 更新桌面小组件
 function updateWidgets() {

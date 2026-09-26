@@ -12,7 +12,7 @@
 // [v9.3.1] 架构重构：悬浮窗定时器状态以原生 Service 为唯一事实来源。修复 30+ 分钟后"任务消失/计时被吞"根因
 // [v9.3.2] Bug 1 修复：stopTask/cancelTask 静默期追踪 + __onFloatingTimerAction 恢复逻辑改为"云端权威源"（修复 v9.3.1 的"任务复活"回归）
 // [v9.3.3 final] 原生层云端同步保活：CloudSyncScheduler（WorkManager 周期任务） + __onNativeCloudDelta + visibilitychange always-reconcile + JS 心跳失败上报
-const APP_VERSION = 'v9.37.3';
+const APP_VERSION = 'v9.38.1';
 
 // [v9.3.3 final] App 启动时间戳（用于"初始化中"状态窗口判定）
 // 注：声明为 const 而非 let，避免被覆盖
@@ -2632,6 +2632,8 @@ function __yieldToUI() {
 
 // [v9.34.2] 交易文档→tx 对象转换（从 loadAllTransactions 抽取，后台续载复用同一口径）
 // 字段规则与 v9.23.0 安全投影一致：data 缺失时顶层字段兜底
+// [v9.38.1] 语义字段已随数据持久化（data 快照与顶层都有），
+// 不再需要"顶层 → data"的逐项补齐（v9.38.0 的双向兜底已移除），保持单向：data 优先、顶层兜底。
 function __normalizeTxDoc(doc) {
     const tx = doc.data || {
         id: doc.txId,
@@ -2651,8 +2653,21 @@ function __normalizeTxDoc(doc) {
         clientId: doc.clientId,
         isBackdate: doc.isBackdate,
         pauseHistory: doc.pauseHistory,
-        _needsCloudUpdate: doc._needsCloudUpdate
+        _needsCloudUpdate: doc._needsCloudUpdate,
+        // [v9.38.0] 语义字段（顶层）同样兜底
+        occurredAt: doc.occurredAt,
+        createdAt: doc.createdAt,
+        entryMode: doc.entryMode,
+        timeSource: doc.timeSource,
+        timePrecision: doc.timePrecision,
+        businessDate: doc.businessDate,
+        durationSource: doc.durationSource,
+        taskType: doc.taskType,
+        quantitySeconds: doc.quantitySeconds,
+        balanceAfter: doc.balanceAfter
     };
+
+    // [v9.38.1] 已移除逐项补齐循环：语义字段已持久化，data 与顶层内容一致
 
     // [v7.14.0] 修复：确保 sleepData 时间戳是数字（云端可能存储为字符串）
     if (tx.sleepData) {
@@ -3055,7 +3070,7 @@ function auditTaskFields(taskList) {
 //   未清理生产者，故本次补齐三管齐下：
 //   ① 生产者：所有调用点去掉 `_.set()`，直接传普通对象（云函数本就负责包一层）
 //   ② 读取端：统一解包（本函数），历史脏数据立刻可用
-//   ③ 自愈：启动后一次性把云端包装体展开重写（__healProfileWrappers），新老数据彻底收敛
+//   ③ 自愈：v9.37.3 启动自愈已完成使命（云端 0 处残留），v9.38.1 起该层已移除
 function __unwrapProfileField(v) {
     if (!v || typeof v !== 'object' || Array.isArray(v)) return v;
     // 命令包装体特征：{ operator:'set', operands:[真实值], fieldName:{} }
@@ -3065,81 +3080,16 @@ function __unwrapProfileField(v) {
     return v;
 }
 
-// 是否为「设备ID → 对象」映射字段（需解包第二层）
-function __isDeviceKeyedField(key) {
-    return key === 'deviceSpecificData'
-        || key === 'deviceScreenTimeSettings'
-        || key === 'deviceSleepSettings'
-        || key === 'deviceSleepState'
-        || /^device[A-Z]/.test(key);
-}
+// [v9.38.1] 已删除 __unwrapProfileData / __isDeviceKeyedField（读取端整文档解包）：
+// 云端 profile 已确认无 `_.set()` 包装体残留，读取端不再需要解包。
 
-// 解包整份 profile 文档（浅层 + 设备映射第二层）
-// 返回 { data, healed }；healed = 实际修复的字段路径（供自愈回写与日志）
-function __unwrapProfileData(doc) {
-    if (!doc || typeof doc !== 'object') return { data: doc, healed: [] };
-    const out = { ...doc };
-    const healed = [];
-    for (const key of Object.keys(out)) {
-        const before = out[key];
-        const after = __unwrapProfileField(before);
-        if (after !== before) { out[key] = after; healed.push(key); }
-        if (__isDeviceKeyedField(key) && after && typeof after === 'object' && !Array.isArray(after)) {
-            let touched = false;
-            const map = { ...after };
-            for (const dk of Object.keys(map)) {
-                const b2 = map[dk];
-                const a2 = __unwrapProfileField(b2);
-                if (a2 !== b2) { map[dk] = a2; touched = true; healed.push(key + '.' + dk); }
-            }
-            if (touched) out[key] = map;
-        }
-    }
-    return { data: out, healed };
-}
+// [v9.38.1] 一次性语义字段迁移已于本版执行完毕（云端 + 本地 6,436 条全部写入），
+// 迁移例程已随本版移除；语义字段从此**随数据持久化**，由写入端 addTransaction() 统一注入。
 
-// [v9.37.2] 一次性自愈回写（幂等）：把云端仍是命令包装体的字段展开重写
-// 幂等：只有本次确实发现包装体才写；写完后云端即正确形态，下次 healed=[] 直接跳过。
-// 安全：写入内容 = 刚读到的云端权威数据（仅改形态、不改内容）；
-//   排程在启动完成数秒后，避免与首屏写入抢队列；期间 profile watch 会持续刷新 DAL.profileData，
-//   故自愈取的是"此刻最新的"profileData 而非启动快照。
-let __profileHealDone = false;
-// 启动加载（loadProfile）时发现"云端仍是包装体"的字段路径集合，作为自愈回写的依据。
-// ⚠️ 必须由"加载时"记录，不能靠自愈时再检查 profileData——那时它已被解包，检查结果恒为空。
-const __profileHealedPaths = new Set();
-async function __healProfileWrappers(reason = 'boot') {
-    if (__profileHealDone) return;
-    try {
-        if (typeof isLoggedIn === 'function' && !isLoggedIn()) return;
-        const paths = Array.from(__profileHealedPaths);
-        if (!paths.length) { __profileHealDone = true; return; }
-        // 取当前 profileData（已被 profile watch 持续刷新为「解包后的最新值」），
-        // 故回写内容 = 云端最新权威数据，仅改形态不改内容；
-        // sleepStateShared 的 lastUpdated/clientId 原样保留 → 若期间他端写入更新状态，
-        // 其 lastUpdated 更大，会拒绝这里的旧值，不会误触发"被其他端结束睡眠"结算。
-        const cur = (typeof DAL !== 'undefined' && DAL) ? DAL.profileData : null;
-        if (!cur) return;
-        const patch = {};
-        const done = [];
-        paths.forEach(path => {
-            const parts = path.split('.');
-            let val;
-            if (parts.length === 1) val = cur[parts[0]];
-            else if (cur[parts[0]] && typeof cur[parts[0]] === 'object') val = cur[parts[0]][parts[1]];
-            if (val === undefined) return;      // 字段已不存在 → 跳过（不写 undefined）
-            patch[path] = __unwrapProfileField(val);
-            done.push(path);
-        });
-        if (!done.length) { __profileHealDone = true; return; }
-        console.log(`[v9.37.2] Profile 自愈回写（${reason}）: ${done.join(', ')}`);
-        await DAL.saveProfile(patch);
-        __profileHealedPaths.clear();
-        __profileHealDone = true;
-        console.log('[v9.37.2] Profile 自愈回写完成');
-    } catch (e) {
-        console.warn('[v9.37.2] Profile 自愈回写失败（不影响功能，读取端已解包）:', e?.message || e);
-    }
-}
+// [v9.38.1] 已删除 __healProfileWrappers / __profileHealedPaths：
+// v9.37.3 的启动自愈已把云端 `_.set()` 包装体全部展开重写完毕（本次迁移前 MCP 直读核实：0 处残留），
+// 且生产者（11 处调用点）早已改为传普通对象 → 自愈层成为纯空转，予以移除。
+// 保留的最小护栏：`DAL.saveProfile` 内仍会兜底解包一次（见 DAL.saveProfile），防止同类写法复发。
 
 const DAL = {
     // ========== 初始化 ==========
@@ -3769,15 +3719,8 @@ const DAL = {
             if (res.data && res.data.length > 0) {
                 const doc = res.data[0];
                 this.profileId = doc._id || doc.id;
-                // [v9.37.2] 统一解包：历史脏数据（_.set() 命令包装体）在读取端立即还原，
-                // 使跨设备睡眠状态/配置、设备名、自动检测原始记录等立即可用（详见文件头说明）
-                const __unwrapped = __unwrapProfileData(doc);
-                this.profileData = __unwrapped.data;
-                if (__unwrapped.healed.length) {
-                    // 记录脏字段路径供启动后自愈回写（见 __healProfileWrappers）
-                    __unwrapped.healed.forEach(p => __profileHealedPaths.add(p));
-                    console.warn('[v9.37.2] [DAL.loadProfile] 检测到 _.set() 包装体，已解包:', __unwrapped.healed.join(', '));
-                }
+                // [v9.38.1] 不再解包：云端 profile 已无 _.set() 包装体（自愈已完成，实测 0 处残留）
+                this.profileData = doc;
                 console.log('[DAL.loadProfile] Found profile, ID:', this.profileId);
                 return this.profileData;
             }
@@ -4185,7 +4128,18 @@ const DAL = {
             balanceAdjust: true,
             clientId: true,
             isBackdate: true,
-            pauseHistory: true
+            pauseHistory: true,
+            // [v9.38.0] 导出格式 v2 语义字段（顶层，可查询；与 data 快照互为兜底）
+            occurredAt: true,
+            createdAt: true,
+            entryMode: true,
+            timeSource: true,
+            timePrecision: true,
+            businessDate: true,
+            durationSource: true,
+            taskType: true,
+            quantitySeconds: true,
+            balanceAfter: true
         };
 
         let allDocs = [];
@@ -5296,19 +5250,14 @@ const DAL = {
                         console.log('📡 [DAL] Profile 变更');
                         for (const change of snapshot.docChanges) {
                             if (change.dataType === 'update') {
-                                // [v9.37.2] 统一解包 + 同步 DAL.profileData（修复两处问题）：
-                                //   1) 云端历史脏数据（_.set() 包装体）在 watch 路径同样要解包，
-                                //      否则跨设备睡眠状态/配置判空依旧（用户反馈的直接原因）
-                                //   2) 原实现只更新全局 profileData，DAL.profileData 停留在启动快照，
-                                //      导致 getAutoDetectProcessedDates / 设备名恢复 / 跨设备原始记录
-                                //      聚合读到的永远是旧值
-                                const __unwrappedDoc = __unwrapProfileData(change.doc);
-                                const doc = __unwrappedDoc.data;
+                                // [v9.37.2] 同步 DAL.profileData：
+                                //   原实现只更新全局 profileData，DAL.profileData 停留在启动快照，
+                                //   导致 getAutoDetectProcessedDates / 设备名恢复 / 跨设备原始记录
+                                //   聚合读到的永远是旧值
+                                // [v9.38.1] 不再解包：云端 profile 已无 _.set() 包装体（自愈完成，实测 0 处残留）
+                                const doc = change.doc;
                                 profileData = doc;
                                 DAL.profileData = doc;
-                                if (__unwrappedDoc.healed.length) {
-                                    console.warn('[v9.37.2] [DAL] Profile 回推含包装体字段，已解包:', __unwrappedDoc.healed.join(', '));
-                                }
                                 // [v7.1.7] 通知设置已改为本地存储，不再从云端同步
                                 setCategoryColors(doc.categoryColors || []);
                                 setCollapsedCategories(doc.collapsedCategories || []);
@@ -6160,12 +6109,8 @@ const DAL = {
             }
         } catch (e2) {}
 
-        // [v9.37.2] Profile 脏数据自愈：延迟 4s 执行
-        // （等首屏渲染 + watch 建立完成，避免与首屏写入抢云函数队列；
-        //   幂等：无包装体字段时不产生任何云端写入）
-        try {
-            setTimeout(() => { __healProfileWrappers('loadAll-tail'); }, 4000);
-        } catch (e3) {}
+        // [v9.38.1] 已移除 Profile 自愈钩子（云端数据已干净，生产者已修复）
+
 
         // [v9.2.3] 数据加载完成 → 标记 __dataLoaded=true，subscribeAll 才能显示"已同步 ✅"
         // 关键修复：把"已同步"状态与"实际数据已加载"绑定，避免用户看到"已同步"但列表为空
