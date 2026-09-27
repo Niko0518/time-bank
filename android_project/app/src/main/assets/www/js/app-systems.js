@@ -462,18 +462,9 @@ async function cloneDeviceData(sourceDeviceId) {
         localStorage.setItem('tb_device_name', sourceData.deviceName);
     }
     if (sourceData.accentTheme) {
-        // [v7.20.0] 导入时进行主题迁移
-        const themeMigration = {
-            'blue-purple': 'sky-blue',
-            'pink-white': 'warm-earth'
-        };
-        let migratedAccent = sourceData.accentTheme;
-        if (themeMigration[migratedAccent]) {
-            console.log(`[v7.20.0] 导入主题迁移: ${migratedAccent} -> ${themeMigration[migratedAccent]}`);
-            migratedAccent = themeMigration[migratedAccent];
-        }
-        localStorage.setItem('accentTheme', migratedAccent);
-        setAccentTheme(migratedAccent);
+        // [v9.38.2] 已删除 v7.20.0 的导入主题迁移（旧主题名早已不存在）
+        localStorage.setItem('accentTheme', sourceData.accentTheme);
+        setAccentTheme(sourceData.accentTheme);
     }
     // [v9.14.2] 分类排序已迁移到云端统一字段 categoryOrderCloud
     // 克隆旧设备数据时不再处理 sourceData.categoryOrder（避免误把过时的设备级排序写回云端统一字段）
@@ -5524,19 +5515,8 @@ function setAccentTheme(accentName) {
 }
 
 function initAccentTheme() {
-    let saved = localStorage.getItem('accentTheme') || 'sky-blue';
-    // [v7.20.0] 旧主题迁移：blue-purple -> classic-blue, pink-white -> warm-earth
-    // [v7.20.1] 删除活力橙主题，迁移到暖木原色
-    const themeMigration = {
-        'blue-purple': 'sky-blue',
-        'pink-white': 'warm-earth',
-        'vibrant-orange': 'warm-earth'
-    };
-    if (themeMigration[saved]) {
-        console.log(`[Theme Migration] ${saved} -> ${themeMigration[saved]}`);
-        saved = themeMigration[saved];
-        localStorage.setItem('accentTheme', saved);
-    }
+    // [v9.38.2] 已删除 v7.20.x 的旧主题迁移（blue-purple / pink-white / vibrant-orange 早已不存在）
+    const saved = localStorage.getItem('accentTheme') || 'sky-blue';
     setAccentTheme(saved);
 }
 

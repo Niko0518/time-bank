@@ -12,7 +12,7 @@
 // [v9.3.1] 架构重构：悬浮窗定时器状态以原生 Service 为唯一事实来源。修复 30+ 分钟后"任务消失/计时被吞"根因
 // [v9.3.2] Bug 1 修复：stopTask/cancelTask 静默期追踪 + __onFloatingTimerAction 恢复逻辑改为"云端权威源"（修复 v9.3.1 的"任务复活"回归）
 // [v9.3.3 final] 原生层云端同步保活：CloudSyncScheduler（WorkManager 周期任务） + __onNativeCloudDelta + visibilitychange always-reconcile + JS 心跳失败上报
-const APP_VERSION = 'v9.38.1';
+const APP_VERSION = 'v9.38.2';
 
 // [v9.3.3 final] App 启动时间戳（用于"初始化中"状态窗口判定）
 // 注：声明为 const 而非 let，避免被覆盖
@@ -4919,7 +4919,9 @@ const DAL = {
                         // [v9.34.2] 回推去重：跟踪本次 snapshot 是否产生实质数据变更
                         let __meaningful = false;
                         for (const change of snapshot.docChanges) {
-                            const doc = change.doc;
+                            // [v9.38.2] 删除事件不带 doc（云端下发 Doc="{}" → SDK 解析为 undefined），
+                            // 原实现在 remove 分支取 doc.taskId 会抛 TypeError，导致跨设备删除任务同步不到。
+                            const doc = change.doc || {};
                             if (change.dataType === 'add') {
                                 const task = doc.data;
                                 if (task && !this.taskCache.has(task.id) && !tasks.some(t => t.id === task.id)) {
@@ -4969,8 +4971,17 @@ const DAL = {
                                     }
                                 }
                             } else if (change.dataType === 'remove') {
-                                const taskId = doc.taskId || doc.data?.id || doc.id;
-                                if (!taskId) continue;
+                                // [v9.38.2] 用 change.docId + taskCache 反查（删除事件无 doc）
+                                let taskId = doc.taskId || doc.data?.id || doc.id;
+                                if (!taskId) {
+                                    const key = change.docId || doc._id || doc.id;
+                                    if (key) {
+                                        for (const [tid, cachedDocId] of this.taskCache.entries()) {
+                                            if (cachedDocId === key) { taskId = tid; break; }
+                                        }
+                                    }
+                                }
+                                if (!taskId) { console.warn('📡 [DAL] 任务删除事件无法定位 taskId，已忽略:', change.docId || '(无 docId)'); continue; }
                                 console.log('📡 [DAL] 任务删除:', taskId);
                                 this.taskCache.delete(taskId);
                                 tasks = tasks.filter(t => t.id !== taskId);
@@ -5030,7 +5041,8 @@ const DAL = {
                         // [v9.34.2] 回推去重：跟踪本次 snapshot 是否产生实质数据变更
                         let __meaningful = false;
                         for (const change of snapshot.docChanges) {
-                            const doc = change.doc;
+                            // [v9.38.2] 删除事件不带 doc（云端 Doc="{}" → undefined），此处兜底为空对象避免抛错
+                            const doc = change.doc || {};
                             const tx = doc.data || {
                                 id: doc.txId,
                                 taskId: doc.taskId,
@@ -5046,8 +5058,22 @@ const DAL = {
                                 sleepData: doc.sleepData,
                                 napData: doc.napData
                             };
-                            const txId = tx?.id || doc.txId;
-                            if (!txId) continue;
+                            // [v9.38.2] 删除事件无 doc → 用 change.docId + transactionCache 反查 txId
+                            let txId = tx?.id || doc.txId;
+                            if (!txId) {
+                                const key = change.docId || doc._id || doc.id;
+                                if (key) {
+                                    for (const [cachedTxId, cachedDocId] of this.transactionCache.entries()) {
+                                        if (cachedDocId === key) { txId = cachedTxId; break; }
+                                    }
+                                }
+                            }
+                            if (!txId) {
+                                if (change.dataType === 'remove') {
+                                    console.warn('📡 [DAL] 交易删除事件无法定位 txId，已忽略:', change.docId || '(无 docId)');
+                                }
+                                continue;
+                            }
 
                             if (change.dataType === 'add') {
                                 this.transactionCache.set(txId, doc._id || doc.id);
@@ -5158,7 +5184,13 @@ const DAL = {
                         // [v9.34.2] 回推去重：跟踪本次 snapshot 是否产生实质数据变更
                         let __meaningful = false;
                         for (const change of snapshot.docChanges) {
-                            const doc = change.doc;
+                            // [v9.38.2] 关键修复：删除类事件**不带 doc**。
+                            // SDK 事件构造为 `doc: t.Doc && t.Doc !== "{}" ? JSON.parse(t.Doc) : void 0`
+                            // —— 云端删除时下发 Doc="{}" → change.doc === undefined，
+                            // 原实现 `doc.taskId` 直接抛 TypeError，整个 snapshot 处理中断：
+                            // 跨设备"结束任务 / 删除任务 / 撤回记录"都同步不过来，只能等 5 分钟兜底补偿。
+                            // 现改为：① doc 兜底为空对象（不再抛错）② 用 change.docId（SDK 始终提供）+ 缓存反查定位。
+                            const doc = change.doc || {};
                             const taskId = doc.taskId || doc.data?.taskId;
                             const remoteClientId = doc.clientId || doc.data?.clientId;
                             const data = doc.data || {
@@ -5166,43 +5198,61 @@ const DAL = {
                                 accumulatedTime: doc.accumulatedTime || 0,
                                 isPaused: doc.isPaused === true
                             };
-                            if (!taskId) continue;
-                            console.log(`📡 [DAL] Running ${change.dataType}:`, taskId, 'remoteClientId:', remoteClientId, 'localClientId:', clientId);
+                            // [v9.38.2] 删除事件：doc 为空时用 change.docId 从 runningCache(taskId→docId) 反查
+                            const __resolvedTaskId = taskId || (function () {
+                                const key = change.docId || doc._id || doc.id;
+                                if (!key) return null;
+                                for (const [tid, cachedDocId] of this.runningCache.entries()) {
+                                    if (cachedDocId === key) return tid;
+                                }
+                                return null;
+                            }).call(this);
+                            if (!__resolvedTaskId) {
+                                if (change.dataType === 'remove') {
+                                    console.warn('📡 [DAL] Running remove 无法定位 taskId（已忽略）:', change.docId || '(无 docId)');
+                                }
+                                continue;
+                            }
+                            console.log(`📡 [DAL] Running ${change.dataType}:`, __resolvedTaskId, 'remoteClientId:', remoteClientId, 'localClientId:', clientId);
 
                             if (change.dataType === 'add') {
                                 // [v9.2.1] null-safe：旧数据无 clientId 字段时跳过"本机"判断，避免误判
                                 if (remoteClientId && remoteClientId === clientId) {
-                                    console.log(`🛡️ [DAL] 忽略 add 事件: 本机触发 (taskId=${taskId})`);
+                                    console.log(`🛡️ [DAL] 忽略 add 事件: 本机触发 (taskId=${__resolvedTaskId})`);
                                     continue;
                                 }
-                                console.log('📡 [DAL] 任务开始:', taskId, '(来自其他设备)');
-                                if (!runningTasks.has(taskId)) {
-                                    this.runningCache.set(taskId, doc._id || doc.id);
-                                    runningTasks.set(taskId, data);
+                                console.log('📡 [DAL] 任务开始:', __resolvedTaskId, '(来自其他设备)');
+                                if (!runningTasks.has(__resolvedTaskId)) {
+                                    this.runningCache.set(__resolvedTaskId, doc._id || doc.id);
+                                    runningTasks.set(__resolvedTaskId, data);
                                 }
                                 __meaningful = true; // [v9.34.2] 非本机事件（本机已被 clientId 拦截 continue）
                             } else if (change.dataType === 'update') {
                                 // [v9.2.1] null-safe：旧数据无 clientId 字段时跳过"本机"判断，避免误判
                                 if (remoteClientId && remoteClientId === clientId) {
-                                    console.log(`🛡️ [DAL] 忽略 update 事件: 本机触发 (taskId=${taskId})`);
+                                    console.log(`🛡️ [DAL] 忽略 update 事件: 本机触发 (taskId=${__resolvedTaskId})`);
                                     continue;
                                 }
-                                console.log('📡 [DAL] 任务状态更新:', taskId, data?.isPaused ? '(已暂停)' : '(运行中)', `(来自其他设备)`);
-                                this.runningCache.set(taskId, doc._id || doc.id);
+                                console.log('📡 [DAL] 任务状态更新:', __resolvedTaskId, data?.isPaused ? '(已暂停)' : '(运行中)', `(来自其他设备)`);
+                                this.runningCache.set(__resolvedTaskId, doc._id || doc.id);
                                 if (data) {
-                                    runningTasks.set(taskId, data);
+                                    runningTasks.set(__resolvedTaskId, data);
                                 }
                                 __meaningful = true; // [v9.34.2]
                             } else if (change.dataType === 'remove') {
                                 // [v9.9.0] 本机触发的删除始终跳过：callMutation onRollback 可能临时恢复任务，
                                 // 但云端最终的删除状态由 __onFloatingTimerAction 的云端权威逻辑收敛，Watch 不应再删
+                                // [v9.38.2] 注意：删除事件通常没有 doc（也就没有 clientId），
+                                //   本机自己结束时本地早已删除，这里的幂等删除同样安全。
                                 if (remoteClientId && remoteClientId === clientId) {
-                                    console.log(`🛡️ [DAL] 忽略 delete 事件: 本机触发 (taskId=${taskId})`);
+                                    console.log(`🛡️ [DAL] 忽略 delete 事件: 本机触发 (taskId=${__resolvedTaskId})`);
                                     continue;
                                 }
-                                console.log('📡 [DAL] 任务停止:', taskId, '(来自其他设备)');
-                                this.runningCache.delete(taskId);
-                                runningTasks.delete(taskId);
+                                console.log('📡 [DAL] 任务停止:', __resolvedTaskId, '(来自其他设备)');
+                                this.runningCache.delete(__resolvedTaskId);
+                                runningTasks.delete(__resolvedTaskId);
+                                // 注：本机悬浮窗/原生计时不做主动停止 —— 原生侧以云端为权威，
+                                //     __onFloatingTimerAction 会在收到后续事件时因"云端无记录"自行丢弃并 ack（v9.3.2 防复活）。
                                 __meaningful = true; // [v9.34.2]
                             }
                         }
@@ -5343,8 +5393,18 @@ const DAL = {
                         watchLastEventTime.daily = Date.now();
                         console.log('📡 [DAL] Daily 变更:', snapshot.type);
                         for (const change of snapshot.docChanges) {
-                            const doc = change.doc;
-                            const date = doc.date;
+                            // [v9.38.2] 删除事件不带 doc（Doc="{}" → undefined），原实现取 doc.date 会抛 TypeError
+                            const doc = change.doc || {};
+                            let date = doc.date;
+                            if (!date && change.dataType === 'remove') {
+                                const key = change.docId || doc._id || doc.id;
+                                if (key) {
+                                    for (const [cachedDate, cachedDocId] of this.dailyCache.entries()) {
+                                        if (cachedDocId === key) { date = cachedDate; break; }
+                                    }
+                                }
+                            }
+                            if (!date) continue;
                             if (change.dataType === 'add' || change.dataType === 'update') {
                                 this.dailyCache.set(date, doc._id || doc.id);
                                 dailyChanges[date] = { earned: doc.earned || 0, spent: doc.spent || 0 };
@@ -6029,18 +6089,9 @@ const DAL = {
                 }
                 
                 // [v7.2.4] 主题色：本地为默认值时从云端恢复
-                // [v7.20.0] 添加旧主题迁移处理
+                // [v9.38.2] 已删除 v7.20.0 的云端旧主题迁移（旧主题名早已不存在）
                 const localAccent = localStorage.getItem('accentTheme');
-                const themeMigration = {
-                    'blue-purple': 'sky-blue',
-                    'pink-white': 'warm-earth'
-                };
-                let cloudAccent = deviceData.accentTheme;
-                // 迁移云端旧主题
-                if (cloudAccent && themeMigration[cloudAccent]) {
-                    console.log(`[v7.20.0] 云端主题迁移: ${cloudAccent} -> ${themeMigration[cloudAccent]}`);
-                    cloudAccent = themeMigration[cloudAccent];
-                }
+                const cloudAccent = deviceData.accentTheme;
                 if ((!localAccent || localAccent === 'sky-blue') && 
                     cloudAccent && cloudAccent !== 'sky-blue') {
                     console.log('[DAL.loadAll] 从云端恢复主题色:', cloudAccent);
@@ -7717,8 +7768,7 @@ async function initApp() {
     applyCardLayout(); // [v4.6.0] 应用卡片布局
     initCardStack(); // [v5.10.0] 初始化卡片堆叠
 
-    // [v9.24.0] 一次性清理：移除旧的 localStorage 权重缓存（已切纯云端）
-    try { localStorage.removeItem('tb_recommendation_weights'); } catch (e) {}
+    // [v9.38.2] 已删除 v9.24.0 的一次性 localStorage 清理（早已清理完毕）
 
     // [v9.15.0] 预热推荐缓存：首次启动时建立时段直方图，确保切到"推荐任务"时立即可用
     try {
@@ -8243,38 +8293,14 @@ let cardLayoutConfig = null;
 
 function getCardLayoutConfig() {
     if (cardLayoutConfig) return cardLayoutConfig;
-    // [v9.19.0] 旧版 analysisDashboard 卡片拆分后 ID 迁移
-    const LEGACY_CARD_MAP = { analysisDashboard: 'kpiDashboard' };
-    // [v9.19.2] v9.19.1 时代的旧默认顺序，检测到则强制使用新默认（开发者决定重置已保存顺序）
-    const LEGACY_DEFAULT_ORDER = ['activityHeatmap', 'kpiDashboard', 'chartAnalysis', 'dataTable', 'trendChart', 'aiCompanion'];
-    // [v9.29.1] v9.26~9.29 时代的旧默认顺序（近期余额上移为第一张卡片）
-    const LEGACY_DEFAULT_ORDER_V2 = ['activityHeatmap', 'kpiDashboard', 'chartAnalysis', 'trendChart', 'balanceTrend', 'dataTable', 'aiCompanion'];
+    // [v9.38.2] 已删除两代旧默认顺序迁移（v9.19.2 / v9.29.1）与旧卡片 ID 迁移（analysisDashboard → kpiDashboard）：
+    // 这些迁移早已在各自版本完成，保存的配置都是现行格式。
     try {
         const saved = localStorage.getItem('tb_card_layout');
         if (saved) {
             const savedConfig = JSON.parse(saved);
-            // [v9.19.2] 迁移：saved 顺序等于旧默认顺序 → 强制用新默认（trendChart 提前）
-            const savedIds = savedConfig.map(c => c.id);
-            const isLegacyDefault = (savedIds.length === LEGACY_DEFAULT_ORDER.length &&
-                savedIds.every((id, i) => id === LEGACY_DEFAULT_ORDER[i]) &&
-                savedConfig.every(c => c.visible !== false)) ||
-                // [v9.29.1] 迁移：v2 旧默认顺序 → 新默认（balanceTrend 提前）
-                (savedIds.length === LEGACY_DEFAULT_ORDER_V2.length &&
-                savedIds.every((id, i) => id === LEGACY_DEFAULT_ORDER_V2[i]) &&
-                savedConfig.every(c => c.visible !== false));
-            if (isLegacyDefault) {
-                cardLayoutConfig = DEFAULT_CARD_ORDER.map(id => ({ id, visible: true }));
-                saveCardLayoutConfig();
-                return cardLayoutConfig;
-            }
-            // 迁移：旧 analysisDashboard 可见性继承给 kpiDashboard（用户感知是同一张卡）
-            const legacyEntry = savedConfig.find(c => c.id === 'analysisDashboard');
             // [v9.35.1] 时光卡片已删除：历史保存的配置中滤除 aiCompanion，避免卡片管理器出现幽灵条目
-            const migratedConfig = savedConfig.filter(c => !LEGACY_CARD_MAP[c.id] && c.id !== 'aiCompanion');
-            if (legacyEntry) {
-                const kpi = migratedConfig.find(c => c.id === 'kpiDashboard');
-                if (!kpi) migratedConfig.push({ id: 'kpiDashboard', visible: legacyEntry.visible !== false });
-            }
+            const migratedConfig = savedConfig.filter(c => c.id !== 'aiCompanion');
             // 确保所有当前默认卡片都在配置中
             DEFAULT_CARD_ORDER.forEach(id => {
                 if (!migratedConfig.find(c => c.id === id)) {
@@ -11597,23 +11623,14 @@ function updateCategoryTasks() {
     setTimeout(bindTaskCardDragEvents, 0);
 }
 function groupTasksByCategory(taskList) { return taskList.reduce((acc, task) => { (acc[task.category] = acc[task.category] || []).push(task); return acc; }, {}); }
-// [v5.0.0] 分类内任务最大显示数量 [v7.16.2] 默认改为4 [v9.18.0] 解耦：固定4不再受设置项控制
-// [v9.18.2] 彻底弃用：默认上限改为「最近任务行数 × 列数」（见 updateCategoryTasks）。
-//   变量保留以便排查旧 localStorage（'categoryTaskLimit'）残留，不再被任何代码读取。
-let CATEGORY_TASK_LIMIT = parseInt(localStorage.getItem('categoryTaskLimit')) || 4;
+// [v9.38.2] 已删除已弃用的 CATEGORY_TASK_LIMIT（v9.18.2 起不再被任何代码读取，全库 0 引用）
 // [v9.18.0] 迷你卡片开关：最近/推荐任务使用迷你卡片
 // [v9.31.0] 重构为 4 档模式：'off'(关闭) / 'recent'(最近) / 'category'(分类) / 'all'(全部)
-//   - 旧 localStorage.miniCardEnabled='true' 自动迁移为 'recent'，保持等价行为
 //   - 辅助函数：shouldMiniForRecent() / shouldMiniForCategory() 封装作用域判断
+// [v9.38.2] 已删除"旧 localStorage.miniCardEnabled → 'recent'"的一次性迁移
 let MINI_CARD_MODE = (function() {
     const stored = localStorage.getItem('miniCardMode');
-    if (stored && ['off', 'recent', 'category', 'all'].includes(stored)) return stored;
-    // [v9.31.0] 迁移：旧 key miniCardEnabled=true → 'recent'
-    if (localStorage.getItem('miniCardEnabled') === 'true') {
-        localStorage.setItem('miniCardMode', 'recent');
-        return 'recent';
-    }
-    return 'off';
+    return (stored && ['off', 'recent', 'category', 'all'].includes(stored)) ? stored : 'off';
 })();
 function shouldMiniForRecent() { return MINI_CARD_MODE === 'recent' || MINI_CARD_MODE === 'all'; }
 function shouldMiniForCategory() { return MINI_CARD_MODE === 'category' || MINI_CARD_MODE === 'all'; }

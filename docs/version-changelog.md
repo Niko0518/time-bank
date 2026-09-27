@@ -4,6 +4,39 @@
 >
 > 用户-facing 的精简版本请见 `index.html` 关于页。
 
+## v9.38.2 (2026-09-27) — 清理 12 处过期「一次性迁移」死代码（屎山治理第二步）
+
+### 核心变更
+
+1. **app-sleep.js**：删除 v9.8.0「升级迁移 1/2」（`deviceSleepState[*] → sleepStateShared`、`deviceSleepSettings[*] → sleepSettingsShared`，各含一次云端 `saveProfile`）；删除其专用辅助函数 `getLatestDeviceState()`（删除后全库 0 引用）。云端实测只有 `sleepStateShared` / `sleepSettingsShared`，迁移早已完成。
+2. **app-sleep.js**：删除 v9.36.5「夜间计划被小睡计划污染」一次性修复（含云端强制覆盖与 5s 退避清除）。云端 `plannedBedtime` 实测正常，修复早已生效。
+3. **app-1.js**：删除 v9.24.0 一次性 localStorage 清理；删除已弃用且全库 0 引用的 `CATEGORY_TASK_LIMIT`；简化 `MINI_CARD_MODE` 的 v9.31.0 旧 key 迁移；删除 v7.20.0 云端旧主题迁移；删除报告卡片的两代旧默认顺序迁移（v9.19.2 / v9.29.1）与旧卡片 ID 迁移（`analysisDashboard → kpiDashboard`）。
+4. **app-systems.js**：简化 `initAccentTheme()` 的 v7.20.x 旧主题迁移；简化导入设置时的 v7.20.0 主题迁移。
+5. **ai-service.js**：删除"兼容旧独立 `timebankAIModel`"的一次性迁移分支。
+
+**刻意保留**：v9.1.0 `dailyChanges` 首次云端迁移（含云端写入副作用，作为新装/空云端场景的兜底保留）；`aiCompanion` 幽灵卡片过滤（防止历史 localStorage 残留条目）；`getLatestDeviceSettings()`（app-systems.js 仍在用）。
+
+6. **⚠️ 修复"删除类实时事件"同步失效（用户反馈：开始任务同步很好，结束任务不行）**：
+   SDK 事件构造为 `doc: t.Doc && t.Doc !== "{}" ? JSON.parse(t.Doc) : void 0`
+   —— 云端删除时下发 `Doc="{}"`，**`change.doc === undefined`**。而 Running / Task / Transaction / Daily 四个 watch
+   回调都先 `const doc = change.doc` 再取 `doc.taskId` / `doc.date`，删除事件一到就抛 `TypeError`
+   → 整个 snapshot 处理中断，跨设备「结束任务 / 删除任务 / 撤回记录 / 日汇总删除」**全部同步不到**，
+   只能等 `ACTIVE_SYNC_FORCE_PULL_INTERVAL_MS`（watch 健康时 5 分钟）兜底补偿 —— 这正是"开始秒同步、结束要等几分钟"的根因。
+   修复：① 四处统一 `const doc = change.doc || {}`（不再抛错）；
+   ② 删除事件改用 **`change.docId`**（SDK 始终提供）+ 本地缓存（`runningCache` / `taskCache` / `transactionCache` / `dailyCache`）反查业务 ID；
+   ③ 无法定位时打 warn 日志（可观测），不再静默丢弃。
+   注：本机悬浮窗/原生计时不做主动停止 —— 原生侧以云端为权威，`__onFloatingTimerAction` 会因"云端无记录"自行丢弃事件并 ack（v9.3.2 防复活机制）。
+
+### 验证
+
+- 4 个改动文件 `node --check` 通过；残留引用扫描：仅剩说明性注释，0 处实际引用。
+- 真机（平板 YLP-W00，21:30:14）冷启动 logcat 无 `Uncaught / ReferenceError / TypeError`。
+- 待用户双端实测确认：手机开始任务 → 平板秒级出现；手机结束任务 → 平板秒级消失（日志应出现 `📡 [DAL] 任务停止: <taskId> (来自其他设备)`）。
+
+### 文件
+
+`js/app-1.js`、`js/app-sleep.js`、`js/app-systems.js`、`js/ai-service.js`、`index.html`
+
 ## v9.38.1 (2026-09-26) — 语义字段一次性迁移（6,436 条）+ 删除失效兜底层（屎山治理第一步）
 
 > 背景：v9.36.7 代码健康审计指出病根为"同一数据多种存法 + 读时推导"。本版利用"产品未上线、无需向前兼容"的窗口做减法。

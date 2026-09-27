@@ -60,7 +60,8 @@ const AI_ASSISTANT_SERVICE = {
     },
 
     /**
-     * 获取统一设置（兼容旧独立的 timebankAIModel 一次）
+     * 获取统一设置
+     * [v9.38.2] 已删除"兼容旧独立 timebankAIModel"的一次性迁移（统一存储早已生效）
      */
     getSettings() {
         let settings = { ...this.DEFAULT_SETTINGS };
@@ -69,16 +70,6 @@ const AI_ASSISTANT_SERVICE = {
             if (saved) {
                 const parsed = JSON.parse(saved);
                 settings = { ...settings, ...parsed };
-            } else {
-                // 一次性迁移旧设置
-                const oldModel = localStorage.getItem('timebankAIModel');
-                if (oldModel) {
-                    try {
-                        const m = JSON.parse(oldModel);
-                        settings.model = m.model || settings.model;
-                        settings.provider = m.provider || settings.provider;
-                    } catch (e) {}
-                }
             }
         } catch (e) {
             console.warn('[AI_ASSISTANT] 读取设置失败:', e);

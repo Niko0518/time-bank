@@ -364,19 +364,8 @@ function applySleepStateFromCloud(cloudState, source = 'cloud') {
     return false;
 }
 
-// [v7.11.3] 从设备状态中选最新
-function getLatestDeviceState(deviceStateMap) {
-    if (!deviceStateMap || typeof deviceStateMap !== 'object') return null;
-    let latest = null;
-    Object.entries(deviceStateMap).forEach(([deviceId, state]) => {
-        if (!state) return;
-        const ts = state.lastUpdated || 0;
-        if (!latest || ts > latest.ts) {
-            latest = { deviceId, state, ts };
-        }
-    });
-    return latest;
-}
+// [v9.38.2] 已删除 getLatestDeviceState()：它是 v9.8.0「deviceSleepState → sleepStateShared」
+// 一次性迁移的专用辅助函数，迁移删除后全库 0 引用。
 
 // 初始化睡眠设置
 function initSleepSettings() {
@@ -449,44 +438,10 @@ function initSleepSettings() {
         //   使整个 init 异常退出 → UI 未刷新（toggle 显示 false）→ 用户看到"开关被关闭"
         // 修复后：云端同步块异常时降级到"仅使用本地值"，不影响后续 UI 更新
         try {
-        // [v9.8.0] 升级迁移 1：deviceSleepState[*] → sleepStateShared（取 lastUpdated 最大者，一次性）
-        if (DAL.profileData?.deviceSleepState && !DAL.profileData?.sleepStateShared) {
-            const latest = getLatestDeviceState(DAL.profileData.deviceSleepState);
-            if (latest && latest.state) {
-                console.log('[initSleepSettings] 升级迁移: deviceSleepState[' + latest.deviceId + '] → sleepStateShared');
-                const migrated = {
-                    isSleeping: latest.state.isSleeping,
-                    sleepStartTime: latest.state.sleepStartTime,
-                    lastUpdated: latest.state.lastUpdated || Date.now(),
-                    clientId: 'migrated-from-device-' + latest.deviceId
-                };
-                // [v9.37.2] 去掉 _.set()：命令对象会被序列化成包装体写进云端
-                DAL.saveProfile({ sleepStateShared: migrated })
-                    .catch(e => console.error('[initSleepSettings] 状态迁移失败:', e.message));
-            }
-        }
+        // [v9.38.2] 已删除 v9.8.0 的两项升级迁移（deviceSleepState[*] → sleepStateShared、
+        // deviceSleepSettings[*] → sleepSettingsShared）：云端实测已只有 shared 字段，迁移早已完成。
 
-        // [v9.8.0] 升级迁移 2：deviceSleepSettings[*] → sleepSettingsShared（取 lastUpdated 最大者，一次性）
-        if (DAL.profileData?.deviceSleepSettings && !DAL.profileData?.sleepSettingsShared) {
-            const latest = getLatestDeviceSettings(DAL.profileData.deviceSleepSettings);
-            if (latest && latest.settings) {
-                console.log('[initSleepSettings] 升级迁移: deviceSleepSettings[' + latest.deviceId + '] → sleepSettingsShared');
-                const migratedSettings = { ...latest.settings };
-                if (!migratedSettings.lastUpdated) migratedSettings.lastUpdated = new Date().toISOString();
-                // [v9.37.2] 去掉 _.set()：命令对象会被序列化成包装体写进云端
-                DAL.saveProfile({ sleepSettingsShared: migratedSettings })
-                    .catch(e => console.error('[initSleepSettings] 设置迁移失败:', e.message));
-                // 本地也应用
-                sleepSettings = { ...sleepSettings, ...migratedSettings };
-                sleepSettings.lastUpdated = migratedSettings.lastUpdated;
-                localStorage.setItem('sleepSettings', JSON.stringify(sleepSettings));
-                if (window.Android?.saveSleepSettingsNative) {
-                    window.Android.saveSleepSettingsNative(JSON.stringify(sleepSettings));
-                }
-            }
-        }
-
-        // [v9.8.0] 读 sleepSettingsShared（v9.8.0 权威），回退 per-device
+        // [v9.8.0] 读 sleepSettingsShared（权威）
         const sharedSettings = DAL.profileData?.sleepSettingsShared;
         const deviceSettingsMap = DAL.profileData?.deviceSleepSettings || {};
         let cloudSleep = sharedSettings;
@@ -570,34 +525,8 @@ function initSleepSettings() {
         console.log('[initSleepSettings] 未登录或无profileData，使用本地');
     }
 
-    // [v9.36.5] 一次性数据修复：夜间计划时间被小睡计划污染（本地 + 云端）
-    // 根因：用户在睡眠计划设置弹窗手动误输小睡计划时间（12:00），plannedBedtime/WakeTime 被污染并同步云端
-    // 修复：本地或云端（sleepSettingsShared）的计划时间与默认小睡计划（12:00/14:00）相同时视为污染，
-    //       重置回夜间默认值 23:00/08:00 并强制写云端（清除退避，防止污染值残留云端被其他设备拉取）
-    // 注：12:00 中午入睡不在夜间判定时段（20:00-06:00），不可能为真实的夜间计划，重置安全
-    // _v2：初版修复的云端写入曾被 5s 退避跳过导致云端残留，此版同时检测云端并强制覆盖
-    if (!localStorage.getItem('nightPlanDepolluted_v2')) {
-        const __napStart = sleepSettings.napPlanStart || '12:00';
-        const __napEnd = sleepSettings.napPlanEnd || '14:00';
-        let __localFixed = false;
-        if (sleepSettings.plannedBedtime === __napStart) {
-            sleepSettings.plannedBedtime = '23:00';
-            __localFixed = true;
-        }
-        if (sleepSettings.plannedWakeTime === __napEnd) {
-            sleepSettings.plannedWakeTime = '08:00';
-            __localFixed = true;
-        }
-        // 云端残留检测（v9.8.0 起 sleepSettingsShared 为权威格式）
-        const __cloudShared = DAL.profileData?.sleepSettingsShared;
-        const __cloudPolluted = !!(__cloudShared && (__cloudShared.plannedBedtime === __napStart || __cloudShared.plannedWakeTime === __napEnd));
-        if (__localFixed || __cloudPolluted) {
-            console.log('[initSleepSettings] 夜间计划时间污染修复: localFixed=' + __localFixed + ', cloudPolluted=' + __cloudPolluted + ' → 重置为 23:00/08:00 并覆盖云端');
-            delete __sleepCloudSaveDebounce['sleepSettings']; // 清除 5s 退避，确保云端立即覆盖
-            saveSleepSettings(); // 本地 + 云端全量覆盖，清除污染数据
-        }
-        localStorage.setItem('nightPlanDepolluted_v2', '1');
-    }
+    // [v9.38.2] 已删除 v9.36.5 的"夜间计划被小睡计划污染"一次性修复：数据早已修复（云端 plannedBedtime 正常），
+    // 该分支每次启动仍要读 localStorage 标记并比对云端，属纯空转。
 
     // [v7.11.3] 规范化入睡倒计时配置，避免异常值导致跳过倒计时
     if (!Number.isFinite(sleepSettings.countdownSeconds) || sleepSettings.countdownSeconds < 1) {
