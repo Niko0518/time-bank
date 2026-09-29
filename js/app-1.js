@@ -12,7 +12,7 @@
 // [v9.3.1] 架构重构：悬浮窗定时器状态以原生 Service 为唯一事实来源。修复 30+ 分钟后"任务消失/计时被吞"根因
 // [v9.3.2] Bug 1 修复：stopTask/cancelTask 静默期追踪 + __onFloatingTimerAction 恢复逻辑改为"云端权威源"（修复 v9.3.1 的"任务复活"回归）
 // [v9.3.3 final] 原生层云端同步保活：CloudSyncScheduler（WorkManager 周期任务） + __onNativeCloudDelta + visibilitychange always-reconcile + JS 心跳失败上报
-const APP_VERSION = 'v9.38.2';
+const APP_VERSION = 'v9.38.3';
 
 // [v9.3.3 final] App 启动时间戳（用于"初始化中"状态窗口判定）
 // 注：声明为 const 而非 let，避免被覆盖
@@ -10394,10 +10394,9 @@ function setRecommendWeight(key, value) {
     }
 }
 
-// 推荐缓存：{ earn: [...{task, score}], spend: [...], version: number, hour: number, weekday: number }
-// 数据版本号：dataVersion 单调递增，变化时强制重算；时间桶变化也强制重算
-let recommendationCache = { earn: [], spend: [], version: -1, hour: -1, weekday: -1, dataVersion: -1 };
-let _recommendDataVersion = 0; // 数据变化时 +1，使缓存失效
+// [v9.39.0] 推荐缓存：{ earn: [...{task, score, breakdown}], spend: [...] }
+// 数据特征每次重算时由 _aggregateRecommendActivity 全量刷新，故不再需要版本号/时间桶失效字段
+let recommendationCache = { earn: [], spend: [] };
 
 // [v9.20.5] 推荐任务分数明细缓存：Map<taskId, breakdown>
 // 由 _scoreAndRank 刷新，供 scoreBreakdownModal 弹窗使用
@@ -10406,61 +10405,51 @@ let _lastRecommendBreakdown = new Map();
 // [v9.20.5] 权重查看模式开关：true 时所有推荐任务的操作按钮替换为 finalScore
 let isRecommendWeightView = false;
 
-// 时段直方图预聚合：Map<taskId, number[24]>，每项是该任务过去 N 天每小时完成次数
-let _recommendHourHistograms = null;
-// W3 最近使用特征：Map<taskId, { todayCount, average, observationDays, latestTime }>
+// [v9.39.0] 时段直方图：Map<taskId, number[48]>（30 分钟精度，近 30 天），W1 regularity + time_slot_match 共用
+let _recommendHourHistograms = new Map();
+// [v9.39.0] 最近使用特征：Map<taskId, { todayCount, average, observationDays, latestTime, activeDays }>，供 W3 与 W1 activeDayRatio 共用
 let _recommendUsageStats = new Map();
 const _RECOMMEND_HIST_WINDOW_DAYS = 30; // 仅聚合最近 30 天，避免长尾
 
 // 兜底定时器：每 60 分钟强制刷新一次（防止长时间停留同一 tab）
 let _recommendTimerHandle = null;
 
-function _bumpRecommendDataVersion() {
-    _recommendDataVersion++;
-}
-
 /**
- * 主入口：重算推荐缓存。每次调用都重新计算 scores（O(tasks)，<1ms），
- * 时段直方图仅在小时跨边界时重建（O(transactions) ≈ 4000+）。
- * 由 updateRecentTasks、toggleRecommendMode、initApp、switchTab 等触发。
+ * [v9.39.0] 主入口：重算推荐缓存。
+ * 每次调用做「一次 O(transactions) 聚合」产出全部历史特征（W1 直方图 + W3 特征 + 活跃天数），
+ * 再对候选任务计分（O(tasks)）。原实现为「2 次全量遍历 + 每任务 N 次重算」，现为 1 次全量遍历。
+ * 由 updateRecentTasks、toggleRecommendMode、initApp、switchTab、addTransaction 等触发。
  */
 function recomputeRecommendations() {
     if (typeof tasks === 'undefined' || typeof transactions === 'undefined') return;
     const now = new Date();
     const hour = now.getHours();
     const weekday = now.getDay();
-    // 时段直方图缓存：仅在小时变化时重建（避免每次 UI tick 扫 4000+ 交易）
-    if (!_recommendHourHistograms) _recommendHourHistograms = new Map();
-    if (recommendationCache.hour !== hour || recommendationCache.weekday !== weekday) {
-        _aggregateHourHistograms();
-    }
-    // W3 每次重算都刷新：交易新增后立即反映今日完成量与最近完成时间
-    _aggregateRecommendUsageStats(now);
+
+    _aggregateRecommendActivity(now);
 
     const earnTasks = tasks.filter(t => ['reward', 'continuous', 'continuous_target'].includes(t.type));
     const spendTasks = tasks.filter(t => ['instant_redeem', 'continuous_redeem'].includes(t.type));
 
     recommendationCache.earn = _scoreAndRank(earnTasks, now, hour, weekday);
     recommendationCache.spend = _scoreAndRank(spendTasks, now, hour, weekday);
-    recommendationCache.hour = hour;
-    recommendationCache.weekday = weekday;
 }
 
 /**
- * 对候选任务按四维权重计分：25·w1 + 25·w2 + 25·w3 + 25·w4
+ * 对候选任务按四维归一化权重计分
  * 返回：按 finalScore 降序排好序的数组（运行中任务置顶）
  * [v9.20.5] 同时缓存每条任务的完整 breakdown（用于"查看权重"弹窗）
+ * [v9.39.0] 只调 _computeAlgoBreakdown 一次并取其 finalScore（原同时调 _computeAlgoScore，属同一算法的重复实现）
  */
 function _scoreAndRank(taskList, now, hour, weekday) {
     if (taskList.length === 0) return [];
 
     // [v9.36.4] 习惯任务达标完成后不再硬过滤出推荐（不再"直接消失"）；
     // 达标后 W2 习惯保护自然归零（currentCount >= target），推荐分数不再纳入习惯保护，仅由 W1/W3/W4 参与排序
-    const scored = taskList.map(t => ({
-        task: t,
-        score: _computeAlgoScore(t, now, hour, weekday),
-        breakdown: _computeAlgoBreakdown(t, now, hour, weekday)
-    }));
+    const scored = taskList.map(t => {
+        const breakdown = _computeAlgoBreakdown(t, now, hour, weekday);
+        return { task: t, score: breakdown.finalScore, breakdown };
+    });
 
     // [v9.20.5] 同步刷新 breakdown 缓存，供"查看权重"弹窗使用
     if (typeof _lastRecommendBreakdown !== 'undefined') {
@@ -10483,109 +10472,38 @@ function _scoreAndRank(taskList, now, hour, weekday) {
 }
 
 /**
- * [v9.21.0] 算单个任务的四维加权分
- * 维度：w1 时段匹配（abundance × activeDayRatio × regularity × time_slot_match）
- *      + w2 习惯紧迫度（importance × cycleUrgency × targetPull）
- *      + w3 最近使用（fit_pull × recency_score）
- *      + w4 提醒命中（高斯）
- * 所有 W 子分量范围统一到 [0, 2]，归一化除以 2
- */
-function _computeAlgoScore(task, now, hour, weekday) {
-    // [v9.21.0] w1: 时段匹配（四个子分量几何平均）
-    // 四个子分量 ∈ [0.1, 2]，几何平均后 ∈ [0.1, 2]
-    // [v9.21.0] hist48 是 48 桶直方图（30 分钟精度），用于 regularity + time_slot_match
-    const hist48 = _recommendHourHistograms.get(task.id) || new Array(48).fill(0);
-    const hist48Match = _build48BucketHist(task, transactions, 30);
-    const total = hist48.reduce((s, v) => s + v, 0);
-
-    let w1;
-    if (total === 0) {
-        // 无数数据：abundance/activeDayRatio/regularity 最小值 0.1，tsm 取消 0.1 偏移后为 0；几何平均 ≈ 0
-        // [v9.23.1] tsm=0 让 W1 真正反映"无历史"，其他三维度保留 0.1 兜底
-        w1 = 0;
-    } else {
-        const abundance = _abundance(total);
-        const activeDays = _countActiveDays(transactions, task.id, 30);
-        const activeDayRatio = _activeDayRatio(activeDays);
-        const regularity = _regularity(hist48);
-        const tsm = _timeSlotMatch(hour, now.getMinutes(), hist48Match);
-        // 四个子分量平等：∜(abundance × activeDayRatio × regularity × time_slot_match)
-        w1 = Math.pow(abundance * activeDayRatio * regularity * tsm, 0.25);
-    }
-
-    // w2: 习惯紧迫度（重要性 × 周期紧迫度 × 目标引力）
-    let w2 = 0;
-    if (task.isHabit && task.habitDetails) {
-        // [v9.20.5] 入口条件改为"周期内未达目标"：部分完成的任务也能进入 W2 计算
-        // currentCount/target 取自 getHabitPeriodInfo，对 daily/weekly/monthly 都成立
-        const periodInfo = getHabitPeriodInfo(task, transactions, now);
-        const currentCount = periodInfo.currentCount;
-        const target = periodInfo.targetCount;
-        if (currentCount < target) {
-            const streak = task.habitDetails.streak || 0;
-            const period = task.habitDetails.period;
-            // [v9.21.0] 修复 streak=0 最小值失效的 bug：
-            // 旧条件 (streak >= 1 || hour >= 20) 会让 streak=0 且 hour<20 的习惯任务跳过整个 W2 计算，
-            // 导致 _streakImportance(0)=0.1 永远不会被调用。
-            // 改为永远进入 W2（依赖其他子分量做最终过滤）
-            const importance = _streakImportance(streak);
-            const progressRatio = _cycleProgress(period, now);
-            const cycleUrgency = _cycleUrgency(progressRatio);
-            const targetPull = _targetPull(currentCount, target);
-            // W2 公式：∛(importance × cycleUrgency × targetPull)，[0, 2]
-            w2 = Math.cbrt(importance * cycleUrgency * targetPull);
-        }
-    }
-
-    // w3: 最近使用（拟合性 × 新近性）
-    const w3 = _recentUsageScore(task.id, now);
-
-    // w4: 提醒权重（标准高斯曲线，范围 [0, 2]，峰值 2.0 在提醒时）
-    let w4 = 0;
-    if (task.reminderDetails && task.reminderDetails.time) {
-        w4 = _reminderScore(now, task.reminderDetails);
-    }
-
-    const normalizedW1 = Math.max(0, Math.min(1, w1 / 2));  // [v9.21.0] W1 范围 [0.1,2]，归一化除以 2
-    const normalizedW2 = Math.max(0, Math.min(1, w2 / 2));  // [v9.20.5] W2 范围 [0,2]，归一化除以 2
-    const normalizedW3 = Math.max(0, Math.min(1, w3 / 2));  // [v9.20.5] W3 范围 [0,2]，归一化除以 2
-    const normalizedW4 = Math.max(-1, Math.min(1, w4 / 2));  // [v9.21.0] W4 范围 [-2,2]，归一化除以 2（保留负值）
-    const weights = _getNormalizedRecommendWeights();
-    // [v9.23.1] finalScore 满分 8.0，保留 1 位小数
-    return Math.round(8 * (weights.w1 * normalizedW1 + weights.w2 * normalizedW2 + weights.w3 * normalizedW3 + weights.w4 * normalizedW4) * 10) / 10;
-}
-
-/**
  * [v9.20.5] 计算单个任务推荐分数的完整明细（用于弹窗展示）
- * 与 _computeAlgoScore 计算逻辑完全一致，但额外返回每个 W 的子分量和权重配置。
- * 弹窗（scoreBreakdownModal）展示该返回值的格式化版本。
+ * [v9.39.0] 本函数是四维计分的**唯一实现**（原重复的 _computeAlgoScore 已删除），
+ *           finalScore 供 _scoreAndRank 直接使用；额外返回每个 W 的子分量与权重配置，
+ *           弹窗（scoreBreakdownModal）展示该返回值的格式化版本。
  */
 function _computeAlgoBreakdown(task, now, hour, weekday) {
     // [v9.21.0] W1: 时段匹配（四个子分量几何平均，48 桶）
+    // [v9.39.0] regularity 与 time_slot_match 共用同一份预聚合直方图（原 time_slot_match 每任务实时重算，
+    //           且两套聚合口径存在差异；现统一取自 _aggregateRecommendActivity）
     const hist48 = _recommendHourHistograms.get(task.id) || new Array(48).fill(0);
-    const hist48Match = _build48BucketHist(task, transactions, 30);
     const total = hist48.reduce((s, v) => s + v, 0);
 
     let w1;
     let w1Details;
     if (total === 0) {
-        // 无数数据：[v9.23.1] tsm 取消 0.1 偏移后为 0，其他三维度保留 0.1 兜底
+        // 无历史数据：三维度保留 0.1 兜底，tsm 取新下限 0.1；几何平均 << 0.1，故直接置 w1 = 0
         w1 = 0;
         w1Details = {
             abundance: 0.1,
             activeDayRatio: 0.1,
             regularity: 0.1,
-            timeSlotMatch: 0,
+            timeSlotMatch: 0.1,
             activeDays: 0,
             total: 0,
             reason: 'no_data'
         };
     } else {
         const abundance = _abundance(total);
-        const activeDays = _countActiveDays(transactions, task.id, 30);
+        const activeDays = (_recommendUsageStats.get(task.id) || {}).activeDays || 0;
         const activeDayRatio = _activeDayRatio(activeDays);
         const regularity = _regularity(hist48);
-        const tsm = _timeSlotMatch(hour, now.getMinutes(), hist48Match);
+        const tsm = _timeSlotMatch(hour, now.getMinutes(), hist48);
         w1 = Math.pow(abundance * activeDayRatio * regularity * tsm, 0.25);
         w1Details = {
             abundance,
@@ -10609,7 +10527,7 @@ function _computeAlgoBreakdown(task, now, hour, weekday) {
         const period = task.habitDetails.period;
         if (currentCount < target) {
             const streak = task.habitDetails.streak || 0;
-            // [v9.21.0] 修复 streak=0 最小值失效 bug（与 _computeAlgoScore 一致）
+            // [v9.21.0] 修复 streak=0 最小值失效 bug
             const importance = _streakImportance(streak);
             const progressRatio = _cycleProgress(period, now);
             const cycleUrgency = _cycleUrgency(progressRatio);
@@ -10630,44 +10548,20 @@ function _computeAlgoBreakdown(task, now, hour, weekday) {
     }
 
     // W3: 最近使用（拟合引力 × 新近性，几何平均，[0, 2] 范围）
-    const w3 = _recentUsageScore(task.id, now);
-    const w3Stats = _recommendUsageStats.get(task.id);
-    let w3Details = { finalScore: w3 };
-    if (w3Stats) {
-        // 拆解 fitScore 和 recencyScore 供弹窗展示
-        const roundedAverage = Math.round(w3Stats.average);
-        let fitScore = 1.0;
-        if (w3Stats.observationDays > 0 && w3Stats.average > 0) {
-            if (w3Stats.todayCount === roundedAverage) {
-                fitScore = 1.0;
-            } else if (w3Stats.todayCount < roundedAverage) {
-                const distanceRatio = (roundedAverage - w3Stats.todayCount) / Math.max(roundedAverage, 1);
-                const baseAttraction = 1 - Math.exp(-distanceRatio * 0.693);
-                const remaining = roundedAverage - w3Stats.todayCount;
-                const absoluteBonus = Math.min(1, remaining * 0.15);
-                fitScore = 1 + Math.min(1, baseAttraction + absoluteBonus);
-            } else {
-                const distanceRatio = (w3Stats.todayCount - roundedAverage) / Math.max(roundedAverage, 1);
-                fitScore = Math.exp(-distanceRatio * 0.693);
-            }
-            // maturity 渐进启用
-            const maturity = Math.min(1, w3Stats.observationDays / 14);
-            fitScore = (1 - maturity) + maturity * fitScore;
-        }
-        const elapsedHours = Math.max(0, (now.getTime() - w3Stats.latestTime) / (60 * 60 * 1000));
-        const recencyScore = Math.max(0, Math.min(2, elapsedHours >= 24 ? 0 : 2 * (1 - elapsedHours / 24)));
-        w3Details = {
-            todayCount: w3Stats.todayCount,
-            average: w3Stats.average,
-            roundedAverage,
-            observationDays: w3Stats.observationDays,
-            latestTime: w3Stats.latestTime,
-            elapsedHours,
-            fitScore,
-            recencyScore,
-            finalScore: w3
-        };
-    }
+    // [v9.39.0] 与计分共用 _recentUsageDetail，明细不再内联复制公式
+    const w3Detail = _recentUsageDetail(task.id, now);
+    const w3 = w3Detail.finalScore;
+    const w3Details = w3Detail.hasStats ? {
+        todayCount: w3Detail.todayCount,
+        average: w3Detail.average,
+        roundedAverage: w3Detail.roundedAverage,
+        observationDays: w3Detail.observationDays,
+        latestTime: w3Detail.latestTime,
+        elapsedHours: w3Detail.elapsedHours,
+        fitScore: w3Detail.fitScore,
+        recencyScore: w3Detail.recencyScore,
+        finalScore: w3
+    } : { finalScore: w3 };
 
     // W4: 提醒命中
     let w4 = 0;
@@ -10717,39 +10611,66 @@ function _computeAlgoBreakdown(task, now, hour, weekday) {
 }
 
 /**
- * [v9.20.2] 一次扫描聚合 W3 所需特征
- * 30 天是最长观察窗口；均线从窗口内首次有效记录起算，任务出现前的日期不补零。
+ * [v9.39.0] 一次扫描聚合推荐算法所需的全部历史特征
+ * （原 _aggregateHourHistograms + _aggregateRecommendUsageStats 合并，避免两次全量遍历）
+ * 产出：
+ *   _recommendHourHistograms → Map<taskId, number[48]>（30 分钟精度，W1 regularity 与 time_slot_match 共用）
+ *   _recommendUsageStats     → Map<taskId, { todayCount, average, observationDays, latestTime, activeDays }>
+ *                              （W3 拟合/新近 与 W1 activeDayRatio 共用）
+ *
+ * 统一口径（原两套实现存在差异，此处合一）：
+ *   - 排除 undone / isSystem / isBackdate（补录） / 非 earn|spend / 未来时间（> now + 5min）
+ *   - 持续类任务的 earn 记录按「开始时刻」入桶：ts = timestamp - amount × 1000
+ *   - latestTime 始终取原始完成时刻（W3 新近性语义）
+ *   - 30 天窗口统一按本地自然日索引；activeDays = 窗口内有记录的自然日数
  */
-function _aggregateRecommendUsageStats(now) {
+function _aggregateRecommendActivity(now) {
+    _recommendHourHistograms = new Map();
     _recommendUsageStats = new Map();
-    if (!Array.isArray(transactions) || transactions.length === 0) return;
 
-    const dayMs = 24 * 60 * 60 * 1000;
-    const todayStr = getLocalDateString(now);
-    const todayIndex = Date.parse(`${todayStr}T00:00:00Z`) / dayMs;
-    const windowStartIndex = todayIndex - _RECOMMEND_HIST_WINDOW_DAYS;
+    const list = Array.isArray(transactions) ? transactions : [];
+    if (list.length === 0) return;
+
     const nowMs = now.getTime();
+    const dayMs = 24 * 60 * 60 * 1000;
+    const todayIndex = Date.parse(`${getLocalDateString(now)}T00:00:00Z`) / dayMs;
+    const windowStartIndex = todayIndex - _RECOMMEND_HIST_WINDOW_DAYS;
+
+    // 预建「持续类任务」集合，避免逐条交易调用 tasks.find()（原实现为 O(transactions × tasks)）
+    const continuousEarnIds = new Set();
+    if (Array.isArray(tasks)) {
+        for (const t of tasks) {
+            if (t && (t.type === 'continuous' || t.type === 'continuous_target')) continuousEarnIds.add(t.id);
+        }
+    }
+
     const grouped = new Map();
 
-    for (const tx of transactions) {
-        if (!tx || !tx.taskId || tx.undone || tx.isSystem) continue;
+    for (const tx of list) {
+        if (!tx || !tx.taskId || tx.undone || tx.isSystem || tx.isBackdate) continue;
         if (tx.type !== 'earn' && tx.type !== 'spend') continue;
-        // [v9.21.0] 排除补录交易
-        if (tx.isBackdate) continue;
-        const timestamp = new Date(tx.timestamp).getTime();
-        if (!Number.isFinite(timestamp) || timestamp > nowMs + 5 * 60 * 1000) continue;
+        // timestamp 可能是 ISO 字符串，统一归一为毫秒
+        const ts = typeof tx.timestamp === 'number' ? tx.timestamp : new Date(tx.timestamp).getTime();
+        if (!Number.isFinite(ts) || ts > nowMs + 5 * 60 * 1000) continue;
 
         let item = grouped.get(tx.taskId);
         if (!item) {
-            item = { dailyCounts: new Map(), latestTime: 0 };
+            item = { hist: new Array(48).fill(0), dailyCounts: new Map(), latestTime: 0 };
             grouped.set(tx.taskId, item);
         }
-        item.latestTime = Math.max(item.latestTime, Math.min(timestamp, nowMs));
+        item.latestTime = Math.max(item.latestTime, Math.min(ts, nowMs));
 
-        const dateStr = getLocalDateString(timestamp);
-        const dayIndex = Date.parse(`${dateStr}T00:00:00Z`) / dayMs;
+        const dayIndex = Date.parse(`${getLocalDateString(ts)}T00:00:00Z`) / dayMs;
         if (dayIndex < windowStartIndex || dayIndex > todayIndex) continue;
         item.dailyCounts.set(dayIndex, (item.dailyCounts.get(dayIndex) || 0) + 1);
+
+        // 48 桶：持续类 earn 记录按开始时刻入桶
+        let bucketMs = ts;
+        if (tx.type === 'earn' && continuousEarnIds.has(tx.taskId) && typeof tx.amount === 'number' && tx.amount > 0) {
+            bucketMs = ts - tx.amount * 1000;
+        }
+        const d = new Date(bucketMs);
+        item.hist[d.getHours() * 2 + (d.getMinutes() >= 30 ? 1 : 0)] += 1;
     }
 
     grouped.forEach((item, taskId) => {
@@ -10764,11 +10685,13 @@ function _aggregateRecommendUsageStats(now) {
         });
         const observationDays = Number.isFinite(firstHistoryDay) ? todayIndex - firstHistoryDay : 0;
         const average = observationDays > 0 ? historyTotal / observationDays : 0;
+        _recommendHourHistograms.set(taskId, item.hist);
         _recommendUsageStats.set(taskId, {
             todayCount,
             average,
             observationDays,
-            latestTime: item.latestTime
+            latestTime: item.latestTime,
+            activeDays: item.dailyCounts.size
         });
     });
 }
@@ -10815,32 +10738,41 @@ function _recencyScore(elapsedHours) {
  * 拟合引力：完美拟合=1, 未做侧 1~2（拉回）, 超额侧 0~1（抑制）
  * 新近性：刚完成=2, 24h前=0
  * W3 = √(fitScore × recencyScore)，前 14 天渐进启用均线
+ * [v9.39.0] 本函数是 W3 的**唯一实现**：一次性算出全部中间量，
+ *           既供计分（finalScore），也供明细弹窗展示（原弹窗内联复制了 _fitScore 与新近性公式，已合并到这里）
+ * 返回：hasStats=false 表示该任务无可用历史（finalScore = 0）
  */
-function _recentUsageScore(taskId, now) {
+function _recentUsageDetail(taskId, now) {
     const stats = _recommendUsageStats.get(taskId);
-    if (!stats || !stats.latestTime) return 0;
+    if (!stats || !stats.latestTime) return { hasStats: false, finalScore: 0 };
 
-    let rawFit;
-    if (stats.observationDays > 0 && stats.average > 0) {
-        rawFit = _fitScore(stats.todayCount, stats.average);
-    } else {
-        rawFit = 1.0;  // 无历史 → 中性
-    }
-
+    const hasHistory = stats.observationDays > 0 && stats.average > 0;
+    const roundedAverage = Math.round(stats.average);
+    const rawFit = hasHistory ? _fitScore(stats.todayCount, stats.average) : 1.0;  // 无历史 → 中性
     // maturity 渐进启用：14 天内逐步信任历史均线
-    let fitScore;
-    if (stats.observationDays > 0 && stats.average > 0) {
-        const maturity = Math.min(1, stats.observationDays / 14);
-        fitScore = (1 - maturity) + maturity * rawFit;
-    } else {
-        fitScore = 1;
-    }
+    const maturity = hasHistory ? Math.min(1, stats.observationDays / 14) : 0;
+    const fitScore = hasHistory ? (1 - maturity) + maturity * rawFit : 1;
 
     const elapsedHours = Math.max(0, (now.getTime() - stats.latestTime) / (60 * 60 * 1000));
     const recencyScore = _recencyScore(elapsedHours);
 
     // W3 = √(fitScore × recencyScore)，范围 [0, 2]
-    return Math.max(0, Math.min(2, Math.sqrt(fitScore * recencyScore)));
+    const finalScore = Math.max(0, Math.min(2, Math.sqrt(fitScore * recencyScore)));
+
+    return {
+        hasStats: true,
+        todayCount: stats.todayCount,
+        average: stats.average,
+        roundedAverage,
+        observationDays: stats.observationDays,
+        latestTime: stats.latestTime,
+        elapsedHours,
+        rawFit,
+        maturity,
+        fitScore,
+        recencyScore,
+        finalScore
+    };
 }
 
 /**
@@ -10913,65 +10845,21 @@ function _regularity(hist48) {
 }
 
 /**
- * [v9.20.0] 统计任务在指定窗口内的活跃天数
- */
-function _countActiveDays(transactions, taskId, windowDays) {
-    const days = new Set();
-    const cutoffMs = Date.now() - windowDays * 24 * 60 * 60 * 1000;
-    for (const tx of transactions) {
-        if (tx.taskId !== taskId || tx.undone || tx.isSystem) continue;
-        if (tx.type !== 'earn' && tx.type !== 'spend') continue;
-        // [v9.21.0] 排除补录交易
-        if (tx.isBackdate) continue;
-        // [v9.21.0] Bug 修复：tx.timestamp 可能是字符串，统一转为数字再比较
-        const txMs = typeof tx.timestamp === 'number' ? tx.timestamp : new Date(tx.timestamp).getTime();
-        if (txMs < cutoffMs) continue;
-        const d = new Date(txMs);
-        days.add(d.getFullYear() * 10000 + (d.getMonth() + 1) * 100 + d.getDate());
-    }
-    return days.size;
-}
-
-/**
- * [v9.20.0] 构建 48 桶直方图（30 分钟精度）
- * 持续类任务按开始时间（反推），其他按完成时间
- */
-function _build48BucketHist(task, transactions, windowDays) {
-    const hist = new Array(48).fill(0);
-    const cutoff = Date.now() - windowDays * 24 * 60 * 60 * 1000;
-    const isContinuous = task.type === 'continuous' || task.type === 'continuous_target' || task.type === 'continuous_redeem';
-    for (const tx of transactions) {
-        if (tx.taskId !== task.id || tx.undone || tx.isSystem) continue;
-        if (tx.type !== 'earn' && tx.type !== 'spend') continue;
-        // [v9.21.0] 排除补录交易
-        if (tx.isBackdate) continue;
-        if (tx.timestamp < cutoff) continue;
-        let ts = tx.timestamp;
-        // 持续类任务反推开始时间：amount 即为持续秒数
-        if (isContinuous && typeof tx.amount === 'number' && tx.amount > 0) {
-            ts = tx.timestamp - tx.amount * 1000;
-        }
-        const d = new Date(ts);
-        const bucket = d.getHours() * 2 + (d.getMinutes() >= 30 ? 1 : 0);
-        hist[bucket] += 1;
-    }
-    return hist;
-}
-
-/**
- * [v9.23.1] W1 子分量 4：时段匹配 time_slot_match（[0, 2] 范围，高斯叠加，瘦钟形）
- * 锚点：偏离 0min→2.0（峰值），偏离 60min→1.21，偏离 180min→0.00
+ * [v9.39.0] W1 子分量 4：时段匹配 time_slot_match（[0.1, 2] 范围，高斯叠加，瘦钟形）
+ * 锚点：偏离 0min→2.00（峰值），偏离 60min→1.25，偏离 180min→0.12（下限 0.10）
  * 高斯叠加方案（σ=2 桶 = 1h，瘦钟形）：每个有数据的桶建一个高斯钟形，叠加总和归一化
  * 解决双峰/多峰分布问题（环形均值在双峰时会算出错误的中间值）
- * 取消 0.1 最小值后，钟形衰减让 3h 外 tsm 自然归零；峰值仍为 2.00
- * 关键节点：偏离 0→2.00, 30min→1.76, 60min→1.21, 120min→0.16, 180min→0.00, 240min→0.00
+ * [v9.39.0] 恢复 0.1 下限（v9.23.1 曾取消 → 错峰任务 tsm=0）。
+ *   注意：W1 为四子分量的四次根，tsm=0.1 经 ∜ 放大后 w1 ≈ 0.56（a/b/r 均为 1 时），
+ *   即"完全错峰任务"可拿到峰值任务约 47% 的 W1 分，并非轻微兜底。
+ * 关键节点（单峰分布）：0→2.00, 30min→1.78, 60min→1.25, 120min→0.36, 180min→0.12, 240min→0.10
  */
 const _TIME_SLOT_MATCH_SIGMA = 2;  // σ = 2 桶（1 小时，瘦钟形）
 const _TIME_SLOT_MATCH_INV_2SIGMA2 = 1 / (2 * _TIME_SLOT_MATCH_SIGMA * _TIME_SLOT_MATCH_SIGMA);
 
 function _timeSlotMatch(hour, minute, hist48) {
     const total = hist48.reduce((s, v) => s + v, 0);
-    if (total === 0) return 0;  // 无数数据，中性 0（[v9.23.1] 取消 0.1 最小值）
+    if (total === 0) return 0.1;  // 无历史数据 → 取下限
 
     const currentBucket = hour * 2 + (minute >= 30 ? 1 : 0);
     let concentration = 0;
@@ -10983,8 +10871,8 @@ function _timeSlotMatch(hour, minute, hist48) {
         const gaussian = Math.exp(-diff * diff * _TIME_SLOT_MATCH_INV_2SIGMA2);
         concentration += (hist48[i] / total) * gaussian;
     }
-    // concentration ∈ [0, 1]，[v9.23.1] 取消 0.1 偏移，直接映射到 [0, 2]
-    return concentration * 2;
+    // concentration ∈ [0, 1] → [0.1, 2]（保留 0.1 下限）
+    return 0.1 + 1.9 * concentration;
 }
 
 /**
@@ -11137,48 +11025,6 @@ function _reminderScore(now, r) {
         }
     } catch (e) {
         return 0;
-    }
-}
-
-/**
- * 预聚合：扫描 transactions 数组，统计每个任务过去 30 天的 24 小时桶完成次数
- * 排除 undone 交易；isStreakAdvancement（连胜推进）按 1 次完成计入
- * [v9.21.0] 持续类任务按"开始时间"入桶（amount 即为持续秒数）
- */
-/**
- * [v9.21.0] 预聚合：48 桶直方图（30 分钟精度，W1 regularity 使用）
- * 之前是 24 桶（小时精度），改为 48 桶后能区分 8:00 和 8:30
- */
-function _aggregateHourHistograms() {
-    _recommendHourHistograms.clear();
-    if (!Array.isArray(transactions) || transactions.length === 0) return;
-    const now = Date.now();
-    const windowMs = _RECOMMEND_HIST_WINDOW_DAYS * 24 * 60 * 60 * 1000;
-    for (const tx of transactions) {
-        if (!tx || !tx.taskId) continue;
-        if (tx.undone) continue;
-        if (tx.type !== 'earn' && tx.type !== 'spend') continue;
-        // 排除系统/利息/睡眠等非任务主动行为
-        if (tx.isSystem) continue;
-        // [v9.21.0] 排除补录交易（手动补录 + 自动检测补录，isBackdate=true）
-        // 推荐基于"用户自然行为"，补录是修正性数据
-        if (tx.isBackdate) continue;
-        const t = new Date(tx.timestamp);
-        let ts = t.getTime();
-        if (isNaN(ts) || (now - ts) > windowMs) continue;
-        // [v9.21.0] 持续类任务反推开始时间：amount 即为持续秒数
-        // 与 48 桶 (time_slot_match) 保持一致：依赖任务类型判断
-        const txTask = tasks && tasks.find(t => t.id === tx.taskId);
-        const isContinuousTask = txTask && (txTask.type === 'continuous' || txTask.type === 'continuous_target' || txTask.type === 'continuous_redeem');
-        if (isContinuousTask && typeof tx.amount === 'number' && tx.amount > 0 && tx.type === 'earn') {
-            ts -= tx.amount * 1000;
-        }
-        const tStart = new Date(ts);
-        // [v9.21.0] 48 桶索引：hour*2 + (minute>=30 ? 1 : 0)
-        const bucket = tStart.getHours() * 2 + (tStart.getMinutes() >= 30 ? 1 : 0);
-        let arr = _recommendHourHistograms.get(tx.taskId);
-        if (!arr) { arr = new Array(48).fill(0); _recommendHourHistograms.set(tx.taskId, arr); }
-        arr[bucket] += 1;
     }
 }
 
@@ -11501,7 +11347,7 @@ function toggleRecommendMode(type) {
     _syncRecommendModeToCloud();
     _updateRecommendToggleUI(type);
     if (recommendMode[type] === 'recommend') {
-        _bumpRecommendDataVersion(); // 切换时强制刷新
+        // [v9.39.0] renderRecommendedTasks 内部会 recomputeRecommendations（每次全量重建特征），无需额外失效标记
         renderRecommendedTasks();
     } else {
         // 切回最近任务：调用原生 sortByLastUsed 逻辑
@@ -11585,7 +11431,6 @@ function initRecommendUI() {
     // 启动兜底定时器：每 60 分钟
     if (_recommendTimerHandle) clearInterval(_recommendTimerHandle);
     _recommendTimerHandle = setInterval(() => {
-        _bumpRecommendDataVersion();
         if (recommendMode.earn === 'recommend' || recommendMode.spend === 'recommend') {
             recomputeRecommendations();
             // 仅重渲当前激活的推荐 tab（避免无意义渲染）
@@ -11598,7 +11443,6 @@ function initRecommendUI() {
     // visibilitychange：从后台切回前台时刷新
     document.addEventListener('visibilitychange', () => {
         if (document.visibilityState === 'visible') {
-            _bumpRecommendDataVersion();
             if (recommendMode.earn === 'recommend' || recommendMode.spend === 'recommend') {
                 recomputeRecommendations();
                 if (recommendMode.earn === 'recommend') renderRecommendedTasks();

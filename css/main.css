@@ -2007,12 +2007,20 @@
             text-overflow: ellipsis;
             max-width: none;
         }
-        /* [v9.37.2] 迷你卡片：本周期习惯已达标 → 任务名改金色（仅改字色，不新增元素/不改布局） */
+        /* [v9.37.2] 迷你卡片：本周期习惯已达标 → 任务名改金色（仅改字色，不新增元素/不改布局）
+           [v9.38.3] 可读性优化：金色 #f5c542 与近白卡片（--card-bg rgba(255,255,255,.95)）对比度仅 1.62:1，
+           远低于 4.5:1 阈值 → 改为「背景固定就分色，背景不可控才上阴影」双轨策略（参考 iOS 图标名的阴影用法） */
         .task-card-mini .task-name.habit-met {
-            color: #f5c542;
+            color: #a56a00; /* 经典·浅色：深金，对比度 4.47:1 */
         }
         [data-theme="dark"] .task-card-mini .task-name.habit-met {
+            color: #ffd54a; /* 经典·深色：亮金本已达标（10.2:1），阴影仅描边 */
+            text-shadow: 0 1px 2px rgba(0, 0, 0, 0.45);
+        }
+        /* 通透模式：迷你卡半透明透出壁纸（背景不可控）→ 亮金 + 较强阴影，浅/深两主题统一 */
+        .task-card-mini.glass .task-name.habit-met {
             color: #ffd54a;
+            text-shadow: 0 1px 3px rgba(0, 0, 0, 0.6), 0 0 2px rgba(0, 0, 0, 0.4);
         }
         .task-card-mini .mini-actions-inline {
             flex-shrink: 0;

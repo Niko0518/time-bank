@@ -4,6 +4,45 @@
 >
 > 用户-facing 的精简版本请见 `index.html` 关于页。
 
+## v9.38.3 (2026-09-29) — 推荐算法计分链路重构（消除三重重复，计算量 ↓约 100×）+ 迷你卡金色可读性
+
+> 背景：推荐算法经 v9.20~v9.24 多轮迭代累积出"同一逻辑多份实现"——单次重算需 **2 次全量遍历 + 每任务 2×O(transactions)**。本版做减重，并顺手恢复 W1-④ 的下限。
+
+### 核心变更
+
+1. **W1-④ 时段匹配恢复 0.1 下限**（`_timeSlotMatch`）：`return concentration * 2` → `0.1 + 1.9 * concentration`；`total === 0` 返回 `0.1`（v9.23.1 曾取消该下限）。
+   - **影响量化**：W1 为四子分量的四次根，`tsm = 0.1` 经 ∜ 放大后 `w1 ≈ 0.56`（a/b/r 均为 1 时）→ 归一化 `n̂1 ≈ 0.28`，即「完全错峰任务」可拿到峰值任务约 **47%** 的 W1 分（此前为 0）。
+   - 属**有意回退** v9.24.0「取消 0.1 最小值，让完全错峰任务自然归零」的设计，已向开发者说明并确认。
+2. **计分双实现合并**：删除 `_computeAlgoScore`（与 `_computeAlgoBreakdown` 逻辑完全重复，导致每任务被算两遍）；`_scoreAndRank` 改为只调 `_computeAlgoBreakdown` 并取其 `finalScore`。全仓仅 1 处调用点。
+3. **直方图"一次聚合、两处复用"**：删除 `_build48BucketHist(task, transactions, 30)`（原**每个任务**都实时全量扫描）；W1 的 `regularity` 与 `time_slot_match` 统一取自 `_recommendHourHistograms`。
+4. **聚合函数合并为单次遍历**：`_aggregateHourHistograms` + `_aggregateRecommendUsageStats` → **`_aggregateRecommendActivity(now)`**，一次遍历产出 48 桶直方图 + W3 特征 + 活跃天数（`activeDays = dailyCounts.size`）。
+   - 顺带消除 `O(transactions × tasks)`：原每条交易都要 `tasks.find()` 查任务类型，改为预建 `Set`。
+5. **删除失效机制**：`_bumpRecommendDataVersion()` 被调用 3 处（切换模式 / 60min 定时器 / 前台恢复），但 `_recommendDataVersion` **只写不读**，注释声称的"数据变化强制重算"从未实现。改为「特征每次重算全量重建」后，该函数、3 处调用、变量、以及 `recommendationCache` 的 `version/hour/weekday/dataVersion` 死字段一并删除。
+6. **W3 收敛为唯一实现**：`_recentUsageScore` → `_recentUsageDetail(taskId, now)`（一次性返回全部中间量），计分与明细弹窗共用同一份结果；删除弹窗内联复制的 `_fitScore` 公式与"新近性"公式（后者改走 `_recencyScore`）。
+7. **迷你卡片习惯达标金色可读性**（`css/main.css`）：原 `#f5c542` 与近白卡片（`--card-bg rgba(255,255,255,.95)`）对比度仅 **1.62:1**（远低于 4.5:1 阈值）。改为「背景固定就分色、背景不可控才上阴影」双轨策略：经典浅色用深金 `#a56a00`（4.47:1）；经典深色维持 `#ffd54a` + `text-shadow` 描边；通透模式（透出壁纸、背景不可控）亮金 + 较强阴影。
+
+### 顺带修复的隐藏缺陷
+
+1. **`_build48BucketHist` 未做时间戳类型归一**：`if (tx.timestamp < cutoff)` 在 `timestamp` 为 ISO 字符串时比较得 `NaN`、条件恒为假 → **30 天外的老记录被错误计入直方图**（`_countActiveDays` L10926 与 `_aggregateHourHistograms` L11166 早已归一，仅此函数遗漏）。该函数随第 3 项整体删除，缺陷自然消除。
+2. **直方图/活跃天数在"本小时内新完成"时不更新**：原重建条件仅看 `hour !== hour || weekday !== weekday`，导致 `total` 原为 0 的任务其 W1 被整段清零到下一个整点。现改为每次重算全量重建。
+
+### 验证
+
+- `node --check` 通过；IDE lint 0 错误。
+- 全仓残留扫描：`_computeAlgoScore / _build48BucketHist / _countActiveDays / _aggregateHourHistograms / _aggregateRecommendUsageStats / _recentUsageScore / _bumpRecommendDataVersion / hist48Match` **均为 0 处引用**。
+- 明细弹窗消费字段逐个核对无变化（`todayCount / roundedAverage / average / fitScore / recencyScore / elapsedHours / finalScore`），无历史任务仍走「无历史数据」分支。
+- 真机 BVL-AN00（23:21:52）冷启动 logcat 无 `Uncaught / ReferenceError / TypeError`；`initApp` 推荐缓存预热路径（含 `try/catch` + `console.error`）执行无异常。
+- 待用户实测：推荐模式下「查看明细」确认错峰任务 `timeSlotMatch ≈ 0.10`；推荐顺序合理。
+
+### 性能
+
+单次重算：`2 次全量遍历 + 每任务 2×O(transactions)` → **`1 次全量遍历 + 每任务 O(1)`**。
+按 100 任务 × 4000 交易估算，迭代次数约 **800,000 → 4,000**，且与「任务数」彻底解耦。
+
+### 文件
+
+`js/app-1.js`（-283 / +135）、`css/main.css`、`index.html`
+
 ## v9.38.2 (2026-09-27) — 清理 12 处过期「一次性迁移」死代码（屎山治理第二步）
 
 ### 核心变更
