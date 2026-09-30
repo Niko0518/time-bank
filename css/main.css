@@ -2425,6 +2425,15 @@
         [data-theme="dark"] .task-card.glass .task-card-bg-overlay {
             background: linear-gradient(135deg, rgba(0,0,0,0.35) 0%, rgba(0,0,0,0.18) 60%, rgba(0,0,0,0.08) 100%);
         }
+        /* [v9.38.4] 通透模式下「带背景图的卡片」：背景【图片】层不透明度随「通透强度」滑块联动。
+           要点：
+           ① 只降 blur / clear 两个图片层，遮罩层(.task-card-bg-overlay)保持原强度 → 仍为文字垫底，不牺牲可读性；
+           ② 范围锁在 0.05 ~ 0.20：滑块 0% → 0.05，30% → 0.0875，60% → 0.125，90% → 0.1625，120% → 0.20；
+           ③ 不作用于纯色/渐变模式的卡片（仅 .glass）。 */
+        .task-card.glass .task-card-bg-blur,
+        .task-card.glass .task-card-bg-clear {
+            opacity: calc(0.05 + 0.125 * var(--glass-opacity-scale, 1));
+        }
         /* 拖拽时背景层跟随卡片 */
         .task-card.has-bg.task-dragging .task-card-bg {
             overflow: hidden;
@@ -3206,6 +3215,108 @@
         .tb-sub-empty { font-size: 0.75rem; color: var(--text-muted, #999); padding: 4px 0; }
         .tb-mini2 { font-size: 0.72rem; padding: 4px 8px; margin-top: 2px; }
 
+        /* [v9.38.4] Time Bot 定制弹窗「通透模式」适配
+           此前内部区块用 var(--input-bg) / var(--card-bg) / var(--bg-secondary) 等不透明浅色，
+           在玻璃弹窗里像"贴了一张白纸"，与通透风格冲突。统一改为：
+           半透明白底 + 半透明描边 + 白字（主色态仍保留主题色，只把文字钉成白色）。 */
+        body.glass-mode #timeBotConfigModal .tb-card,
+        body.glass-mode #timeBotConfigModal .tb-scene-row,
+        body.glass-mode #timeBotConfigModal .tb-step,
+        body.glass-mode #timeBotConfigModal .tb-sub,
+        body.glass-mode #timeBotConfigModal .tb-act,
+        body.glass-mode #timeBotConfigModal .tb-opt,
+        body.glass-mode #timeBotConfigModal .tb-randbox,
+        body.glass-mode #timeBotConfigModal .tb-inp,
+        body.glass-mode #timeBotConfigModal .tb-sel,
+        body.glass-mode #timeBotConfigModal .tb-num,
+        body.glass-mode #timeBotConfigModal .tb-btn,
+        body.glass-mode #timeBotConfigModal .tb-mini-btn,
+        body.glass-mode #timeBotConfigModal .tb-icobtn,
+        body.glass-mode #timeBotConfigModal .timebot-shape-btn,
+        body.glass-mode #timeBotConfigModal .timebot-state-chip {
+            background: rgba(255, 255, 255, 0.12) !important;
+            border-color: rgba(255, 255, 255, 0.26) !important;
+            color: #fff !important;
+        }
+        body.glass-mode #timeBotConfigModal .tb-act-top {
+            background: rgba(255, 255, 255, 0.08) !important;
+            border-bottom-color: rgba(255, 255, 255, 0.18) !important;
+        }
+        /* 主色态：背景保留主题色，只固定文字为白色 */
+        body.glass-mode #timeBotConfigModal .tb-opt.active,
+        body.glass-mode #timeBotConfigModal .tb-type-pill.active,
+        body.glass-mode #timeBotConfigModal .timebot-state-chip.active,
+        body.glass-mode #timeBotConfigModal .tb-bar {
+            color: #fff !important;
+        }
+        /* 双 tab */
+        body.glass-mode #timeBotConfigModal .tb-tab {
+            color: rgba(255, 255, 255, 0.7) !important;
+        }
+        body.glass-mode #timeBotConfigModal .tb-tab.active {
+            color: #fff !important;
+            background: rgba(255, 255, 255, 0.14) !important;
+            border-color: rgba(255, 255, 255, 0.26) !important;
+            border-bottom-color: transparent !important;
+        }
+        /* 主要文字 */
+        body.glass-mode #timeBotConfigModal .tb-card-title,
+        body.glass-mode #timeBotConfigModal .tb-row-name,
+        body.glass-mode #timeBotConfigModal .tb-scene-label,
+        body.glass-mode #timeBotConfigModal .tb-act-title,
+        body.glass-mode #timeBotConfigModal .tb-ed-title {
+            color: #fff !important;
+            text-shadow: 0 1px 2px rgba(0, 0, 0, 0.4);
+        }
+        /* 次要文字 */
+        body.glass-mode #timeBotConfigModal .tb-card-desc,
+        body.glass-mode #timeBotConfigModal .tb-row-desc,
+        body.glass-mode #timeBotConfigModal .tb-intro,
+        body.glass-mode #timeBotConfigModal .tb-hint,
+        body.glass-mode #timeBotConfigModal .tb-group-title,
+        body.glass-mode #timeBotConfigModal .tb-act-label,
+        body.glass-mode #timeBotConfigModal .tb-act-unit,
+        body.glass-mode #timeBotConfigModal .tb-opt-gh,
+        body.glass-mode #timeBotConfigModal .tb-step-idx,
+        body.glass-mode #timeBotConfigModal .tb-rand-note,
+        body.glass-mode #timeBotConfigModal .tb-empty,
+        body.glass-mode #timeBotConfigModal .tb-sub-empty,
+        body.glass-mode #timeBotConfigModal .tb-toolbar-hint,
+        body.glass-mode #timeBotConfigModal .tb-scene-chev,
+        body.glass-mode #timeBotConfigModal .tb-scene-badge.default {
+            color: rgba(255, 255, 255, 0.72) !important;
+        }
+        /* 分隔线与描边 */
+        body.glass-mode #timeBotConfigModal .tb-row + .tb-row,
+        body.glass-mode #timeBotConfigModal .setting-item,
+        body.glass-mode #timeBotConfigModal #timeBotColorSwitcher {
+            border-color: rgba(255, 255, 255, 0.18) !important;
+        }
+        /* 虚线主色块（新增按钮 / 折叠项）：保留主色描边，底色改半透明 */
+        body.glass-mode #timeBotConfigModal .tb-adds,
+        body.glass-mode #timeBotConfigModal .tb-opt.tb-fold-cell,
+        body.glass-mode #timeBotConfigModal .tb-subadd {
+            background: rgba(255, 255, 255, 0.10) !important;
+            border-color: rgba(var(--color-primary-rgb), 0.75) !important;
+            color: rgba(255, 255, 255, 0.95) !important;
+        }
+        body.glass-mode #timeBotConfigModal .tb-scene-badge.custom {
+            background: rgba(var(--color-primary-rgb), 0.22) !important;
+            color: #fff !important;
+        }
+        /* 场景开关（自定义 checkbox） */
+        body.glass-mode #timeBotConfigModal .tb-scene-toggle input[type="checkbox"] {
+            background: rgba(255, 255, 255, 0.25) !important;
+        }
+        body.glass-mode #timeBotConfigModal .tb-scene-toggle input[type="checkbox"]:checked {
+            background: var(--color-primary) !important;
+        }
+        /* 下拉选项在玻璃底上仍需深色背景，否则白字看不清 */
+        body.glass-mode #timeBotConfigModal select option {
+            background-color: #333;
+            color: #fff;
+        }
+
         /* [v9.37.2] 删除油画主题（撑阳伞的女人/杏花盛开）的 FAB 底座与通透光晕 */
         /* [v8.2.5] 通透模式 FAB：统一使用主题色半透明毛玻璃，删除背景图 */
         body.glass-mode .fab {
@@ -3816,6 +3927,63 @@
         body.glass-mode #dayDetailModal .modal-header {
             background: transparent !important;
             border-bottom-color: rgba(255, 255, 255, 0.2) !important;
+        }
+        /* [v9.38.4] 通透模式：每日详情「分区标题 / 汇总行 / 数值」（v9.26.0 新增，此前无覆盖，
+           浅色主题的深色字压在玻璃背景上几乎不可见）。配色沿用 .history-* 既有规范：
+           白字 + 深阴影，正值 #90EE90 / 负值 #FFB6C1（与历史记录条目完全一致） */
+        body.glass-mode #dayDetailModal .day-detail-section-title {
+            color: #fff !important;
+            text-shadow: 0 1px 3px rgba(0, 0, 0, 0.55);
+        }
+        body.glass-mode #dayDetailModal .day-detail-summary-row,
+        body.glass-mode #dayDetailModal .day-detail-pie-section {
+            border-bottom-color: rgba(255, 255, 255, 0.2) !important;
+        }
+        body.glass-mode #dayDetailModal .day-detail-summary-cell .label {
+            color: rgba(255, 255, 255, 0.88) !important;
+            text-shadow: 0 1px 2px rgba(0, 0, 0, 0.5);
+        }
+        body.glass-mode #dayDetailModal .day-detail-summary-cell .label.label-earn { color: #90EE90 !important; }
+        body.glass-mode #dayDetailModal .day-detail-summary-cell .label.label-spend { color: #FFB6C1 !important; }
+        body.glass-mode #dayDetailModal .day-detail-summary-cell .label.label-net { color: #9ad0ff !important; }
+        body.glass-mode #dayDetailModal .day-detail-summary-cell .value-fluid {
+            color: #fff !important;
+            text-shadow: 0 1px 2px rgba(0, 0, 0, 0.5);
+        }
+        body.glass-mode #dayDetailModal .day-detail-summary-cell .value-fluid.positive { color: #90EE90 !important; }
+        body.glass-mode #dayDetailModal .day-detail-summary-cell .value-fluid.negative { color: #FFB6C1 !important; }
+        /* [v9.38.4] 通透模式：推荐分「查看明细」弹窗（v9.20.5 / v9.24.0 新增，此前无覆盖） */
+        body.glass-mode #scoreBreakdownModal .score-breakdown-section,
+        body.glass-mode #scoreBreakdownModal .bd-detail-summary {
+            background: rgba(255, 255, 255, 0.08) !important;
+            border-color: rgba(255, 255, 255, 0.18) !important;
+        }
+        body.glass-mode #scoreBreakdownModal .score-section-title,
+        body.glass-mode #scoreBreakdownModal .bd-detail-title {
+            color: #9ad0ff !important;
+            border-bottom-color: rgba(255, 255, 255, 0.18) !important;
+            text-shadow: 0 1px 2px rgba(0, 0, 0, 0.4);
+        }
+        body.glass-mode #scoreBreakdownModal .score-weight-label,
+        body.glass-mode #scoreBreakdownModal .score-detail-row > span:first-child {
+            color: rgba(255, 255, 255, 0.85) !important;
+            text-shadow: 0 1px 2px rgba(0, 0, 0, 0.4);
+        }
+        body.glass-mode #scoreBreakdownModal .score-detail-row > span:last-child {
+            color: #fff !important;
+            text-shadow: 0 1px 2px rgba(0, 0, 0, 0.4);
+        }
+        body.glass-mode #scoreBreakdownModal .score-weight-value,
+        body.glass-mode #scoreBreakdownModal .score-breakdown-final-value,
+        body.glass-mode #scoreBreakdownModal .score-detail-final > span:last-child {
+            color: #9ad0ff !important;
+        }
+        body.glass-mode #scoreBreakdownModal .score-detail-sub {
+            color: rgba(255, 255, 255, 0.7) !important;
+            border-left-color: rgba(255, 255, 255, 0.25) !important;
+        }
+        body.glass-mode #scoreBreakdownModal .score-detail-final {
+            border-top-color: rgba(255, 255, 255, 0.25) !important;
         }
         /* 时间流图标题组通透模式 */
         body.glass-mode .flow-detail-title-group {
@@ -4528,6 +4696,28 @@
         [data-theme="dark"] body.glass-mode .kpi-cell {
             background: rgba(255, 255, 255, calc(0.04 * var(--glass-opacity-scale))) !important;
         }
+        /* [v9.38.4] 时间概览「热力图色块」（测试版，通透模式专用）
+           背景：普通模式靠「文字颜色」（流量色系 getFlowColorScaled 的内联 color）表达好坏，
+           但通透模式下这条 .kpi-cell-value{color:white!important} 会把内联色整片刷白 → 整表失去色彩信息。
+           改为：格子底色套用活动日历的 6 档色块（浅色档在色块方案下才可用），文字按底色深浅自动取深色/白色。
+           非通透模式不定义这些类 → 零影响（文字仍走流量色系）。 */
+        body.glass-mode .kpi-cell[class*="kpi-heat-"] .kpi-cell-label,
+        body.glass-mode .kpi-cell[class*="kpi-heat-"] .kpi-cell-value,
+        body.glass-mode .kpi-cell[class*="kpi-heat-"] .kpi-cell-change,
+        body.glass-mode .kpi-cell[class*="kpi-heat-"] .kpi-cell-delta {
+            color: inherit !important;
+            text-shadow: none !important;
+        }
+        body.glass-mode .kpi-cell[class*="kpi-heat-"] .kpi-cell-label { opacity: 0.78; }
+        body.glass-mode .kpi-cell[class*="kpi-heat-"] .kpi-cell-value { font-weight: 700; }
+        /* 净赚（绿）三档：浅 → 中 → 深 */
+        body.glass-mode .kpi-cell.kpi-heat-surplus-1 { background: rgba(155, 233, 168, 0.82) !important; color: #14361c !important; }
+        body.glass-mode .kpi-cell.kpi-heat-surplus-2 { background: rgba(64, 196, 99, 0.84) !important; color: #0c2913 !important; }
+        body.glass-mode .kpi-cell.kpi-heat-surplus-3 { background: rgba(33, 110, 57, 0.88) !important; color: #ffffff !important; }
+        /* 净消费（红）三档：浅 → 中 → 深 */
+        body.glass-mode .kpi-cell.kpi-heat-deficit-1 { background: rgba(255, 205, 210, 0.82) !important; color: #55191d !important; }
+        body.glass-mode .kpi-cell.kpi-heat-deficit-2 { background: rgba(229, 115, 115, 0.84) !important; color: #3c0c0c !important; }
+        body.glass-mode .kpi-cell.kpi-heat-deficit-3 { background: rgba(244, 67, 54, 0.88) !important; color: #ffffff !important; }
         
         /* 排行榜通透模式 */
         body.glass-mode .leaderboard-label {
@@ -8449,6 +8639,113 @@
 [data-theme="dark"] .time-bot-chat-input { background: rgba(255, 255, 255, 0.06); border-color: rgba(255, 255, 255, 0.12); color: var(--text-color, #e0e0e0); }
 [data-theme="dark"] .time-bot-chat-mic { background: rgba(255, 255, 255, 0.08); }
 
+/* ========== [v9.38.4] Time Bot 对话窗 / 气泡 + AI 设置与「我的画像」 —— 通透模式全面适配 ==========
+   约束：对话窗与气泡是常驻浮层，原注释明确「纯色卡片无毛玻璃（不碰性能红线）」，
+        故统一采用「深色半透明底 + 白字」——不引入 backdrop-filter，性能零负担，
+        且深浅任意壁纸下都是深底白字，可读性稳定。
+   AI 设置 / 画像属于弹窗内部区块，沿用「半透明白底 + 白字」，与弹窗风格一致。 */
+/* [v9.38.4-fix] Time Bot 对话窗 / 气泡：改用与整体完全一致的「玻璃」语言
+   —— 半透明白渐变 + backdrop-filter 模糊 + 白色描边（参数与 .modal-content 完全对齐），
+       替换上一版的「深色半透明近似」方案（那种做法只有色调贴近、缺少模糊，看着像"深色板"）。
+   性能权衡（原注释「纯色卡片无毛玻璃（不碰性能红线）」针对的是任务卡列表滚动场景）：
+     ① 对话窗：把入场 transform 从「容器」移到「内容层」，让带 blur 的容器保持静止，
+        避免"对 backdrop-filter 卡片做 transform 缩放"（红线明令禁止的操作）；
+     ② 气泡：单体小浮层、一次性入场动画，不在列表滚动路径上，保留原弹簧 pop；
+     ③ blur 半径沿用弹窗级参数，不额外加大。 */
+body.glass-mode .time-bot-chat-card {
+    background: linear-gradient(135deg,
+        rgba(255, 255, 255, calc(0.12 * var(--glass-opacity-scale))) 0%,
+        rgba(255, 255, 255, calc(0.06 * var(--glass-opacity-scale))) 100%) !important;
+    border: 1px solid rgba(255, 255, 255, calc(0.30 * var(--glass-opacity-scale)));
+    backdrop-filter: blur(calc(25px * var(--glass-blur-scale)));
+    -webkit-backdrop-filter: blur(calc(25px * var(--glass-blur-scale)));
+    color: #fff !important;
+    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.30);
+}
+/* 容器保持静止（不重采样 backdrop），入场动感交给内容层滑入 */
+body.glass-mode .time-bot-chat-card,
+body.glass-mode .time-bot-chat-card.show {
+    transform: none !important;
+}
+body.glass-mode .time-bot-chat-card > * {
+    transition: transform 0.26s cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+body.glass-mode .time-bot-chat-card:not(.show) > * {
+    transform: translateY(10px);
+}
+/* 气泡：保留原弹簧 pop */
+body.glass-mode .time-bot-bubble {
+    background: linear-gradient(135deg,
+        rgba(255, 255, 255, calc(0.16 * var(--glass-opacity-scale))) 0%,
+        rgba(255, 255, 255, calc(0.09 * var(--glass-opacity-scale))) 100%) !important;
+    border: 1px solid rgba(255, 255, 255, calc(0.28 * var(--glass-opacity-scale)));
+    backdrop-filter: blur(calc(18px * var(--glass-blur-scale)));
+    -webkit-backdrop-filter: blur(calc(18px * var(--glass-blur-scale)));
+    color: #fff !important;
+    box-shadow: 0 4px 18px rgba(0, 0, 0, 0.28);
+}
+body.glass-mode .time-bot-bubble::after {
+    background: rgba(255, 255, 255, calc(0.14 * var(--glass-opacity-scale))) !important;
+}
+body.glass-mode .time-bot-chat-header,
+body.glass-mode .time-bot-chat-footer { border-color: rgba(255, 255, 255, 0.15) !important; }
+body.glass-mode .time-bot-chat-status,
+body.glass-mode .time-bot-chat-iconbtn,
+body.glass-mode .time-bot-chat-broken { color: rgba(255, 255, 255, 0.66) !important; }
+body.glass-mode .time-bot-chat-typing span { background: rgba(255, 255, 255, 0.66) !important; }
+body.glass-mode .time-bot-chat-msg.ai { background: rgba(255, 255, 255, 0.13) !important; color: #fff !important; }
+body.glass-mode .time-bot-chat-msg.sys { color: rgba(255, 255, 255, 0.6) !important; }
+body.glass-mode .time-bot-chat-input {
+    background: rgba(255, 255, 255, 0.12) !important;
+    border-color: rgba(255, 255, 255, 0.22) !important;
+    color: #fff !important;
+}
+body.glass-mode .time-bot-chat-input::placeholder { color: rgba(255, 255, 255, 0.5) !important; }
+body.glass-mode .time-bot-chat-mic { background: rgba(255, 255, 255, 0.14) !important; color: #fff !important; }
+
+/* AI 设置区块：模型卡 / 记忆状态 / 四档滑块 */
+body.glass-mode .ai-model-card,
+body.glass-mode .ai-model-row,
+body.glass-mode .ai-segmented,
+body.glass-mode .ai-memory-status {
+    background: rgba(255, 255, 255, 0.10) !important;
+    border-color: rgba(255, 255, 255, 0.22) !important;
+}
+body.glass-mode .ai-model-card-name,
+body.glass-mode .ai-model-row-name,
+body.glass-mode .ai-memory-status,
+body.glass-mode .ai-segmented button,
+body.glass-mode .ai-segmented-label { color: #fff !important; }
+body.glass-mode .ai-model-card-desc,
+body.glass-mode .ai-memory-hint { color: rgba(255, 255, 255, 0.72) !important; }
+
+/* 「我的画像」弹窗区块 */
+body.glass-mode .brain-summary,
+body.glass-mode .brain-grid-item,
+body.glass-mode .brain-insight,
+body.glass-mode .brain-item {
+    background: rgba(255, 255, 255, 0.10) !important;
+    color: #fff !important;
+}
+body.glass-mode .brain-grid-label,
+body.glass-mode .brain-item-date,
+body.glass-mode .brain-item-ev,
+body.glass-mode .brain-empty,
+body.glass-mode .brain-item-del,
+body.glass-mode .tb-insight-close { color: rgba(255, 255, 255, 0.7) !important; }
+body.glass-mode .brain-grid-value,
+body.glass-mode .brain-item-text { color: #fff !important; }
+body.glass-mode .brain-tag-strong {
+    background: rgba(76, 175, 80, 0.22) !important;
+    color: #b9f0be !important;
+    border-color: rgba(76, 175, 80, 0.4) !important;
+}
+body.glass-mode .brain-tag-weak {
+    background: rgba(255, 152, 0, 0.22) !important;
+    color: #ffd8a3 !important;
+    border-color: rgba(255, 152, 0, 0.4) !important;
+}
+
 @keyframes fadeIn {
     from { opacity: 0; }
     to { opacity: 1; }
@@ -8579,4 +8876,144 @@ body:not(.data-ready) .voice-fab {
 [data-theme="dark"] .export-range-grid button.active {
     background: var(--color-primary, #4a7dff);
     border-color: transparent;
+}
+
+/* ============================================================================
+   [v9.38.4] 通透模式适配补丁（全项目静态审计后的批量收口，共 42 处）
+   审计方法：收集 body.glass-mode / .xxx.glass 覆盖涉及的类名，与「使用主题颜色变量」的选择器求差集，
+             再逐条核对声明值、剔除被通用规则覆盖的误报。
+   统一策略：
+     · 固定浮层      → 深色半透明底 + 白字（不引入 backdrop-filter，守住性能红线）
+     · 弹窗/区块容器 → 半透明白底 + 半透明描边 + 白字
+     · 主要文字      → 白字 + 深阴影；次级文字 → rgba(255,255,255,.72)
+     · 主色态按钮    → 保留主题色，只把文字钉成白色
+   全部限定在 body.glass-mode → 纯色/渐变模式零影响。
+   ============================================================================ */
+
+/* ---------- A. 固定浮层：Time Bot 主动建议卡片（z-index 1700，最显眼） ---------- */
+body.glass-mode .tb-insight-card {
+    background: rgba(28, 32, 42, 0.86) !important;
+    color: #fff !important;
+    box-shadow: 0 10px 32px rgba(0, 0, 0, 0.42);
+}
+body.glass-mode .tb-insight-text { color: #fff !important; }
+body.glass-mode .tb-insight-title { color: rgba(255, 255, 255, 0.72) !important; }
+body.glass-mode .tb-insight-evidence {
+    background: rgba(255, 255, 255, 0.12) !important;
+    color: rgba(255, 255, 255, 0.78) !important;
+}
+body.glass-mode .tb-insight-btn {
+    background: rgba(255, 255, 255, 0.16) !important;
+    color: #fff !important;
+}
+body.glass-mode .tb-insight-close { color: rgba(255, 255, 255, 0.72) !important; }
+
+/* ---------- B. 常驻状态 / 内联按钮（直接位于页面背景上，深字不可读） ---------- */
+body.glass-mode .native-sync-badge,
+body.glass-mode .sync-status,
+body.glass-mode .watch-status,
+body.glass-mode .show-more-btn,
+body.glass-mode .create-task-inline-btn,
+body.glass-mode .weight-view-toggle-btn-horizontal,
+body.glass-mode .btn-highlight-habits-v2,
+body.glass-mode .btn-restart-app,
+body.glass-mode .category-detail-meta {
+    color: rgba(255, 255, 255, 0.82) !important;
+    border-color: rgba(255, 255, 255, 0.22) !important;
+}
+body.glass-mode .swiper-pagination-bullet { background: rgba(255, 255, 255, 0.4) !important; }
+body.glass-mode .swiper-pagination-bullet-active { background: rgba(255, 255, 255, 0.92) !important; }
+
+/* ---------- C. 弹窗 / 区块容器：半透明白底 + 描边 + 白字 ---------- */
+body.glass-mode .recommend-weight-modal-item,
+body.glass-mode .task-bg-gen-card,
+body.glass-mode .detect-result-item,
+body.glass-mode .detect-summary,
+body.glass-mode .smart-detect-controls,
+body.glass-mode .recommend-empty-card,
+body.glass-mode .app-dropdown,
+body.glass-mode .demo-task-card,
+body.glass-mode .demo-cta,
+body.glass-mode .data-btn,
+body.glass-mode .timebot-shape-grid,
+body.glass-mode .timebot-states-wrap,
+body.glass-mode .score-breakdown-header,
+body.glass-mode .score-breakdown-summary,
+body.glass-mode .bd-detail-block,
+body.glass-mode .bd-summary {
+    background: rgba(255, 255, 255, 0.10) !important;
+    border-color: rgba(255, 255, 255, 0.22) !important;
+    color: #fff !important;
+}
+body.glass-mode .detect-divider,
+body.glass-mode .bd-bar-track {
+    background: rgba(255, 255, 255, 0.18) !important;
+    border-color: rgba(255, 255, 255, 0.18) !important;
+}
+
+/* ---------- D. 主要文字：白 + 深阴影 ---------- */
+body.glass-mode .recommend-weight-modal-name,
+body.glass-mode .task-bg-gen-title,
+body.glass-mode .recommend-empty-title,
+body.glass-mode .score-breakdown-task-name,
+body.glass-mode .score-detail-grand,
+body.glass-mode .bd-summary-task,
+body.glass-mode .bd-bar-value,
+body.glass-mode .ai-assistant-settings-modal,
+body.glass-mode .ai-assistant-settings-body,
+body.glass-mode .ai-settings-section-title,
+body.glass-mode .demo-task-name,
+body.glass-mode .demo-cta-title,
+body.glass-mode .app-dropdown-item-name,
+body.glass-mode .import-step-name,
+body.glass-mode .habit-reward-rule,
+body.glass-mode .task-details {
+    color: #fff !important;
+    text-shadow: 0 1px 2px rgba(0, 0, 0, 0.4);
+}
+
+/* ---------- E. 次级文字：半透明白 ---------- */
+body.glass-mode .recommend-weight-modal-desc,
+body.glass-mode .recommend-weight-value,
+body.glass-mode .task-bg-gen-tips,
+body.glass-mode .recommend-empty-hint,
+body.glass-mode .score-breakdown-task-label,
+body.glass-mode .score-breakdown-final-label,
+body.glass-mode .bd-summary-label,
+body.glass-mode .bd-reason,
+body.glass-mode .bd-bar-label,
+body.glass-mode .ai-settings-head-note,
+body.glass-mode .ai-model-row-desc,
+body.glass-mode .ai-segmented-item,
+body.glass-mode .detect-result-detail,
+body.glass-mode .whitelist-item-pkg,
+body.glass-mode .app-dropdown-item-pkg,
+body.glass-mode .demo-task-meta,
+body.glass-mode .demo-cta-text,
+body.glass-mode .tb-toolbar-row,
+body.glass-mode .import-progress-meta,
+body.glass-mode .import-step-detail,
+body.glass-mode .widget-selector-hint,
+body.glass-mode .input-group,
+body.glass-mode .card-manager-count {
+    color: rgba(255, 255, 255, 0.72) !important;
+}
+
+/* ---------- F. 输入框 / 专用控件 ---------- */
+body.glass-mode .whitelist-search {
+    background: rgba(255, 255, 255, 0.12) !important;
+    border-color: rgba(255, 255, 255, 0.22) !important;
+    color: #fff !important;
+}
+body.glass-mode .whitelist-search::placeholder { color: rgba(255, 255, 255, 0.5) !important; }
+body.glass-mode .export-range-grid { background: transparent !important; }
+body.glass-mode .export-range-grid button {
+    background: rgba(255, 255, 255, 0.12) !important;
+    border-color: rgba(255, 255, 255, 0.26) !important;
+    color: #fff !important;
+}
+body.glass-mode .export-range-grid button.active {
+    background: var(--color-primary, #4a7dff) !important;
+    color: #fff !important;
+    border-color: transparent !important;
 }

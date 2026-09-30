@@ -2451,6 +2451,20 @@ function renderDayDetailPie(dayTransactions) {
         const pieContainer = modal.querySelector('.day-detail-pie-section .pie-chart-container');
         if (!labelsContainer || !pieContainer) return;
         labelsContainer.innerHTML = '';
+        // [v9.38.4] 补 SVG 扇区层（与报告页「构成分析」同一套渲染）：
+        // 通透模式下 CSS 会把 .pie-chart 的 conic-gradient 强制透明，缺此层会导致饼图外圈整圈消失
+        if (typeof buildPieHighlightSVG === 'function') {
+            const stale = pieContainer.querySelector('.pie-highlight-layer');
+            if (stale) stale.remove();
+            const pieSlices = [];
+            let accPercent = 0;
+            processedData.forEach(item => {
+                const percent = (item.value / totalValue) * 100;
+                pieSlices.push({ name: item.name, start: accPercent, end: accPercent + percent, color: item.color });
+                accPercent += percent;
+            });
+            pieContainer.insertAdjacentHTML('afterbegin', buildPieHighlightSVG(pieSlices, 180, 10));
+        }
         let sAngle = -Math.PI / 2;
         processedData.forEach(item => {
             const percent = item.value / totalValue;
@@ -6535,9 +6549,10 @@ function renderKpiCards(transactions, _data, _pieIndex = 0, forceRender = false)
     }
 
     // 极值行无变动列
-    function cell(label, valueHtml, changeHtml, showChange) {
+    // [v9.38.4] heatClass：通透模式下用于「热力图色块」的档位类（空/未传 = 不上色块）
+    function cell(label, valueHtml, changeHtml, showChange, heatClass) {
         return `
-            <div class="kpi-cell">
+            <div class="kpi-cell${heatClass ? ' ' + heatClass : ''}">
                 <div class="kpi-cell-label">${label}</div>
                 ${valueHtml}
                 <div class="kpi-cell-change">${showChange ? (changeHtml || '<span class="kpi-cell-delta">-</span>') : ''}</div>
@@ -6584,24 +6599,24 @@ function renderKpiCards(transactions, _data, _pieIndex = 0, forceRender = false)
     const html = `
         <div class="kpi-table-grid">
             <!-- 第1行：总获得组 -->
-            ${cell('总获得', timeCell(current.totalEarned), deltaHtml(totalEarnedChg, true), true)}
-            ${cell('总消费', timeCell(-current.totalSpent), deltaHtml(totalSpentChg, false), true)}
-            ${cell('净余额', timeCell(current.totalNet), deltaHtml(totalNetChg, current.totalNet >= 0), true)}
+            ${cell('总获得', timeCell(current.totalEarned), deltaHtml(totalEarnedChg, true), true, getFlowHeatClassScaled(current.totalEarned, periodScaleDays))}
+            ${cell('总消费', timeCell(-current.totalSpent), deltaHtml(totalSpentChg, false), true, getFlowHeatClassScaled(-current.totalSpent, periodScaleDays))}
+            ${cell('净余额', timeCell(current.totalNet), deltaHtml(totalNetChg, current.totalNet >= 0), true, getFlowHeatClassScaled(current.totalNet, periodScaleDays))}
 
             <!-- 第2行：日均获得组 -->
-            ${cell('日均获得', timeCell(current.avgDailyEarned), deltaHtml(avgEarnedChg, true), true)}
-            ${cell('日均消费', timeCell(-current.avgDailySpent), deltaHtml(avgSpentChg, false), true)}
-            ${cell('日均净增', timeCell(current.avgDailyNet), deltaHtml(avgNetChg, current.avgDailyNet >= 0), true)}
+            ${cell('日均获得', timeCell(current.avgDailyEarned), deltaHtml(avgEarnedChg, true), true, getFlowHeatClassScaled(current.avgDailyEarned, periodScaleDays))}
+            ${cell('日均消费', timeCell(-current.avgDailySpent), deltaHtml(avgSpentChg, false), true, getFlowHeatClassScaled(-current.avgDailySpent, periodScaleDays))}
+            ${cell('日均净增', timeCell(current.avgDailyNet), deltaHtml(avgNetChg, current.avgDailyNet >= 0), true, getFlowHeatClassScaled(current.avgDailyNet, periodScaleDays))}
 
             <!-- 第3行：最高单日组（无变动列） -->
-            ${cell('最高单日获得', timeCell(current.maxDailyEarned), `<span class="kpi-cell-delta">${formatDateShort(current.maxEarnedDate)}</span>`, true)}
-            ${cell('最高单日消费', timeCell(-current.maxDailySpent), `<span class="kpi-cell-delta">${formatDateShort(current.maxSpentDate)}</span>`, true)}
-            ${cell('最大单日变动', timeCell(current.maxAbsNetSigned), `<span class="kpi-cell-delta">${formatDateShort(current.maxAbsNetDate)}</span>`, true)}
+            ${cell('最高单日获得', timeCell(current.maxDailyEarned), `<span class="kpi-cell-delta">${formatDateShort(current.maxEarnedDate)}</span>`, true, getFlowHeatClassScaled(current.maxDailyEarned, periodScaleDays))}
+            ${cell('最高单日消费', timeCell(-current.maxDailySpent), `<span class="kpi-cell-delta">${formatDateShort(current.maxSpentDate)}</span>`, true, getFlowHeatClassScaled(-current.maxDailySpent, periodScaleDays))}
+            ${cell('最大单日变动', timeCell(current.maxAbsNetSigned), `<span class="kpi-cell-delta">${formatDateShort(current.maxAbsNetDate)}</span>`, true, getFlowHeatClassScaled(current.maxAbsNetSigned, periodScaleDays))}
 
-            <!-- 第4行：活跃天数组 -->
-            ${cell('活跃天数', `<div class="kpi-cell-value">${current.uniqueDays}天</div>`, activeChg ? `<span class="kpi-cell-delta ${activeChg.positive ? 'up' : 'down'}">${activeChg.text}</span>` : '', true)}
-            ${cell('总记录数', `<div class="kpi-cell-value">${current.totalRecords}条</div>`, deltaHtml(totalRecordsChg, true), true)}
-            ${cell('日均记录', `<div class="kpi-cell-value">${current.avgDailyRecords.toFixed(1)}条</div>`, deltaHtml(avgRecordsChg, true), true)}
+            <!-- 第4行：活跃天数组（计数类 → 只取绿系「活跃度」档位） -->
+            ${cell('活跃天数', `<div class="kpi-cell-value">${current.uniqueDays}天</div>`, activeChg ? `<span class="kpi-cell-delta ${activeChg.positive ? 'up' : 'down'}">${activeChg.text}</span>` : '', true, getCountHeatClass(current.uniqueDays / periodScaleDays, 0.5, 0.8))}
+            ${cell('总记录数', `<div class="kpi-cell-value">${current.totalRecords}条</div>`, deltaHtml(totalRecordsChg, true), true, getCountHeatClass(current.totalRecords, 30, 60))}
+            ${cell('日均记录', `<div class="kpi-cell-value">${current.avgDailyRecords.toFixed(1)}条</div>`, deltaHtml(avgRecordsChg, true), true, getCountHeatClass(current.avgDailyRecords, 2, 5))}
         </div>
     `;
     container.innerHTML = html;
@@ -6974,39 +6989,8 @@ function renderSinglePie(type, sourceData, view, categoryTaskBreakdown) {
     wrapper.innerHTML = `<div class="pie-chart-container" data-pie-meta="${encodeURIComponent(JSON.stringify({ typeLabel: type === 'earn' ? '获得' : '消费', typeKey: type, totalValue, view, slices }))}"><div class="pie-chart" style="background: ${conicGradient};"></div><div class="pie-slice-labels"></div><div class="pie-chart-center"><div class="pie-center-title">${centerLine1}</div><div class="pie-center-value">${centerLine2}</div><div class="pie-center-value">${centerLine3}</div></div></div>`;
     const labelsContainer = wrapper.querySelector('.pie-slice-labels'); const pieContainer = wrapper.querySelector('.pie-chart-container'); if (!pieContainer || !labelsContainer) return;
     // [v5.4.0] 生成底层 SVG 高亮层（预渲染 base 和 expanded 两套路径）
-    const pieSize = 180;
-    const expand = 10;
-    const svgSize = pieSize + expand * 2;
-    const cx = svgSize / 2;
-    const cy = svgSize / 2;
-    const r0Base = pieSize * 0.195;
-    const r1Base = pieSize / 2;
-    const r0Expanded = r0Base;
-    const r1Expanded = r1Base + expand;
-    const toRad = deg => (deg - 90) * Math.PI / 180;
-    const buildWedge = (r0, r1, startDeg, endDeg) => {
-        let angleDiff = endDeg - startDeg;
-        if (angleDiff <= 0 || angleDiff > 360) return '';
-        if (angleDiff > 359.9) angleDiff = 359.9;
-        const actualEndDeg = startDeg + angleDiff;
-        const largeArc = angleDiff > 180 ? 1 : 0;
-        const p1 = { x: cx + r1 * Math.cos(toRad(actualEndDeg)), y: cy + r1 * Math.sin(toRad(actualEndDeg)) };
-        const p2 = { x: cx + r1 * Math.cos(toRad(startDeg)), y: cy + r1 * Math.sin(toRad(startDeg)) };
-        const p3 = { x: cx + r0 * Math.cos(toRad(startDeg)), y: cy + r0 * Math.sin(toRad(startDeg)) };
-        const p4 = { x: cx + r0 * Math.cos(toRad(actualEndDeg)), y: cy + r0 * Math.sin(toRad(actualEndDeg)) };
-        return `M ${p1.x} ${p1.y} A ${r1} ${r1} 0 ${largeArc} 0 ${p2.x} ${p2.y} L ${p3.x} ${p3.y} A ${r0} ${r0} 0 ${largeArc} 1 ${p4.x} ${p4.y} Z`;
-    };
-    let highlightPaths = '';
-    slices.forEach(slice => {
-        const startDeg = (slice.start / 100) * 360;
-        const endDeg = (slice.end / 100) * 360;
-        const dBase = buildWedge(r0Base, r1Base, startDeg, endDeg);
-        const dExpanded = buildWedge(r0Expanded, r1Expanded, startDeg, endDeg);
-        if (!dBase) return;
-        highlightPaths += `<path class="pie-highlight-slice" data-slice-name="${slice.name}" data-d-base="${dBase}" data-d-expanded="${dExpanded}" fill="${slice.color}" d="${dBase}"/>`;
-    });
-    const highlightSVG = `<svg class="pie-highlight-layer" width="${svgSize}" height="${svgSize}" viewBox="0 0 ${svgSize} ${svgSize}">${highlightPaths}</svg>`;
-    pieContainer.insertAdjacentHTML('afterbegin', highlightSVG);
+    // [v9.38.4] 已抽为公共函数 buildPieHighlightSVG（app-2.js），与每日详情饼图共用同一套渲染
+    pieContainer.insertAdjacentHTML('afterbegin', buildPieHighlightSVG(slices, 180, 10));
     const centerX = pieContainer.offsetWidth / 2; const centerY = pieContainer.offsetHeight / 2; startAngle = -Math.PI / 2;
     processedData.forEach(item => {
         const percent = item.value / totalValue;

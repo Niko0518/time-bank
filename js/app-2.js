@@ -322,6 +322,44 @@ function bindPieTooltipGlobalListeners() {
     pieTooltipGlobalListenersBound = true;
 }
 
+// [v9.38.4] 饼图 SVG 扇区层（唯一实现）：报告页「构成分析」与「每日详情」共用
+// 背景：通透模式下 CSS 会把 .pie-chart 的 conic-gradient 强制透明，改由本 SVG 层显示扇区；
+//       每日详情饼图此前漏生成该层 → 通透模式下外圈整圈消失。
+// 返回 SVG 字符串；调用方 insertAdjacentHTML('afterbegin', ...) 插入 .pie-chart-container。
+// slices: [{ name, start(百分比), end(百分比), color }]
+function buildPieHighlightSVG(slices, pieSize = 180, expand = 10) {
+    if (!Array.isArray(slices) || slices.length === 0) return '';
+    const svgSize = pieSize + expand * 2;
+    const cx = svgSize / 2;
+    const cy = svgSize / 2;
+    const r0Base = pieSize * 0.195;      // 内圈（与中心圆 39% 直径对齐）
+    const r1Base = pieSize / 2;          // 外圈
+    const r1Expanded = r1Base + expand;  // 长按外扩后的外圈
+    const toRad = deg => (deg - 90) * Math.PI / 180;
+    const buildWedge = (r0, r1, startDeg, endDeg) => {
+        let angleDiff = endDeg - startDeg;
+        if (angleDiff <= 0 || angleDiff > 360) return '';
+        if (angleDiff > 359.9) angleDiff = 359.9;
+        const actualEndDeg = startDeg + angleDiff;
+        const largeArc = angleDiff > 180 ? 1 : 0;
+        const p1 = { x: cx + r1 * Math.cos(toRad(actualEndDeg)), y: cy + r1 * Math.sin(toRad(actualEndDeg)) };
+        const p2 = { x: cx + r1 * Math.cos(toRad(startDeg)), y: cy + r1 * Math.sin(toRad(startDeg)) };
+        const p3 = { x: cx + r0 * Math.cos(toRad(startDeg)), y: cy + r0 * Math.sin(toRad(startDeg)) };
+        const p4 = { x: cx + r0 * Math.cos(toRad(actualEndDeg)), y: cy + r0 * Math.sin(toRad(actualEndDeg)) };
+        return `M ${p1.x} ${p1.y} A ${r1} ${r1} 0 ${largeArc} 0 ${p2.x} ${p2.y} L ${p3.x} ${p3.y} A ${r0} ${r0} 0 ${largeArc} 1 ${p4.x} ${p4.y} Z`;
+    };
+    let paths = '';
+    slices.forEach(slice => {
+        const startDeg = (slice.start / 100) * 360;
+        const endDeg = (slice.end / 100) * 360;
+        const dBase = buildWedge(r0Base, r1Base, startDeg, endDeg);
+        if (!dBase) return;
+        const dExpanded = buildWedge(r0Base, r1Expanded, startDeg, endDeg);
+        paths += `<path class="pie-highlight-slice" data-slice-name="${slice.name}" data-d-base="${dBase}" data-d-expanded="${dExpanded}" fill="${slice.color}" d="${dBase}"/>`;
+    });
+    return `<svg class="pie-highlight-layer" width="${svgSize}" height="${svgSize}" viewBox="0 0 ${svgSize} ${svgSize}">${paths}</svg>`;
+}
+
 // ===== 饼图扇形外扩动画（CSS d 属性过渡） =====
 // 预先计算 base 和 expanded 两套路径，长按时切换 d 属性
 
@@ -2236,6 +2274,32 @@ function getFlowColorScaled(amountSeconds, scaleDays) {
         if (absH < 3 * scale) return '#e57373';
         return '#f44336';
     }
+}
+
+// [v9.38.4] 时间概览「色块档位」：套用热力图（活动日历）的背景色块体系
+// 与 getFlowColorScaled 同阈值（1h / 3h × 周期缩放），但输出的是 class 而非文字色，
+// 供通透模式把「文字上色」换成「背景色块 + 高对比文字」（浅色档位在色块方案下才可用）
+function getFlowHeatClassScaled(amountSeconds, scaleDays) {
+    const scale = Math.max(1, scaleDays);
+    const absH = Math.abs(amountSeconds) / 3600;
+    if (amountSeconds >= 0) {
+        if (absH < 1 * scale) return 'kpi-heat-surplus-1';
+        if (absH < 3 * scale) return 'kpi-heat-surplus-2';
+        return 'kpi-heat-surplus-3';
+    }
+    if (absH < 1 * scale) return 'kpi-heat-deficit-1';
+    if (absH < 3 * scale) return 'kpi-heat-deficit-2';
+    return 'kpi-heat-deficit-3';
+}
+
+// [v9.38.4] 计数类指标（活跃天数 / 总记录数 / 日均记录）的色块档位
+// 这三个指标只有「活跃度」方向、没有「坏」的语义，因此只取绿系 3 档；value ≤ 0 时不上色
+// 阈值由调用方按各自口径给出（见 renderKpiCards）
+function getCountHeatClass(value, t2, t3) {
+    if (!(value > 0)) return '';
+    if (value >= t3) return 'kpi-heat-surplus-3';
+    if (value >= t2) return 'kpi-heat-surplus-2';
+    return 'kpi-heat-surplus-1';
 }
 
 // [v9.29.1] 近期余额卡片：支持 7日/30日/90日/全部 切换

@@ -4,6 +4,40 @@
 >
 > 用户-facing 的精简版本请见 `index.html` 关于页。
 
+## v9.38.4 (2026-09-30) — 通透模式全面适配（42 处审计补丁）+ 每日详情饼图扇区丢失修复
+
+> 背景：v9.26.0 起多次 UI 迭代新增了大量元素，但 `body.glass-mode` 覆盖未同步跟上，导致通透模式下出现「贴白纸」「深字压深底」「元素消失」三类问题。本版做一次全项目静态审计并批量收口。
+
+### 核心变更
+
+1. **每日详情饼图扇区丢失（真 bug）**：`renderDayDetailPie` 只画了 `conic-gradient` 那一层，**未生成 SVG 扇区层**；而通透模式下 `body.glass-mode .pie-chart { background: transparent !important }` 会把 conic 层隐藏 → 饼图外圈整圈消失（构成分析因有 SVG 层而正常）。
+   - 修复：把构成分析的 SVG 生成抽为公共函数 **`buildPieHighlightSVG(slices, pieSize, expand)`**（app-2.js），报告页改用该函数，每日详情在渲染后补插同一层 → 两处饼图回归「同一套渲染」（符合"同类逻辑只能有一份"铁律）。
+2. **每日详情 / 推荐分明细的通透覆盖补齐**：v9.26.0 新增的 `.day-detail-section-title` / `.day-detail-summary-row` / `.day-detail-summary-cell .label`（含 earn/spend/net）/ `.value-fluid`（含 positive/negative）此前**无 glass 覆盖**，用的是浅色主题的深色字（`--text-color` = #333）→ 深字压深玻璃不可读。
+   - 修复：统一白字 + 阴影；正负值沿用既有通透色规范（正 `#90EE90` / 负 `#FFB6C1`，与 `.history-amount` 一致）；分割线改 `rgba(255,255,255,.2)`。
+3. **时间概览表「热力图色块」**（用户提案）：该表数值原本靠内联 `color`（流量色系 `getFlowColorScaled`，6 色）表达好坏，但通透模式的 `body.glass-mode .kpi-cell-value { color: white !important }` 会把内联色**整片刷白** → 12 格中 9 格色彩信息丢失。
+   - 修复：新增 `getFlowHeatClassScaled()`（与流量色系**同阈值** 1h/3h × 周期缩放，只输出档位类）+ `getCountHeatClass()`（计数类活跃度档位），`renderKpiCards` 的 `cell()` 增加档位参数；CSS 在通透模式下把 9 格时间格 + 3 格计数格渲染为**活动日历的 6 档色块**（浅色档在色块方案下才可用；文字按底色深浅自动取深/白）。**纯色/渐变模式零影响**（这些类不定义普通模式样式）。
+4. **Time Bot 对话窗 / 气泡玻璃化**：上一版为守性能红线采用「深色半透明近似」（`rgba(28,32,42,.84)`），观感与整体玻璃不一致（用户反馈"像深色板"）。
+   - 现改为与 `.modal-content` **完全同参数**：半透明白渐变（`.12/.06 × --glass-opacity-scale`）+ `backdrop-filter: blur(25px × --glass-blur-scale)` + 白描边 → 随「通透强度」滑块联动。
+   - 性能处理：红线原文为「任何动效不得对 `backdrop-filter` 卡片做 transform 缩放」→ 把对话窗的入场 `transform` 从**容器**移到**内容层**（容器全程静止、不重采样 backdrop）；气泡为单体小浮层、不在列表滚动路径，保留原弹簧 pop。
+5. **Time Bot 定制弹窗 + AI 设置 + 我的画像通透适配**：`#timeBotConfigModal` 内部（`.tb-card`/`.tb-tab`/`.tb-row`/`.tb-inp`/`.tb-btn`/`.tb-opt`/`.timebot-shape-btn`/`.timebot-state-chip` 等）、`.ai-model-card`/`.ai-model-row`/`.ai-segmented`/`.ai-memory-status`、`.brain-*` 此前**只有 `[data-theme="dark"]` 适配、无 glass 适配** → 玻璃弹窗内是"贴白纸"。统一改为半透明白底 + 白字。
+6. **全项目扫描 + 42 处批量补丁**：写脚本对 `main.css` 做适配覆盖率分析（收集 `body.glass-mode` / `.xxx.glass` 覆盖涉及的类名，与「使用主题颜色变量」的选择器求差集，再逐条核对声明值、剔除被通用规则覆盖的误报）。
+   - 结果：**430 已适配 / 290 使用主题变量 / 78 候选 → 42 处确认未适配**，按「固定浮层 / 常驻徽标 / 弹窗容器 / 主要文字 / 次级文字 / 输入控件」6 组补丁收口（`.tb-insight-card`、`.recommend-weight-modal-*`、`.export-range-grid`、`.score-breakdown-*`、`.bd-*`、`.detect-*`、`.recommend-empty-*`、`.app-dropdown`、`.demo-*`、`.whitelist-*`、`.sync-status` 等）。
+7. **任务卡背景图通透度**：`.task-card.glass .task-card-bg-blur / .task-card-bg-clear` 增加 `opacity: calc(0.05 + 0.125 × --glass-opacity-scale)`（范围 0.05 ~ 0.20）。**只降图片层、遮罩层保持原强度** → 文字垫底不受影响。
+8. **导航栏注入后强制重排**：`setAndroidNavBarInset` 写入 `--android-nav-bottom` 后增加 `void root.offsetHeight`，避免部分 WebView 不立即对依赖该变量的 `calc()` 重排（现象为"底部标签栏停在旧位置，手动调整窗口尺寸才恢复"）。注：该现象经核实非本版本引入（本版零 Java 改动），此处为顺带加固。
+9. **AGENTS.md**：安装规范补充「安装后必须拉起应用」（用户要求）。
+
+### 验证
+
+- `node --check` 全部通过；IDE lint 0 错误。
+- 真机 BVL-AN00 多次安装冷启动 logcat 无 `Uncaught / ReferenceError / TypeError`（仅已知 ServiceWorker/HTTPS 非问题）。
+- 截图确认：通透模式下全部卡片、底部标签栏、「查看明细」等渲染正常 → 批量 CSS 补丁未破坏既有样式。
+- 审计脚本保留在工作目录外，后续版本可复跑做回归对比。
+- 待用户实测：① 每日详情饼图扇区是否恢复；② 时间概览色块深浅是否可读；③ Time Bot 对话窗/气泡是否与卡片质感一致、并随「通透强度」滑块变化。
+
+### 文件
+
+`css/main.css`、`js/app-1.js`、`js/app-2.js`、`js/app-reports.js`、`index.html`、`AGENTS.md`
+
 ## v9.38.3 (2026-09-29) — 推荐算法计分链路重构（消除三重重复，计算量 ↓约 100×）+ 迷你卡金色可读性
 
 > 背景：推荐算法经 v9.20~v9.24 多轮迭代累积出"同一逻辑多份实现"——单次重算需 **2 次全量遍历 + 每任务 2×O(transactions)**。本版做减重，并顺手恢复 W1-④ 的下限。
