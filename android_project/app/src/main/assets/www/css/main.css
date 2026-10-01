@@ -37,10 +37,55 @@
             --mult-turbo: #FF9800;   /* [v7.13.0] 倍率徽标：Turbo 橙 */
             --mult-balance: #607D8B; /* [v7.13.0] 倍率徽标：均衡 蓝灰 */
             --android-nav-bottom: 0px; /* Android 三键导航栏适配 */
-            /* [v6.4.x] 全局通透强度（1=默认） */
-            --glass-strength: 1;
-            --glass-opacity-scale: 1;
+            /* [v9.39.0] 旧「全局通透强度」变量只保留 blur 一个「兼容位」：
+               仅剩 3 处非通透模式的固定模糊（.task-card 基础样式、两处普通 tooltip）在用，
+               它们不属于分层体系（经典模式下也要生效）。透明度变量 --glass-opacity-scale
+               已 0 残留，死变量 --glass-strength 已删除。新代码一律使用下方分层 token。 */
             --glass-blur-scale: 1;
+
+            /* ============================================================
+               [v9.39.0] 通透强度分层体系 · 5 层 token（按「离用户的远近」分层）
+               分层原则：越靠上层越实
+                 L1   一级卡片壳    直贴壁纸的卡片（任务卡/余额卡/屏幕时间/睡眠/设置卡/报告卡）
+                 L1.1 卡片内的内衬  卡内的容器/凹槽/网格/表格/分隔线/中心孔（非交互；= L1 × 1.1）
+                 L2   功能按键      可交互元素：任务按钮/更多按钮/展开按钮/下拉触发器（= L1 × 3）
+                 L3   浮层          弹窗/抽屉/下拉菜单/底栏/FAB/tooltip/Time Bot 对话窗与气泡
+                 L4   浮层内元素    浮层内的列表项/按钮/输入框/开关
+               曲线：value = lo + (hi − lo) × 档位/1.2，由 js/app-reports.js 的
+                     _applyGlassTokens() 按「当前档位 + 当前主题」计算后写入；
+                     深色主题各 alpha × 0.75（blur 不变）；主题切换由 MutationObserver 重算。
+               另有 --g-strength（0~1，无保底）：供彩色/装饰元素（按钮底、色条、类目胶囊）派生，
+                     以及由层 token 派生出「数据图形」的高保底曲线（饼图扇形、热力图色块）。
+               下列默认值 = 90% 档（默认档位），仅在 JS 未执行时兜底。
+               ============================================================ */
+            /* L1 一级卡片壳 */
+            --g1-bg-from: 0.085;
+            --g1-bg-to: 0.029;
+            --g1-border: 0.295;
+            --g1-blur: 18px;
+            /* L1.1 L1 卡片内的第一层容器（= L1 × 1.1）：图表容器 / 表格网格 / 日历网格 / 卡内凹槽等「内衬」 */
+            --g1b-bg-from: 0.0935;
+            --g1b-bg-to: 0.0316;
+            --g1b-border: 0.3245;
+            --g1b-blur: 18px;
+            /* L2 功能按键（可交互元素；= L1 × 3，需比内衬明显更实以区分） */
+            --g2-bg: 0.255;
+            --g2-border: 0.5175;
+            --g2-blur: 7.5px;
+            /* L3 浮层 */
+            --g3-bg-from: 0.205;
+            --g3-bg-to: 0.110;
+            --g3-border: 0.275;
+            --g3-blur: 22.5px;
+            /* L4 浮层内元素 */
+            --g4-bg: 0.275;
+            --g4-border: 0.330;
+            --g4-blur: 13.5px;
+            /* [v9.39.0-fix] 无保底的强度因子（0 ~ 1）：供「彩色 / 装饰元素」派生
+               （按钮底、睡眠色条、类目标签、时间流条块、负余额红底…）。
+               与上面各层 token 的区别：它在 0% 档位等于 0（彻底消失），
+               而这些元素本就不该保留任何"底色"——保底只属于「容器背景」。 */
+            --g-strength: 0.75;
             
             /* [v6.0.0] 主题色渐变方案 - 使用中间色避免渐变脏污 */
             --accent-gradient: linear-gradient(135deg, #2196F3 0%, #5c6bc0 50%, #7c4dff 100%);
@@ -499,11 +544,11 @@
         
         /* [v6.0.0] 时间余额卡片通透模式 - 使用CSS变量响应通透强度调节 */
         .balance-card.glass {
-            background: linear-gradient(135deg, rgba(255,255,255, calc(0.08 * var(--glass-opacity-scale))) 0%, rgba(255,255,255, calc(0.02 * var(--glass-opacity-scale))) 100%);
-            border: 1px solid rgba(255, 255, 255, calc(0.3 * var(--glass-opacity-scale)));
+            background: linear-gradient(135deg, rgba(255,255,255, var(--g1-bg-from)) 0%, rgba(255,255,255, var(--g1-bg-to)) 100%);
+            border: 1px solid rgba(255, 255, 255, var(--g1-border));
             box-shadow: none;
-            backdrop-filter: blur(calc(20px * var(--glass-blur-scale)));
-            -webkit-backdrop-filter: blur(calc(20px * var(--glass-blur-scale)));
+            backdrop-filter: blur(var(--g1-blur));
+            -webkit-backdrop-filter: blur(var(--g1-blur));
         }
         .balance-card.glass .balance-title {
             color: rgba(255, 255, 255, 0.85);
@@ -522,20 +567,17 @@
         
         /* 暗色模式下的通透样式 */
         [data-theme="dark"] .balance-card.glass {
-            background: linear-gradient(135deg, rgba(255,255,255, calc(0.06 * var(--glass-opacity-scale))) 0%, rgba(255,255,255, calc(0.01 * var(--glass-opacity-scale))) 100%);
-            border: 1px solid rgba(255, 255, 255, calc(0.12 * var(--glass-opacity-scale)));
+            background: linear-gradient(135deg, rgba(255,255,255, var(--g1-bg-from)) 0%, rgba(255,255,255, var(--g1-bg-to)) 100%);
+            border: 1px solid rgba(255, 255, 255, var(--g1-border));
             box-shadow: none;
         }
         
         /* 余额为负时的通透模式 */
         .balance-card.glass.negative {
-            background: linear-gradient(135deg, rgba(255,100,100, calc(0.12 * var(--glass-opacity-scale))) 0%, rgba(255,80,80, calc(0.05 * var(--glass-opacity-scale))) 100%);
-            border-color: rgba(255, 150, 150, calc(0.35 * var(--glass-opacity-scale)));
+            background: linear-gradient(135deg, rgba(255,100,100, calc(0.12 * var(--g-strength))) 0%, rgba(255,80,80, calc(0.05 * var(--g-strength))) 100%);
+            border-color: rgba(255, 150, 150, var(--g1-border));
         }
-        [data-theme="dark"] .balance-card.glass.negative {
-            background: linear-gradient(135deg, rgba(255,80,80, calc(0.10 * var(--glass-opacity-scale))) 0%, rgba(255,60,60, calc(0.04 * var(--glass-opacity-scale))) 100%);
-            border-color: rgba(255, 120, 120, calc(0.25 * var(--glass-opacity-scale)));
-        }
+        /* [v9.39.0] 余额为负的深色差异已由 token 主题因子承担，删除独立变体 */
         
         .balance-title { font-size: 0.9rem; color: var(--text-color-light); margin-bottom: var(--space-sm); }
         .balance-amount { font-size: 2.2rem; font-weight: bold; margin-bottom: var(--space-lg); color: var(--color-primary); }
@@ -595,7 +637,7 @@
         /* 通透模式下保持原有毛玻璃效果，不使用方向类 */
         body.glass-mode .gradient-dir-a,
         body.glass-mode .gradient-dir-b {
-            background: linear-gradient(135deg, rgba(255,255,255, calc(0.08 * var(--glass-opacity-scale))) 0%, rgba(255,255,255, calc(0.02 * var(--glass-opacity-scale))) 100%) !important;
+            background: linear-gradient(135deg, rgba(255,255,255, var(--g1-bg-from)) 0%, rgba(255,255,255, var(--g1-bg-to)) 100%) !important;
         }
         
         /* 金融系统余额卡片包装器 - 与screen-time-wrapper/sleep-card-wrapper协调 */
@@ -631,21 +673,21 @@
         
         /* 通透模式 - 与屏幕时间/睡眠卡片一致 */
         body.glass-mode .balance-card-wrapper-finance {
-            background: linear-gradient(135deg, rgba(255,255,255, calc(0.08 * var(--glass-opacity-scale))) 0%, rgba(255,255,255, calc(0.02 * var(--glass-opacity-scale))) 100%);
-            border: 1px solid rgba(255, 255, 255, calc(0.3 * var(--glass-opacity-scale)));
+            background: linear-gradient(135deg, rgba(255,255,255, var(--g1-bg-from)) 0%, rgba(255,255,255, var(--g1-bg-to)) 100%);
+            border: 1px solid rgba(255, 255, 255, var(--g1-border));
             color: white;
             text-shadow: 0 1px 3px rgba(0, 0, 0, 0.5);
             box-shadow: none;
-            backdrop-filter: blur(calc(20px * var(--glass-blur-scale)));
-            -webkit-backdrop-filter: blur(calc(20px * var(--glass-blur-scale)));
+            backdrop-filter: blur(var(--g1-blur));
+            -webkit-backdrop-filter: blur(var(--g1-blur));
         }
         body.glass-mode .balance-card-wrapper-finance.negative {
-            background: linear-gradient(135deg, rgba(255,100,100, calc(0.12 * var(--glass-opacity-scale))) 0%, rgba(255,80,80, calc(0.05 * var(--glass-opacity-scale))) 100%);
-            border-color: rgba(255, 150, 150, calc(0.35 * var(--glass-opacity-scale)));
+            background: linear-gradient(135deg, rgba(255,100,100, calc(0.12 * var(--g-strength))) 0%, rgba(255,80,80, calc(0.05 * var(--g-strength))) 100%);
+            border-color: rgba(255, 150, 150, var(--g1-border));
         }
         [data-theme="dark"] body.glass-mode .balance-card-wrapper-finance {
-            background: linear-gradient(135deg, rgba(255,255,255, calc(0.06 * var(--glass-opacity-scale))) 0%, rgba(255,255,255, calc(0.01 * var(--glass-opacity-scale))) 100%);
-            border: 1px solid rgba(255, 255, 255, calc(0.12 * var(--glass-opacity-scale)));
+            background: linear-gradient(135deg, rgba(255,255,255, var(--g1-bg-from)) 0%, rgba(255,255,255, var(--g1-bg-to)) 100%);
+            border: 1px solid rgba(255, 255, 255, var(--g1-border));
             filter: none;
         }
         
@@ -986,18 +1028,18 @@
         /* [v7.30.4] 统一三种卡片：支持 body.glass-mode 或 .glass 类两种方式 */
         body.glass-mode .screen-time-wrapper,
         .screen-time-wrapper.glass {
-            background: linear-gradient(135deg, rgba(255,255,255, calc(0.08 * var(--glass-opacity-scale))) 0%, rgba(255,255,255, calc(0.02 * var(--glass-opacity-scale))) 100%);
-            border: 1px solid rgba(255, 255, 255, calc(0.3 * var(--glass-opacity-scale)));
+            background: linear-gradient(135deg, rgba(255,255,255, var(--g1-bg-from)) 0%, rgba(255,255,255, var(--g1-bg-to)) 100%);
+            border: 1px solid rgba(255, 255, 255, var(--g1-border));
             color: white;
             text-shadow: 0 1px 3px rgba(0, 0, 0, 0.5);
             box-shadow: none;
-            backdrop-filter: blur(calc(20px * var(--glass-blur-scale)));
-            -webkit-backdrop-filter: blur(calc(20px * var(--glass-blur-scale)));
+            backdrop-filter: blur(var(--g1-blur));
+            -webkit-backdrop-filter: blur(var(--g1-blur));
         }
         [data-theme="dark"] body.glass-mode .screen-time-wrapper,
         [data-theme="dark"] .screen-time-wrapper.glass {
-            background: linear-gradient(135deg, rgba(255,255,255, calc(0.06 * var(--glass-opacity-scale))) 0%, rgba(255,255,255, calc(0.01 * var(--glass-opacity-scale))) 100%);
-            border: 1px solid rgba(255, 255, 255, calc(0.12 * var(--glass-opacity-scale)));
+            background: linear-gradient(135deg, rgba(255,255,255, var(--g1-bg-from)) 0%, rgba(255,255,255, var(--g1-bg-to)) 100%);
+            border: 1px solid rgba(255, 255, 255, var(--g1-border));
             box-shadow: none;
             filter: none;
         }
@@ -1009,29 +1051,21 @@
         [data-theme="dark"] .screen-time-wrapper.glass.expanded {
             box-shadow: none;
         }
-        /* 通透模式进度条背景 */
+        /* 通透模式进度条背景 · [v9.39.0] 归 L1.1（「凹槽」是内衬，不是可点元素） */
         body.glass-mode .screen-time-wrapper .st-progress,
         .screen-time-wrapper.glass .st-progress {
-            background: rgba(255, 255, 255, calc(0.2 * var(--glass-opacity-scale))) !important;
+            background: rgba(255, 255, 255, calc(var(--g1b-bg-from) * 1.4)) !important;
         }
-        [data-theme="dark"] body.glass-mode .screen-time-wrapper .st-progress,
-        [data-theme="dark"] .screen-time-wrapper.glass .st-progress {
-            background: rgba(255, 255, 255, calc(0.12 * var(--glass-opacity-scale))) !important;
-        }
-        /* 通透模式文字和分隔线 */
+        /* 通透模式文字和分隔线（分隔线归 L1.1） */
         body.glass-mode .screen-time-wrapper .st-footer,
         .screen-time-wrapper.glass .st-footer {
-            border-top-color: rgba(255, 255, 255, 0.15);
-        }
-        [data-theme="dark"] body.glass-mode .screen-time-wrapper .st-footer,
-        [data-theme="dark"] .screen-time-wrapper.glass .st-footer {
-            border-top-color: rgba(255, 255, 255, 0.1);
+            border-top-color: rgba(255, 255, 255, var(--g1b-border));
         }
         body.glass-mode .st-progress {
-            background: rgba(255, 255, 255, calc(0.15 * var(--glass-opacity-scale))) !important;
-            backdrop-filter: blur(calc(8px * var(--glass-blur-scale)));
-            -webkit-backdrop-filter: blur(calc(8px * var(--glass-blur-scale)));
-            border: 1px solid rgba(255, 255, 255, calc(0.2 * var(--glass-opacity-scale)));
+            background: rgba(255, 255, 255, var(--g1b-bg-from)) !important;
+            backdrop-filter: blur(var(--g2-blur));
+            -webkit-backdrop-filter: blur(var(--g2-blur));
+            border: 1px solid rgba(255, 255, 255, var(--g1b-border));
         }
         /* 进度条保留原有颜色，仅添加光晕效果 */
         body.glass-mode .st-progress-bar {
@@ -1207,16 +1241,16 @@
 
         /* 通透模式睡眠卡片 */
         body.glass-mode .sleep-card-wrapper {
-            background: linear-gradient(135deg, rgba(255,255,255, calc(0.08 * var(--glass-opacity-scale))) 0%, rgba(255,255,255, calc(0.02 * var(--glass-opacity-scale))) 100%);
-            border: 1px solid rgba(255, 255, 255, calc(0.3 * var(--glass-opacity-scale)));
+            background: linear-gradient(135deg, rgba(255,255,255, var(--g1-bg-from)) 0%, rgba(255,255,255, var(--g1-bg-to)) 100%);
+            border: 1px solid rgba(255, 255, 255, var(--g1-border));
             text-shadow: 0 1px 3px rgba(0, 0, 0, 0.5);
             box-shadow: none;
-            backdrop-filter: blur(calc(20px * var(--glass-blur-scale)));
-            -webkit-backdrop-filter: blur(calc(20px * var(--glass-blur-scale)));
+            backdrop-filter: blur(var(--g1-blur));
+            -webkit-backdrop-filter: blur(var(--g1-blur));
         }
         [data-theme="dark"] body.glass-mode .sleep-card-wrapper {
-            background: linear-gradient(135deg, rgba(255,255,255, calc(0.06 * var(--glass-opacity-scale))) 0%, rgba(255,255,255, calc(0.01 * var(--glass-opacity-scale))) 100%);
-            border: 1px solid rgba(255, 255, 255, calc(0.12 * var(--glass-opacity-scale)));
+            background: linear-gradient(135deg, rgba(255,255,255, var(--g1-bg-from)) 0%, rgba(255,255,255, var(--g1-bg-to)) 100%);
+            border: 1px solid rgba(255, 255, 255, var(--g1-border));
             filter: none;
         }
         .sleep-card-header {
@@ -1461,9 +1495,10 @@
         }
         /* [v7.20.2] 通透模式：磨砂轨道 */
         body.glass-mode .sleep-card-chart .sleep-card-bar-container {
-            background: rgba(255, 255, 255, calc(0.10 * var(--glass-opacity-scale)));
-            backdrop-filter: blur(calc(4px * var(--glass-blur-scale)));
-            -webkit-backdrop-filter: blur(calc(4px * var(--glass-blur-scale)));
+            /* [v9.39.0] 归 L1.1（睡眠卡内的条形轨道 = 内衬） */
+            background: rgba(255, 255, 255, calc(var(--g1b-bg-from) * 0.7));
+            backdrop-filter: blur(var(--g2-blur));
+            -webkit-backdrop-filter: blur(var(--g2-blur));
         }
         .sleep-card-chart .sleep-card-bar-marker {
             position: absolute;
@@ -1528,30 +1563,31 @@
             background: #EF5350;
             border: none;
         }
-        /* --- 通透模式：参考近7日睡眠条形图等级色，保留颜色辨识度 --- */
+        /* --- 通透模式：参考近7日睡眠条形图等级色，保留颜色辨识度 ---
+           [v9.39.0] 归 L2（睡眠卡内的条形图），alpha 全部由 L2 token 派生 → 随滑块联动 */
         body.glass-mode .sleep-card-chart .sleep-card-bar.level-1 {
-            background: rgba(102, 187, 106, calc(0.50 * var(--glass-opacity-scale)));
-            border: 1px solid rgba(102, 187, 106, calc(0.25 * var(--glass-opacity-scale)));
-            backdrop-filter: blur(calc(6px * var(--glass-blur-scale)));
-            -webkit-backdrop-filter: blur(calc(6px * var(--glass-blur-scale)));
+            background: rgba(102, 187, 106, calc(0.5 * var(--g-strength)));
+            border: 1px solid rgba(102, 187, 106, calc(0.25 * var(--g-strength)));
+            backdrop-filter: blur(var(--g2-blur));
+            -webkit-backdrop-filter: blur(var(--g2-blur));
         }
         body.glass-mode .sleep-card-chart .sleep-card-bar.level-2 {
-            background: rgba(66, 165, 245, calc(0.50 * var(--glass-opacity-scale)));
-            border: 1px solid rgba(66, 165, 245, calc(0.25 * var(--glass-opacity-scale)));
-            backdrop-filter: blur(calc(6px * var(--glass-blur-scale)));
-            -webkit-backdrop-filter: blur(calc(6px * var(--glass-blur-scale)));
+            background: rgba(66, 165, 245, calc(0.5 * var(--g-strength)));
+            border: 1px solid rgba(66, 165, 245, calc(0.25 * var(--g-strength)));
+            backdrop-filter: blur(var(--g2-blur));
+            -webkit-backdrop-filter: blur(var(--g2-blur));
         }
         body.glass-mode .sleep-card-chart .sleep-card-bar.level-3 {
-            background: rgba(255, 167, 38, calc(0.50 * var(--glass-opacity-scale)));
-            border: 1px solid rgba(255, 167, 38, calc(0.25 * var(--glass-opacity-scale)));
-            backdrop-filter: blur(calc(6px * var(--glass-blur-scale)));
-            -webkit-backdrop-filter: blur(calc(6px * var(--glass-blur-scale)));
+            background: rgba(255, 167, 38, calc(0.5 * var(--g-strength)));
+            border: 1px solid rgba(255, 167, 38, calc(0.25 * var(--g-strength)));
+            backdrop-filter: blur(var(--g2-blur));
+            -webkit-backdrop-filter: blur(var(--g2-blur));
         }
         body.glass-mode .sleep-card-chart .sleep-card-bar.level-4 {
-            background: rgba(239, 83, 80, calc(0.50 * var(--glass-opacity-scale)));
-            border: 1px solid rgba(239, 83, 80, calc(0.25 * var(--glass-opacity-scale)));
-            backdrop-filter: blur(calc(6px * var(--glass-blur-scale)));
-            -webkit-backdrop-filter: blur(calc(6px * var(--glass-blur-scale)));
+            background: rgba(239, 83, 80, calc(0.5 * var(--g-strength)));
+            border: 1px solid rgba(239, 83, 80, calc(0.25 * var(--g-strength)));
+            backdrop-filter: blur(var(--g2-blur));
+            -webkit-backdrop-filter: blur(var(--g2-blur));
         }
         .sleep-card-chart .sleep-card-bar-time {
             font-size: 0.55rem;
@@ -2043,22 +2079,21 @@
         }
         /* 通透模式迷你卡片：覆盖经典模式的背景/边框规则，保持无外部阴影 */
         .recent-tasks-grid > .task-card-mini.glass {
-            background: linear-gradient(135deg, rgba(255,255,255, calc(0.08 * var(--glass-opacity-scale))) 0%, rgba(255,255,255, calc(0.02 * var(--glass-opacity-scale))) 100%) !important;
-            border: 1px solid rgba(255, 255, 255, calc(0.3 * var(--glass-opacity-scale))) !important;
+            background: linear-gradient(135deg, rgba(255,255,255, var(--g1-bg-from)) 0%, rgba(255,255,255, var(--g1-bg-to)) 100%) !important;
+            border: 1px solid rgba(255, 255, 255, var(--g1-border)) !important;
             box-shadow: none !important;
-            backdrop-filter: blur(calc(16px * var(--glass-blur-scale)));
-            -webkit-backdrop-filter: blur(calc(16px * var(--glass-blur-scale)));
+            backdrop-filter: blur(var(--g1-blur));
+            -webkit-backdrop-filter: blur(var(--g1-blur));
         }
+        /* [v9.39.0] 迷你卡的深色背景/边框差异已由 token 主题因子承担，此处仅保留 box-shadow 覆盖 */
         [data-theme="dark"] .recent-tasks-grid > .task-card-mini.glass {
-            background: linear-gradient(135deg, rgba(255,255,255, calc(0.06 * var(--glass-opacity-scale))) 0%, rgba(255,255,255, calc(0.01 * var(--glass-opacity-scale))) 100%) !important;
-            border: 1px solid rgba(255, 255, 255, calc(0.12 * var(--glass-opacity-scale))) !important;
             box-shadow: none !important;
         }
         .task-card-mini.glass .mini-category-label {
             background: rgba(var(--cat-rgb), 0.45) !important;
             border: 1px solid rgba(var(--cat-rgb), 0.7) !important;
-            backdrop-filter: blur(calc(4px * var(--glass-blur-scale)));
-            -webkit-backdrop-filter: blur(calc(4px * var(--glass-blur-scale)));
+            backdrop-filter: blur(var(--g2-blur));
+            -webkit-backdrop-filter: blur(var(--g2-blur));
             text-shadow: 0 1px 2px rgba(0, 0, 0, 0.5);
         }
 
@@ -2254,21 +2289,21 @@
         
         /* [v6.0.0] 任务卡片通透模式 - 参照屏幕时间卡片 */
         .task-card.glass {
-            background: linear-gradient(135deg, rgba(255,255,255, calc(0.08 * var(--glass-opacity-scale))) 0%, rgba(255,255,255, calc(0.02 * var(--glass-opacity-scale))) 100%);
-            border: 1px solid rgba(255, 255, 255, calc(0.3 * var(--glass-opacity-scale)));
+            background: linear-gradient(135deg, rgba(255,255,255, var(--g1-bg-from)) 0%, rgba(255,255,255, var(--g1-bg-to)) 100%);
+            border: 1px solid rgba(255, 255, 255, var(--g1-border));
             box-shadow: none;
-            backdrop-filter: blur(calc(16px * var(--glass-blur-scale)));
-            -webkit-backdrop-filter: blur(calc(16px * var(--glass-blur-scale)));
+            backdrop-filter: blur(var(--g1-blur));
+            -webkit-backdrop-filter: blur(var(--g1-blur));
         }
         .task-card.glass::before {
             display: none !important; /* 完全隐藏边框伪元素，包括习惯任务 */
         }
         [data-theme="dark"] .task-card.glass {
-            background: linear-gradient(135deg, rgba(255,255,255, calc(0.06 * var(--glass-opacity-scale))) 0%, rgba(255,255,255, calc(0.01 * var(--glass-opacity-scale))) 100%);
-            border: 1px solid rgba(255, 255, 255, calc(0.12 * var(--glass-opacity-scale)));
+            background: linear-gradient(135deg, rgba(255,255,255, var(--g1-bg-from)) 0%, rgba(255,255,255, var(--g1-bg-to)) 100%);
+            border: 1px solid rgba(255, 255, 255, var(--g1-border));
             box-shadow: none;
-            backdrop-filter: blur(calc(16px * var(--glass-blur-scale)));
-            -webkit-backdrop-filter: blur(calc(16px * var(--glass-blur-scale)));
+            backdrop-filter: blur(var(--g1-blur));
+            -webkit-backdrop-filter: blur(var(--g1-blur));
         }
         /* 通透模式文字 - 任务名称 */
         .task-card.glass .task-name {
@@ -2301,19 +2336,19 @@
         /* 恢复点击/悬停时的高亮反馈 */
         .task-card.glass .more-btn:hover,
         .task-card.glass .more-btn:focus-visible {
-            background-color: rgba(255, 255, 255, 0.15);
+            background-color: rgba(255, 255, 255, var(--g2-bg));
             color: rgba(255, 255, 255, 0.95);
         }
         .task-card.glass .more-btn:active {
-            background-color: rgba(255, 255, 255, 0.25);
+            background-color: rgba(255, 255, 255, calc(var(--g2-bg) * 1.7));
             color: white;
             transition: background-color 0.1s ease;
         }
-        /* 通透模式按钮基础样式 */
+        /* 通透模式按钮基础样式 · [v9.39.0] 归 L2（卡片上的元素） */
         .task-card.glass .task-btn {
-            background: rgba(255, 255, 255, 0.15);
+            background: rgba(255, 255, 255, var(--g2-bg));
             color: white;
-            border: 1px solid rgba(255, 255, 255, 0.25);
+            border: 1px solid rgba(255, 255, 255, var(--g2-border));
             min-width: 0;
         }
         /* [v8.2.5] 修复 glass 模式下计时任务按钮布局偏移 */
@@ -2321,34 +2356,36 @@
             width: auto;
             align-self: stretch;
         }
-        /* [v8.2.5] 通透模式分类标签：保留分类颜色，转为半透明毛玻璃胶囊 */
+        /* [v8.2.5] 通透模式分类标签：保留分类颜色，转为半透明毛玻璃胶囊 · [v9.39.0] 归 L2 */
         .task-card.glass .task-category {
-            background: rgba(var(--cat-rgb), 0.45) !important;
-            border: 1px solid rgba(var(--cat-rgb), 0.7) !important;
-            backdrop-filter: blur(calc(4px * var(--glass-blur-scale)));
-            -webkit-backdrop-filter: blur(calc(4px * var(--glass-blur-scale)));
+            background: rgba(var(--cat-rgb), calc(0.45 * var(--g-strength))) !important;
+            border: 1px solid rgba(var(--cat-rgb), calc(0.7 * var(--g-strength))) !important;
+            backdrop-filter: blur(var(--g2-blur));
+            -webkit-backdrop-filter: blur(var(--g2-blur));
             box-shadow: 0 1px 4px rgba(0, 0, 0, 0.15), inset 0 1px 0 rgba(255, 255, 255, 0.15);
             text-shadow: 0 1px 2px rgba(0, 0, 0, 0.5);
         }
+        /* [v9.39.0] 按钮变体统一归 L2，alpha 由 --g-strength 派生（原为固定 0.6 / 0.4）
+           [v9.39.0+] 随 L2 整体 +50%：0.6 → 0.9，secondary 0.4 → 0.6 */
         .task-card.glass .task-btn.primary {
-            background: rgba(var(--color-primary-rgb), 0.6);
+            background: rgba(var(--color-primary-rgb), calc(0.9 * var(--g-strength)));
         }
         .task-card.glass .task-btn.success {
-            background: rgba(var(--color-primary-rgb), 0.6);
+            background: rgba(var(--color-primary-rgb), calc(0.9 * var(--g-strength)));
         }
         .task-card.glass .task-btn.warning {
-            background: rgba(255, 152, 0, 0.6); /* 橙黄色暂停按钮 */
+            background: rgba(255, 152, 0, calc(0.9 * var(--g-strength))); /* 橙黄色暂停按钮 */
         }
         .task-card.glass .task-btn.danger {
-            background: rgba(244, 67, 54, 0.6);
+            background: rgba(244, 67, 54, calc(0.9 * var(--g-strength)));
         }
         .task-card.glass .task-btn.secondary {
-            background: rgba(120, 120, 120, 0.4); /* 灰色取消按钮，更淡 */
-            border: 1px solid rgba(255, 255, 255, 0.15);
+            background: rgba(120, 120, 120, calc(0.6 * var(--g-strength))); /* 灰色取消按钮，更淡 */
+            border: 1px solid rgba(255, 255, 255, var(--g2-bg));
         }
-        /* 拖动时隐藏边框效果 */
+        /* 拖动时隐藏边框效果（归 L1，卡片自身的拖动态） */
         .task-card.glass.task-dragging {
-            border: 1px solid rgba(255, 255, 255, 0.4);
+            border: 1px solid rgba(255, 255, 255, calc(var(--g1-border) * 1.4));
             box-shadow: 0 16px 40px rgba(0, 0, 0, 0.3);
         }
         .task-card.glass.task-dragging::after {
@@ -2428,11 +2465,15 @@
         /* [v9.38.4] 通透模式下「带背景图的卡片」：背景【图片】层不透明度随「通透强度」滑块联动。
            要点：
            ① 只降 blur / clear 两个图片层，遮罩层(.task-card-bg-overlay)保持原强度 → 仍为文字垫底，不牺牲可读性；
-           ② 范围锁在 0.05 ~ 0.20：滑块 0% → 0.05，30% → 0.0875，60% → 0.125，90% → 0.1625，120% → 0.20；
-           ③ 不作用于纯色/渐变模式的卡片（仅 .glass）。 */
+           ② 不作用于纯色/渐变模式的卡片（仅 .glass）。
+           [v9.38.5] 上下限整体提高 0.05：0.05~0.25 → 0.10~0.30：
+              滑块 0% → 0.10，30% → 0.15，60% → 0.20，90% → 0.25，120% → 0.30
+           [v9.39.0] 改用无保底的 --g-strength 派生（0~1）：0.10 + 0.20 × strength，
+              与上表逐档吻合。此前误留在旧变量 --glass-opacity-scale 上（该变量已删除，
+              fallback 兜底成常量 1 → 实际被钉死在 0.267，不再跟随滑块）。 */
         .task-card.glass .task-card-bg-blur,
         .task-card.glass .task-card-bg-clear {
-            opacity: calc(0.05 + 0.125 * var(--glass-opacity-scale, 1));
+            opacity: calc(0.10 + 0.20 * var(--g-strength));
         }
         /* 拖拽时背景层跟随卡片 */
         .task-card.has-bg.task-dragging .task-card-bg {
@@ -2449,8 +2490,8 @@
             display: none;
             align-items: center;
             justify-content: center;
-            backdrop-filter: blur(calc(4px * var(--glass-blur-scale)));
-            -webkit-backdrop-filter: blur(calc(4px * var(--glass-blur-scale)));
+            backdrop-filter: blur(var(--g2-blur));
+            -webkit-backdrop-filter: blur(var(--g2-blur));
         }
         .task-bg-gen-card {
             background: var(--card-bg, #fff);
@@ -2503,12 +2544,13 @@
             min-width: 110px;
         }
 
-        /* [v6.4.6] 全局浮动菜单通透模式 - 与弹窗modal-content样式一致，含最小值保障 */
+        /* [v6.4.6] 全局浮动菜单通透模式 - 与弹窗modal-content样式一致
+           [v9.39.0] 归 L3 浮层；最小值保障改由 token 的 lo 承担（0% 档 = 0.10），不再需要 max() */
         body.glass-mode .global-task-menu {
-            background: linear-gradient(135deg, rgba(255,255,255, calc(0.12 * max(var(--glass-opacity-scale), 0.2))) 0%, rgba(255,255,255, calc(0.06 * max(var(--glass-opacity-scale), 0.2))) 100%) !important;
-            border: 1px solid rgba(255, 255, 255, calc(0.3 * max(var(--glass-opacity-scale), 0.2))) !important;
-            backdrop-filter: blur(calc(25px * max(var(--glass-blur-scale), 0.2))) !important;
-            -webkit-backdrop-filter: blur(calc(25px * max(var(--glass-blur-scale), 0.2))) !important;
+            background: linear-gradient(135deg, rgba(255,255,255, var(--g3-bg-from)) 0%, rgba(255,255,255, var(--g3-bg-to)) 100%) !important;
+            border: 1px solid rgba(255, 255, 255, var(--g3-border)) !important;
+            backdrop-filter: blur(var(--g3-blur)) !important;
+            -webkit-backdrop-filter: blur(var(--g3-blur)) !important;
             box-shadow: 0 8px 32px rgba(0, 0, 0, 0.2) !important;
         }
         body.glass-mode .global-task-menu-item {
@@ -2520,8 +2562,7 @@
             background: rgba(255, 255, 255, 0.15);
         }
         [data-theme="dark"] body.glass-mode .global-task-menu {
-            background: linear-gradient(135deg, rgba(255,255,255, calc(0.08 * max(var(--glass-opacity-scale), 0.2))) 0%, rgba(255,255,255, calc(0.03 * max(var(--glass-opacity-scale), 0.2))) 100%) !important;
-            border: 1px solid rgba(255, 255, 255, calc(0.15 * max(var(--glass-opacity-scale), 0.2))) !important;
+            /* [v9.39.0] 背景/边框差异已由 token 主题因子承担 */
             box-shadow: 0 8px 32px rgba(0, 0, 0, 0.4) !important;
         }
         [data-theme="dark"] body.glass-mode .global-task-menu-item:hover,
@@ -2744,8 +2785,9 @@
         /* 触发器样式 - 与普通输入框一致 */
         body.glass-mode .custom-select-trigger,
         body.glass-mode .custom-select-wrapper .custom-select-trigger {
-            background: rgba(255, 255, 255, 0.08) !important;
-            border: 1px solid rgba(255, 255, 255, 0.25) !important;
+            /* [v9.39.0+] 归 L2（功能按键：可点的下拉触发器） */
+            background: rgba(255, 255, 255, var(--g2-bg)) !important;
+            border: 1px solid rgba(255, 255, 255, var(--g2-border)) !important;
             color: white !important;
         }
         body.glass-mode .custom-select-trigger::after,
@@ -2754,14 +2796,15 @@
         }
         /* 下拉菜单样式 - 参考任务卡片本身的毛玻璃效果 */
         body.glass-mode .custom-select-wrapper .dropdown-menu {
+            /* [v9.39.0] 归 L3 浮层；保留原有的「深灰实底」特色（×4 由 token 派生，仍随滑块联动） */
             background: linear-gradient(
                 135deg,
-                rgba(87, 87, 87, calc(0.8 * max(var(--glass-opacity-scale), 0.2))) 0%,
-                rgba(88, 88, 88, calc(0.8 * max(var(--glass-opacity-scale), 0.2))) 100%
+                rgba(87, 87, 87, calc(var(--g3-bg-from) * 4)) 0%,
+                rgba(88, 88, 88, calc(var(--g3-bg-from) * 4)) 100%
             ) !important;
-            border: 1px solid rgba(255, 255, 255, calc(0.25 * max(var(--glass-opacity-scale), 0.2))) !important;
-            backdrop-filter: blur(calc(25px * max(var(--glass-blur-scale), 0.2))) !important;
-            -webkit-backdrop-filter: blur(calc(25px * max(var(--glass-blur-scale), 0.2))) !important;
+            border: 1px solid rgba(255, 255, 255, var(--g3-border)) !important;
+            backdrop-filter: blur(var(--g3-blur)) !important;
+            -webkit-backdrop-filter: blur(var(--g3-blur)) !important;
             box-shadow: 0 8px 32px rgba(0, 0, 0, 0.4) !important;
         }
         body.glass-mode .custom-select-wrapper .dropdown-menu-item { 
@@ -2928,26 +2971,29 @@
             -webkit-backdrop-filter: none;
         }
         body.glass-mode .bottom-sheet-content {
-            background: linear-gradient(150deg, rgba(255,255,255, calc(0.16 * max(var(--glass-opacity-scale), 0.2))) 0%, rgba(255,255,255, calc(0.08 * max(var(--glass-opacity-scale), 0.2))) 55%, rgba(255,255,255, calc(0.05 * max(var(--glass-opacity-scale), 0.2))) 100%) !important;
-            border: 1px solid rgba(255, 255, 255, calc(0.22 * max(var(--glass-opacity-scale), 0.2)));
+            /* [v9.39.0] 归 L3 浮层（底部抽屉） */
+            background: linear-gradient(150deg, rgba(255,255,255, var(--g3-bg-from)) 0%, rgba(255,255,255, var(--g3-bg-to)) 55%, rgba(255,255,255, calc(var(--g3-bg-to) * 0.45)) 100%) !important;
+            border: 1px solid rgba(255, 255, 255, var(--g3-border));
             border-bottom: none;
-            backdrop-filter: blur(calc(22px * max(var(--glass-blur-scale), 0.2)));
-            -webkit-backdrop-filter: blur(calc(22px * max(var(--glass-blur-scale), 0.2)));
+            backdrop-filter: blur(var(--g3-blur));
+            -webkit-backdrop-filter: blur(var(--g3-blur));
             box-shadow: 0 12px 36px rgba(0, 0, 0, 0.25);
         }
         body.glass-mode .bottom-sheet-header { border-bottom-color: rgba(255,255,255,0.12); }
         body.glass-mode .bottom-sheet-handle { background: rgba(255,255,255,0.35); }
         body.glass-mode .bottom-sheet-title { color: white; }
         body.glass-mode .category-select-item {
-            background: rgba(255, 255, 255, calc(0.12 * max(var(--glass-opacity-scale), 0.2))) !important;
-            border: 1px solid rgba(255, 255, 255, calc(0.08 * max(var(--glass-opacity-scale), 0.2)));
+            /* [v9.39.0] 归 L4 浮层内元素（抽屉里的列表项） */
+            background: rgba(255, 255, 255, var(--g4-bg)) !important;
+            border: 1px solid rgba(255, 255, 255, calc(var(--g4-bg) * 0.6));
         }
         body.glass-mode .category-select-item:hover,
         body.glass-mode .category-select-item:active {
-            background: rgba(var(--color-primary-rgb), calc(0.22 * max(var(--glass-opacity-scale), 0.2))) !important;
+            /* [v9.39.0] 由 L4 token 派生，保持随滑块联动 */
+            background: rgba(var(--color-primary-rgb), calc(var(--g4-bg) * 0.8)) !important;
         }
         body.glass-mode .category-select-item.selected {
-            background: rgba(var(--color-primary-rgb), calc(0.28 * max(var(--glass-opacity-scale), 0.2))) !important;
+            background: rgba(var(--color-primary-rgb), var(--g4-bg)) !important;
             border-color: var(--color-primary);
         }
         body.glass-mode .category-select-name { color: white; }
@@ -2998,22 +3044,24 @@
         
         /* [v6.0.0] 分类折叠框通透模式 */
         body.glass-mode .category-header {
+            /* [v9.39.0] 归 L1：分类折叠框与其它一级卡片同层 */
             background: linear-gradient(
                 135deg,
-                rgba(255,255,255, calc(0.12 * var(--glass-opacity-scale))) 0%,
-                rgba(255,255,255, calc(0.06 * var(--glass-opacity-scale))) 100%
+                rgba(255,255,255, var(--g1-bg-from)) 0%,
+                rgba(255,255,255, var(--g1-bg-to)) 100%
             ) !important;
-            border: 1px solid rgba(255, 255, 255, calc(0.3 * var(--glass-opacity-scale)));
-            backdrop-filter: blur(calc(15px * var(--glass-blur-scale)));
-            -webkit-backdrop-filter: blur(calc(15px * var(--glass-blur-scale)));
+            border: 1px solid rgba(255, 255, 255, var(--g1-border));
+            backdrop-filter: blur(var(--g1-blur));
+            -webkit-backdrop-filter: blur(var(--g1-blur));
             box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
         }
         body.glass-mode .category-header:hover,
         body.glass-mode .category-header:active {
+            /* [v9.39.0] 按下/悬停加深改由 token 派生，保持随滑块联动（原为固定 0.18/0.10） */
             background: linear-gradient(
                 135deg,
-                rgba(255,255,255, calc(0.18 * var(--glass-opacity-scale))) 0%,
-                rgba(255,255,255, calc(0.10 * var(--glass-opacity-scale))) 100%
+                rgba(255,255,255, calc(var(--g1-bg-from) * 1.5)) 0%,
+                rgba(255,255,255, calc(var(--g1-bg-to) * 1.5)) 100%
             ) !important;
         }
         body.glass-mode .category-name {
@@ -3027,8 +3075,7 @@
             color: rgba(255, 255, 255, 0.8) !important;
         }
         [data-theme="dark"] body.glass-mode .category-header {
-            background: linear-gradient(135deg, rgba(255,255,255,0.10) 0%, rgba(255,255,255,0.04) 100%) !important;
-            border: 1px solid rgba(255, 255, 255, 0.15);
+            /* [v9.39.0] 背景/边框差异已由 token 主题因子承担，此处仅保留深色专属的顶部高光与阴影 */
             border-top: 1px solid rgba(255, 255, 255, 0.25);
             box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
         }
@@ -3318,13 +3365,10 @@
         }
 
         /* [v9.37.2] 删除油画主题（撑阳伞的女人/杏花盛开）的 FAB 底座与通透光晕 */
-        /* [v8.2.5] 通透模式 FAB：统一使用主题色半透明毛玻璃，删除背景图 */
-        body.glass-mode .fab {
-            background: rgba(var(--color-primary-rgb), 0.6) !important;
-            backdrop-filter: blur(calc(8px * var(--glass-blur-scale)));
-            -webkit-backdrop-filter: blur(calc(8px * var(--glass-blur-scale)));
-            box-shadow: 0 4px 16px rgba(var(--color-primary-rgb), 0.4), inset 0 1px 0 rgba(255, 255, 255, 0.2) !important;
-        }
+        /* [v9.39.0] 删除旧的 FAB 通透规则（原 [v8.2.5]）：
+           它一直被下方「[v9.28.1] 通透模式 FAB 材质覆盖」的
+           body.glass-mode .fab, body.glass-mode[data-accent] .fab 完整覆盖，从未生效。
+           删除后 FAB 外观零变化，只是消除了「改错地方」的隐患。 */
         .fab:active { transform: scale(0.95); box-shadow: 0 2px 8px rgba(var(--color-primary-rgb), 0.4); }
 
         /* [v9.28.1] 悬浮胶囊标签栏 - 全风格通用 4+1 布局 */
@@ -3372,10 +3416,11 @@
 
         /* [v9.28.1] 通透模式标签栏 - 仅材质覆盖（布局继承基础 .bottom-tabs） */
         .bottom-tabs.glass {
-            border: 1px solid rgba(255, 255, 255, calc(0.3 * max(var(--glass-opacity-scale), 0.2)));
-            background: linear-gradient(180deg, rgba(255,255,255, calc(0.25 * max(var(--glass-opacity-scale), 0.2))) 0%, rgba(255,255,255, calc(0.12 * max(var(--glass-opacity-scale), 0.2))) 100%);
-            backdrop-filter: blur(calc(24px * max(var(--glass-blur-scale), 0.2))) saturate(1.4);
-            -webkit-backdrop-filter: blur(calc(24px * max(var(--glass-blur-scale), 0.2))) saturate(1.4);
+            /* [v9.39.0] 归 L3 浮层（常驻悬浮胶囊标签栏） */
+            border: 1px solid rgba(255, 255, 255, var(--g3-border));
+            background: linear-gradient(180deg, rgba(255,255,255, var(--g3-bg-from)) 0%, rgba(255,255,255, calc(var(--g3-bg-from) * 0.5)) 100%);
+            backdrop-filter: blur(var(--g3-blur)) saturate(1.4);
+            -webkit-backdrop-filter: blur(var(--g3-blur)) saturate(1.4);
             box-shadow:
                 0 8px 32px rgba(0, 0, 0, 0.25),
                 0 2px 8px rgba(0, 0, 0, 0.15);
@@ -3391,10 +3436,11 @@
         /* [v9.28.1] 通透模式 FAB 材质覆盖（定位继承基础 .fab） */
         body.glass-mode .fab,
         body.glass-mode[data-accent] .fab {
-            background: linear-gradient(180deg, rgba(255,255,255, calc(0.25 * max(var(--glass-opacity-scale), 0.2))) 0%, rgba(255,255,255, calc(0.12 * max(var(--glass-opacity-scale), 0.2))) 100%) !important;
-            backdrop-filter: blur(calc(24px * max(var(--glass-blur-scale), 0.2))) saturate(1.4);
-            -webkit-backdrop-filter: blur(calc(24px * max(var(--glass-blur-scale), 0.2))) saturate(1.4);
-            border: 1px solid rgba(255, 255, 255, calc(0.3 * max(var(--glass-opacity-scale), 0.2))) !important;
+            /* [v9.39.0] 归 L3 浮层；本规则为实际生效的一条（旧规则见上，v9.39.0 已删除） */
+            background: linear-gradient(180deg, rgba(255,255,255, var(--g3-bg-from)) 0%, rgba(255,255,255, calc(var(--g3-bg-from) * 0.5)) 100%) !important;
+            backdrop-filter: blur(var(--g3-blur)) saturate(1.4);
+            -webkit-backdrop-filter: blur(var(--g3-blur)) saturate(1.4);
+            border: 1px solid rgba(255, 255, 255, var(--g3-border)) !important;
             box-shadow:
                 0 8px 32px rgba(0, 0, 0, 0.25),
                 0 2px 8px rgba(0, 0, 0, 0.15) !important;
@@ -3402,8 +3448,7 @@
         }
         /* [v9.27.0] 暗色模式适配 */
         [data-theme="dark"] .bottom-tabs.glass {
-            background: linear-gradient(180deg, rgba(255,255,255, calc(0.16 * max(var(--glass-opacity-scale), 0.2))) 0%, rgba(255,255,255, calc(0.08 * max(var(--glass-opacity-scale), 0.2))) 100%);
-            border-color: rgba(255, 255, 255, calc(0.2 * max(var(--glass-opacity-scale), 0.2)));
+            /* [v9.39.0] 背景/边框差异已由 token 主题因子承担 */
             box-shadow:
                 0 8px 32px rgba(0, 0, 0, 0.4),
                 0 2px 8px rgba(0, 0, 0, 0.3);
@@ -3422,8 +3467,7 @@
         }
         [data-theme="dark"] body.glass-mode .fab,
         [data-theme="dark"] body.glass-mode[data-accent] .fab {
-            background: linear-gradient(180deg, rgba(255,255,255, calc(0.18 * max(var(--glass-opacity-scale), 0.2))) 0%, rgba(255,255,255, calc(0.08 * max(var(--glass-opacity-scale), 0.2))) 100%) !important;
-            border-color: rgba(255, 255, 255, calc(0.2 * max(var(--glass-opacity-scale), 0.2))) !important;
+            /* [v9.39.0] 背景/边框差异已由 token 主题因子承担 */
             box-shadow:
                 0 8px 32px rgba(0, 0, 0, 0.4),
                 0 2px 8px rgba(0, 0, 0, 0.3) !important;
@@ -3431,25 +3475,30 @@
 
         /* ============================================
            [v6.0.0] 全局通透模式 - Global Glass Mode
-           透明度层次设计：
-           - 最透: 任务卡片 8%→2% / 6%→1%
-           - 较透: 设置卡片/图表容器 10%→4% / 8%→3%
-           - 中等: 时间余额卡片 12%→4% / 8%→2%
-           - 较实: 屏幕时间卡片 18%→12% / 16%→11%
-           - 最实: 底部导航栏/弹窗 22%→16% / 18%→12%
+           [v9.39.0] 分层体系已重建：由旧的「按卡片类型分 5 档」改为「按离用户的远近分 5 层」。
+             旧的 5 档设计（任务卡片 8%→2% / 设置卡片 10%→4% / 余额卡 12%→4% /
+             屏幕时间 18%→12% / 弹窗 22%→16%）不仅与实现脱节，也不产生层次感——
+             这些卡片在页面上本是并列关系。新分层如下：
+             L1   一级卡片壳    直贴壁纸的卡片（任务卡/余额卡/屏幕时间/睡眠/设置卡/报告卡/分类头）
+             L1.1 卡片内的内衬  卡内容器/凹槽/网格/表格/分隔线/中心孔（非交互；= L1 × 1.1）
+             L2   功能按键      可交互元素：任务按钮/更多按钮/展开按钮/下拉触发器（= L1 × 3，需更实以区分）
+             L3   浮层          弹窗/抽屉/下拉菜单/底栏/FAB/tooltip/Time Bot 对话窗与气泡
+             L4   浮层内元素    浮层内的列表项/按钮/输入框/表单控件
+           强度关系：L1 < L1.1 < L2 < L3 < L4（越靠上层越实），层间差固定，随滑块同步缩放。
+           曲线与默认值见本文件 :root 的 --g1/--g1b/--g2~--g4 token 与 js/app-reports.js 的 GLASS_LAYERS。
            ============================================ */
         
-        /* 弹窗/模态框通透模式 - 25%→18% (最实，确保可读性) */
+        /* [v9.39.0] 归 L3 浮层：33 个弹窗共用这一条规则。
+           保底已由 token 的 lo 承担（0% 档 = 0.10），不再需要 max(…, 0.2) 兜底。 */
         body.glass-mode .modal-content {
-            background: linear-gradient(135deg, rgba(255,255,255, calc(0.12 * var(--glass-opacity-scale))) 0%, rgba(255,255,255, calc(0.06 * var(--glass-opacity-scale))) 100%) !important;
-            border: 1px solid rgba(255, 255, 255, calc(0.3 * var(--glass-opacity-scale)));
-            backdrop-filter: blur(calc(25px * var(--glass-blur-scale)));
-            -webkit-backdrop-filter: blur(calc(25px * var(--glass-blur-scale)));
+            background: linear-gradient(135deg, rgba(255,255,255, var(--g3-bg-from)) 0%, rgba(255,255,255, var(--g3-bg-to)) 100%) !important;
+            border: 1px solid rgba(255, 255, 255, var(--g3-border));
+            backdrop-filter: blur(var(--g3-blur));
+            -webkit-backdrop-filter: blur(var(--g3-blur));
             box-shadow: 0 8px 32px rgba(0, 0, 0, 0.2);
         }
         [data-theme="dark"] body.glass-mode .modal-content {
-            background: linear-gradient(135deg, rgba(255,255,255, calc(0.08 * var(--glass-opacity-scale))) 0%, rgba(255,255,255, calc(0.03 * var(--glass-opacity-scale))) 100%) !important;
-            border: 1px solid rgba(255, 255, 255, calc(0.15 * var(--glass-opacity-scale)));
+            /* [v9.39.0] 背景/边框的深色差异已由 token 主题因子承担，此处仅保留深色阴影 */
             box-shadow: 0 8px 32px rgba(0, 0, 0, 0.4);
         }
         body.glass-mode .modal-content .modal-title,
@@ -3526,7 +3575,8 @@
             color: var(--text-color);
         }
         body.glass-mode .manual-sleep-preview {
-            background: rgba(255, 255, 255, 0.1) !important;
+            /* [v9.39.0] 归 L4（弹窗内的预览区块） */
+            background: rgba(255, 255, 255, calc(var(--g4-bg) * 0.7)) !important;
         }
         body.glass-mode .manual-sleep-preview .preview-label {
             color: rgba(255, 255, 255, 0.7);
@@ -3538,15 +3588,15 @@
         
         /* 设置页面卡片通透模式 - 10%→4% (较透) */
         body.glass-mode .settings-section {
-            background: linear-gradient(135deg, rgba(255,255,255, calc(0.08 * var(--glass-opacity-scale))) 0%, rgba(255,255,255, calc(0.02 * var(--glass-opacity-scale))) 100%) !important;
-            border: 1px solid rgba(255, 255, 255, calc(0.3 * var(--glass-opacity-scale)));
+            background: linear-gradient(135deg, rgba(255,255,255, var(--g1-bg-from)) 0%, rgba(255,255,255, var(--g1-bg-to)) 100%) !important;
+            border: 1px solid rgba(255, 255, 255, var(--g1-border));
             box-shadow: 0 4px 16px rgba(0, 0, 0, 0.12);
-            backdrop-filter: blur(calc(20px * var(--glass-blur-scale)));
-            -webkit-backdrop-filter: blur(calc(20px * var(--glass-blur-scale)));
+            backdrop-filter: blur(var(--g1-blur));
+            -webkit-backdrop-filter: blur(var(--g1-blur));
         }
         [data-theme="dark"] body.glass-mode .settings-section {
-            background: linear-gradient(135deg, rgba(255,255,255, calc(0.06 * var(--glass-opacity-scale))) 0%, rgba(255,255,255, calc(0.01 * var(--glass-opacity-scale))) 100%) !important;
-            border: 1px solid rgba(255, 255, 255, calc(0.12 * var(--glass-opacity-scale)));
+            background: linear-gradient(135deg, rgba(255,255,255, var(--g1-bg-from)) 0%, rgba(255,255,255, var(--g1-bg-to)) 100%) !important;
+            border: 1px solid rgba(255, 255, 255, var(--g1-border));
             box-shadow: 0 4px 16px rgba(0, 0, 0, 0.25);
         }
         body.glass-mode .settings-section .settings-title {
@@ -3561,23 +3611,24 @@
             color: rgba(255, 255, 255, 0.7);
         }
         body.glass-mode .settings-section .setting-item {
-            border-bottom-color: rgba(255, 255, 255, 0.15);
+            /* [v9.39.0] 归 L1.1（设置卡内的分隔线 = 内衬笔触） */
+            border-bottom-color: rgba(255, 255, 255, var(--g1b-border));
         }
-        /* [v6.0.0] 设置页面表单元素通透模式 */
+        /* [v6.0.0] 设置页面表单元素通透模式 · [v9.39.0] 归 L2 */
         body.glass-mode .settings-section .form-label {
             color: rgba(255, 255, 255, 0.9) !important;
         }
         body.glass-mode .settings-section .form-input {
-            background: rgba(255, 255, 255, 0.12) !important;
-            border-color: rgba(255, 255, 255, 0.25) !important;
+            background: rgba(255, 255, 255, var(--g2-bg)) !important;
+            border-color: rgba(255, 255, 255, var(--g2-border)) !important;
             color: white !important;
         }
         body.glass-mode .settings-section .form-input::placeholder {
             color: rgba(255, 255, 255, 0.5);
         }
         body.glass-mode .settings-section .threshold-input {
-            background: rgba(255, 255, 255, 0.12) !important;
-            border-color: rgba(255, 255, 255, 0.25) !important;
+            background: rgba(255, 255, 255, var(--g2-bg)) !important;
+            border-color: rgba(255, 255, 255, var(--g2-border)) !important;
             color: white !important;
         }
         /* 奖惩倍率单位 - 通透模式下高对比度 */
@@ -3607,8 +3658,9 @@
             text-shadow: 0 1px 2px rgba(0, 0, 0, 0.3);
         }
         body.glass-mode #permissionGrantedList .setting-item {
-            background: rgba(255, 255, 255, 0.08) !important;
-            border-color: rgba(255, 255, 255, 0.15) !important;
+            /* [v9.39.0] 归 L1.1（设置卡内的列表项 = 内衬） */
+            background: rgba(255, 255, 255, calc(var(--g1b-bg-from) * 0.6)) !important;
+            border-color: rgba(255, 255, 255, var(--g1b-border)) !important;
         }
         body.glass-mode #permissionGrantedList .setting-name {
             color: rgba(255, 255, 255, 0.85) !important;
@@ -3653,15 +3705,12 @@
             border-color: rgba(255, 255, 255, 0.2) !important;
         }
         body.glass-mode .about-section code {
-            background: rgba(255, 255, 255, 0.15) !important;
+            /* [v9.39.0] 归 L1.1（关于页的代码块 = 内衬） */
+            background: rgba(255, 255, 255, var(--g1b-bg-from)) !important;
             color: rgba(255, 255, 255, 0.9) !important;
         }
         /* [v7.14.1] 小组件权限弹窗通透模式 */
-        body.glass-mode #widgetPermissionModal .modal-content {
-            background: linear-gradient(135deg, rgba(255,255,255, 0.15) 0%, rgba(255,255,255, 0.08) 100%) !important;
-            backdrop-filter: blur(calc(30px * var(--glass-blur-scale)));
-            -webkit-backdrop-filter: blur(calc(30px * var(--glass-blur-scale)));
-        }
+        /* [v9.39.0] 删除独立覆盖（原 0.15/0.08 + blur 30px），改用通用 .modal-content 的 L3 规则 */
         body.glass-mode #widgetPermissionModal .modal-content p {
             color: rgba(255, 255, 255, 0.9) !important;
         }
@@ -3673,11 +3722,12 @@
             color: white !important;
         }
 
-        /* [v6.3.0] 模态框输入框通透模式 (Modal Inputs Glass Mode) */
+        /* [v6.3.0] 模态框输入框通透模式 (Modal Inputs Glass Mode)
+           [v9.39.0] 归 L4 浮层内元素（弹窗里的表单控件） */
         body.glass-mode .modal-content .form-input,
         body.glass-mode .modal-content .form-select {
-            background: rgba(255, 255, 255, 0.12) !important;
-            border-color: rgba(255, 255, 255, 0.3) !important;
+            background: rgba(255, 255, 255, var(--g4-bg)) !important;
+            border-color: rgba(255, 255, 255, var(--g4-border)) !important;
             color: white !important;
         }
         body.glass-mode .modal-content .form-input::placeholder {
@@ -3689,33 +3739,34 @@
             color: white;
         }
         
-        /* 预设时间按钮通透模式 */
+        /* 预设时间按钮通透模式 · [v9.39.0] 归 L4 */
         body.glass-mode .modal-content .time-preset {
-            background: rgba(255, 255, 255, 0.15) !important;
-            border-color: rgba(255, 255, 255, 0.3) !important;
+            background: rgba(255, 255, 255, var(--g4-bg)) !important;
+            border-color: rgba(255, 255, 255, var(--g4-border)) !important;
             color: white !important;
         }
         body.glass-mode .modal-content .time-preset:hover {
-            background: rgba(255, 255, 255, 0.25) !important;
+            background: rgba(255, 255, 255, calc(var(--g4-bg) * 1.4)) !important;
         }
         
-        /* 推荐标签通透模式 */
+        /* 推荐标签通透模式 · [v9.39.0] 归 L4 */
         body.glass-mode .recommendation-item {
-            background: rgba(255, 255, 255, 0.15) !important;
-            border-color: rgba(255, 255, 255, 0.3) !important;
+            background: rgba(255, 255, 255, var(--g4-bg)) !important;
+            border-color: rgba(255, 255, 255, var(--g4-border)) !important;
             color: white !important;
         }
-        /* [v7.22.1] 分类下拉按钮通透模式 */
+        /* [v7.22.1] 分类下拉按钮通透模式 · [v9.39.0] 归 L4 */
         body.glass-mode .category-combo-btn {
-            background: rgba(255, 255, 255, 0.12) !important;
-            border-color: rgba(255, 255, 255, 0.25) !important;
+            background: rgba(255, 255, 255, var(--g4-bg)) !important;
+            border-color: rgba(255, 255, 255, calc(var(--g4-bg) * 0.9)) !important;
             color: white !important;
         }
 
         /* [v6.3.0] 习惯奖励卡片通透模式 (Habit Reward Card Glass Mode) */
         body.glass-mode .habit-reward-card {
-            background: rgba(255, 255, 255, 0.1) !important;
-            border-color: rgba(255, 255, 255, 0.25) !important;
+            /* [v9.39.0] 归 L4 */
+            background: rgba(255, 255, 255, calc(var(--g4-bg) * 0.7)) !important;
+            border-color: rgba(255, 255, 255, var(--g4-border)) !important;
         }
         body.glass-mode .habit-reward-card .form-label-small {
             color: rgba(255, 255, 255, 0.9) !important;
@@ -3733,8 +3784,9 @@
         }
         /* 复合输入框处理 */
         body.glass-mode .habit-reward-card .input-with-suffix {
-            background: rgba(255, 255, 255, 0.15) !important;
-            border-color: rgba(255, 255, 255, 0.3) !important;
+            /* [v9.39.0] 归 L4 */
+            background: rgba(255, 255, 255, var(--g4-bg)) !important;
+            border-color: rgba(255, 255, 255, var(--g4-border)) !important;
         }
         body.glass-mode .habit-reward-card .input-with-suffix .form-input {
             background: transparent !important; /* 避免双重背景 */
@@ -3753,12 +3805,10 @@
         
         /* 图表容器通透模式 - 无背景 */
         body.glass-mode .chart-container {
-            background: none !important;
-            border: 1px solid rgba(255, 255, 255, calc(0.2 * var(--glass-opacity-scale)));
+            /* [v9.39.0] 归 L1.1：报告卡内的图表容器（内衬底 + 描边） */
+            background: linear-gradient(135deg, rgba(255,255,255, var(--g1b-bg-from)) 0%, rgba(255,255,255, var(--g1b-bg-to)) 100%) !important;
+            border: 1px solid rgba(255, 255, 255, var(--g1b-border));
             box-shadow: none;
-        }
-        [data-theme="dark"] body.glass-mode .chart-container {
-            border: 1px solid rgba(255, 255, 255, calc(0.1 * var(--glass-opacity-scale)));
         }
         body.glass-mode .chart-container .chart-title {
             color: white;
@@ -3767,15 +3817,14 @@
         
         /* 报告区域通透模式 - 15%→8% (略高于其他卡片) */
         body.glass-mode .report-section {
-            background: linear-gradient(135deg, rgba(255,255,255, calc(0.08 * var(--glass-opacity-scale))) 0%, rgba(255,255,255, calc(0.02 * var(--glass-opacity-scale))) 100%) !important;
-            border: 1px solid rgba(255, 255, 255, calc(0.3 * var(--glass-opacity-scale)));
+            background: linear-gradient(135deg, rgba(255,255,255, var(--g1-bg-from)) 0%, rgba(255,255,255, var(--g1-bg-to)) 100%) !important;
+            border: 1px solid rgba(255, 255, 255, var(--g1-border));
             box-shadow: 0 4px 16px rgba(0, 0, 0, 0.12);
-            backdrop-filter: blur(calc(20px * var(--glass-blur-scale)));
-            -webkit-backdrop-filter: blur(calc(20px * var(--glass-blur-scale)));
+            backdrop-filter: blur(var(--g1-blur));
+            -webkit-backdrop-filter: blur(var(--g1-blur));
         }
         [data-theme="dark"] body.glass-mode .report-section {
-            background: linear-gradient(135deg, rgba(255,255,255, calc(0.06 * var(--glass-opacity-scale))) 0%, rgba(255,255,255, calc(0.01 * var(--glass-opacity-scale))) 100%) !important;
-            border: 1px solid rgba(255, 255, 255, calc(0.12 * var(--glass-opacity-scale)));
+            /* [v9.39.0] 背景/边框差异已由 token 主题因子承担，此处仅保留深色阴影 */
             box-shadow: 0 4px 16px rgba(0, 0, 0, 0.25);
         }
         /* [v9.27.0] 移除 v6.2.1 的 #chartAnalysisWrapper 透明覆盖规则：
@@ -4010,19 +4059,15 @@
         /* [v6.0.0] 时间流图通透模式 */
         body.glass-mode .schedule-grid,
         body.glass-mode .multi-day-flow-grid {
-            background: rgba(255, 255, 255, 0.08) !important;
-            border: 1px solid rgba(255, 255, 255, 0.2);
+            /* [v9.39.0] 归 L1.1（时间流图内的网格 = 内衬） */
+            background: rgba(255, 255, 255, calc(var(--g1b-bg-from) * 0.6)) !important;
+            border: 1px solid rgba(255, 255, 255, var(--g1b-border));
         }
-        [data-theme="dark"] body.glass-mode .schedule-grid,
-        [data-theme="dark"] body.glass-mode .multi-day-flow-grid {
-            background: rgba(255, 255, 255, 0.05) !important;
-            border: 1px solid rgba(255, 255, 255, 0.1);
-        }
-        /* 时间流图任务条块通透模式 */
+        /* 时间流图任务条块通透模式 · [v9.39.0] 归 L2 */
         body.glass-mode .task-block {
-            background: rgba(var(--cat-color-rgb, 100, 100, 100), 0.25) !important;
-            backdrop-filter: blur(calc(8px * var(--glass-blur-scale)));
-            -webkit-backdrop-filter: blur(calc(8px * var(--glass-blur-scale)));
+            background: rgba(var(--cat-color-rgb, 100, 100, 100), calc(0.25 * var(--g-strength))) !important;
+            backdrop-filter: blur(var(--g2-blur));
+            -webkit-backdrop-filter: blur(var(--g2-blur));
             border-left: 4px solid var(--cat-color);
         }
         body.glass-mode .task-block-name {
@@ -4106,8 +4151,9 @@
             color: #FFB6C1 !important;
         }
         body.glass-mode #historyModal .undo-btn {
-            background: rgba(255, 255, 255, 0.15) !important;
-            border-color: rgba(255, 255, 255, 0.3) !important;
+            /* [v9.39.0] 归 L4（弹窗内的操作按钮） */
+            background: rgba(255, 255, 255, var(--g4-bg)) !important;
+            border-color: rgba(255, 255, 255, var(--g4-border)) !important;
             color: white !important;
         }
         /* 任务历史弹窗 - 活动日历通透模式 */
@@ -4126,33 +4172,35 @@
         
         /* [v6.0.0] 活动日历弹窗/报告页通透模式 */
         body.glass-mode .heatmap-tooltip {
+            /* [v9.39.0] 归 L3 浮层；保留深色实底（tooltip 上的数字可读性优先） */
             background: rgba(30, 30, 30, 0.9) !important;
-            backdrop-filter: blur(calc(15px * max(var(--glass-blur-scale), 0.2)));
-            -webkit-backdrop-filter: blur(calc(15px * max(var(--glass-blur-scale), 0.2)));
+            backdrop-filter: blur(var(--g3-blur));
+            -webkit-backdrop-filter: blur(var(--g3-blur));
             color: white !important;
-            border: 1px solid rgba(255, 255, 255, 0.2);
+            border: 1px solid rgba(255, 255, 255, var(--g3-border));
         }
         body.glass-mode .heatmap-day-content {
-            border-color: rgba(255, 255, 255, 0.15) !important;
+            /* [v9.39.0] 归 L1.1（活动日历格子的统一描边） */
+            border-color: rgba(255, 255, 255, var(--g1b-border)) !important;
         }
         
         /* [v6.0.0] 屏幕时间弹窗通透模式 */
-        body.glass-mode #whitelistModal .modal-content {
-            background: linear-gradient(135deg, rgba(255,255,255,0.12) 0%, rgba(255,255,255,0.06) 100%) !important;
-        }
+        /* [v9.39.0] 删除独立覆盖，改用通用 .modal-content 的 L3 规则
+           （原值 0.12/0.06 与通用值同源，删除后外观一致） */
         body.glass-mode #whitelistModal .whitelist-modal-content {
             background: transparent !important;
         }
         body.glass-mode #whitelistModal .app-item {
-            background: rgba(255, 255, 255, 0.08) !important;
-            border-color: rgba(255, 255, 255, 0.2) !important;
+            /* [v9.39.0] 归 L4（白名单弹窗内的列表项） */
+            background: rgba(255, 255, 255, calc(var(--g4-bg) * 0.6)) !important;
+            border-color: rgba(255, 255, 255, calc(var(--g4-bg) * 1.4)) !important;
         }
         body.glass-mode #whitelistModal .app-item:hover {
-            background: rgba(255, 255, 255, 0.12) !important;
+            background: rgba(255, 255, 255, calc(var(--g4-bg) * 0.85)) !important;
         }
         body.glass-mode #whitelistModal .app-item.selected {
-            background: rgba(var(--color-primary-rgb), 0.3) !important;
-            border-color: rgba(var(--color-primary-rgb), 0.5) !important;
+            background: rgba(var(--color-primary-rgb), calc(0.3 * var(--g-strength))) !important;
+            border-color: rgba(var(--color-primary-rgb), calc(0.5 * var(--g-strength))) !important;
         }
         body.glass-mode #whitelistModal .app-name {
             color: white !important;
@@ -4161,8 +4209,9 @@
             color: rgba(255, 255, 255, 0.6) !important;
         }
         body.glass-mode #whitelistModal .search-input {
-            background: rgba(255, 255, 255, 0.1) !important;
-            border-color: rgba(255, 255, 255, 0.25) !important;
+            /* [v9.39.0] 归 L4 */
+            background: rgba(255, 255, 255, calc(var(--g4-bg) * 0.7)) !important;
+            border-color: rgba(255, 255, 255, var(--g4-border)) !important;
             color: white !important;
         }
         body.glass-mode #whitelistModal .search-input::placeholder {
@@ -4377,13 +4426,14 @@
 
         /* 统计卡片通透模式 */
         body.glass-mode .stats-grid .stat-card {
-            background: linear-gradient(135deg, rgba(255,255,255,0.12) 0%, rgba(255,255,255,0.05) 100%) !important;
-            border: 1px solid rgba(255, 255, 255, 0.3);
+            /* [v9.39.0] 归 L2：报告卡内的子卡比外层大卡实（同层内嵌套产生层次） */
+            background: linear-gradient(135deg, rgba(255,255,255, var(--g2-bg)) 0%, rgba(255,255,255, calc(var(--g2-bg) * 0.42)) 100%) !important;
+            border: 1px solid rgba(255, 255, 255, var(--g2-border));
             box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
         }
         [data-theme="dark"] body.glass-mode .stats-grid .stat-card {
-            background: linear-gradient(135deg, rgba(255,255,255,0.08) 0%, rgba(255,255,255,0.03) 100%) !important;
-            border: 1px solid rgba(255, 255, 255, 0.12);
+            /* [v9.39.0] 深色差异已由 token 主题因子承担，此处仅保留结构 */
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
         }
         body.glass-mode .stats-grid .stat-value {
             color: white;
@@ -4450,8 +4500,9 @@
         
         /* 热力图/日历通透模式 */
         body.glass-mode .heatmap-container {
-            background: linear-gradient(135deg, rgba(255,255,255,0.08) 0%, rgba(255,255,255,0.03) 100%);
-            border: 1px solid rgba(255, 255, 255, 0.2);
+            /* [v9.39.0] 归 L1.1：附着在报告卡（L1）上的活动日历网格容器 */
+            background: linear-gradient(135deg, rgba(255,255,255, var(--g1b-bg-from)) 0%, rgba(255,255,255, var(--g1b-bg-to)) 100%);
+            border: 1px solid rgba(255, 255, 255, var(--g1b-border));
             border-radius: 12px;
             padding: var(--space-md);
         }
@@ -4466,29 +4517,31 @@
         }
         /* 活动日历日期格子通透模式 - 无数据的空白格子更透明 */
         body.glass-mode .heatmap-day-content:not([class*="net-"]):not([class*="task-cal-"]) {
-            background-color: rgba(255, 255, 255, 0.08) !important;
+            /* [v9.39.0] 空白格子属「内衬底」→ 用 L1.1 token（带保底，不与色块一起归零） */
+            background-color: rgba(255, 255, 255, calc(var(--g1b-bg-from) * 0.6)) !important;
             color: rgba(255, 255, 255, 0.7);
             text-shadow: 0 1px 2px rgba(0, 0, 0, 0.3);
-            border: 1px solid rgba(255, 255, 255, 0.15) !important;
+            border: 1px solid rgba(255, 255, 255, var(--g1b-border)) !important;
         }
-        /* 有数据的格子 - 统一80%不透明度 */
-        body.glass-mode .heatmap-day-content.net-surplus-1 { background-color: rgba(155, 233, 168, 0.8) !important; }
-        body.glass-mode .heatmap-day-content.net-surplus-2 { background-color: rgba(64, 196, 99, 0.8) !important; }
-        body.glass-mode .heatmap-day-content.net-surplus-3 { background-color: rgba(33, 110, 57, 0.8) !important; color: white; }
-        body.glass-mode .heatmap-day-content.net-deficit-1 { background-color: rgba(239, 154, 154, 0.8) !important; }
-        body.glass-mode .heatmap-day-content.net-deficit-2 { background-color: rgba(239, 83, 80, 0.8) !important; }
-        body.glass-mode .heatmap-day-content.net-deficit-3 { background-color: rgba(211, 47, 47, 0.8) !important; color: white; }
-        body.glass-mode .heatmap-day-content.task-cal-green-1 { background-color: rgba(200, 230, 201, 0.8) !important; color: #333; }
-        body.glass-mode .heatmap-day-content.task-cal-green-2 { background-color: rgba(102, 187, 106, 0.8) !important; color: white; }
-        body.glass-mode .heatmap-day-content.task-cal-green-3 { background-color: rgba(56, 142, 60, 0.8) !important; color: white; }
-        body.glass-mode .heatmap-day-content.task-cal-red-1 { background-color: rgba(239, 154, 154, 0.8) !important; color: #333; }
-        body.glass-mode .heatmap-day-content.task-cal-red-2 { background-color: rgba(239, 83, 80, 0.8) !important; color: white; }
-        body.glass-mode .heatmap-day-content.task-cal-red-3 { background-color: rgba(211, 47, 47, 0.8) !important; color: white; }
+        /* [v9.39.0] 有数据的格子（12 档）纳入滑块 +「高清保底」：
+           0% → 0.76，120% → 0.88；色块是数据编码，不能随低档位消失 */
+        body.glass-mode .heatmap-day-content.net-surplus-1 { background-color: rgba(155, 233, 168, calc(0.76 + 0.12 * var(--g-strength))) !important; }
+        body.glass-mode .heatmap-day-content.net-surplus-2 { background-color: rgba(64, 196, 99, calc(0.76 + 0.12 * var(--g-strength))) !important; }
+        body.glass-mode .heatmap-day-content.net-surplus-3 { background-color: rgba(33, 110, 57, calc(0.76 + 0.12 * var(--g-strength))) !important; color: white; }
+        body.glass-mode .heatmap-day-content.net-deficit-1 { background-color: rgba(239, 154, 154, calc(0.76 + 0.12 * var(--g-strength))) !important; }
+        body.glass-mode .heatmap-day-content.net-deficit-2 { background-color: rgba(239, 83, 80, calc(0.76 + 0.12 * var(--g-strength))) !important; }
+        body.glass-mode .heatmap-day-content.net-deficit-3 { background-color: rgba(211, 47, 47, calc(0.76 + 0.12 * var(--g-strength))) !important; color: white; }
+        body.glass-mode .heatmap-day-content.task-cal-green-1 { background-color: rgba(200, 230, 201, calc(0.76 + 0.12 * var(--g-strength))) !important; color: #333; }
+        body.glass-mode .heatmap-day-content.task-cal-green-2 { background-color: rgba(102, 187, 106, calc(0.76 + 0.12 * var(--g-strength))) !important; color: white; }
+        body.glass-mode .heatmap-day-content.task-cal-green-3 { background-color: rgba(56, 142, 60, calc(0.76 + 0.12 * var(--g-strength))) !important; color: white; }
+        body.glass-mode .heatmap-day-content.task-cal-red-1 { background-color: rgba(239, 154, 154, calc(0.76 + 0.12 * var(--g-strength))) !important; color: #333; }
+        body.glass-mode .heatmap-day-content.task-cal-red-2 { background-color: rgba(239, 83, 80, calc(0.76 + 0.12 * var(--g-strength))) !important; color: white; }
+        body.glass-mode .heatmap-day-content.task-cal-red-3 { background-color: rgba(211, 47, 47, calc(0.76 + 0.12 * var(--g-strength))) !important; color: white; }
         /* 所有有数据的格子增加玻璃质感边框（无毛玻璃，避免性能问题） */
         body.glass-mode .heatmap-day-content[class*="net-"],
         body.glass-mode .heatmap-day-content[class*="task-cal-"] {
             box-shadow: 0 2px 6px rgba(0, 0, 0, 0.15);
-            border: 1px solid rgba(255, 255, 255, 0.2) !important;
+            border: 1px solid rgba(255, 255, 255, var(--g1b-border)) !important;
         }
         /* 活动日历导航按钮和月份标签通透模式 */
         body.glass-mode .heatmap-nav button {
@@ -4540,18 +4593,21 @@
             filter: drop-shadow(0 2px 6px rgba(0, 0, 0, 0.2));
         }
         body.glass-mode .pie-chart-container svg path.pie-highlight-slice {
-            stroke: rgba(255, 255, 255, 0.35);
+            /* [v9.39.0] 纳入滑块控制，但给「高清保底」——扇形是数据本身，不能随 0% 档位一起消失：
+               0% 档 → opacity 0.75 / 描边 0.28；120% 档 → 0.98 / 0.42 */
+            stroke: rgba(255, 255, 255, calc(0.28 + 0.14 * var(--g-strength)));
             stroke-width: 0.75;
-            /* 扇形颜色会在 JS 中设置，这里添加透明度 */
-            opacity: 0.88;
+            /* 扇形填充色由 JS 按分类色设置，这里只控制整体不透明度 */
+            opacity: calc(0.75 + 0.23 * var(--g-strength));
         }
         /* 饼图中心区域 - 白色半透明玻璃效果 */
         body.glass-mode .pie-chart::before {
-            background: linear-gradient(135deg, rgba(255, 255, 255, 0.25) 0%, rgba(255, 255, 255, 0.15) 100%) !important;
-            backdrop-filter: blur(calc(12px * max(var(--glass-blur-scale), 0.2)));
-            -webkit-backdrop-filter: blur(calc(12px * max(var(--glass-blur-scale), 0.2)));
+            /* [v9.39.0] 归 L1.1（报告卡内的饼图中心孔 = 内衬） */
+            background: linear-gradient(135deg, rgba(255, 255, 255, calc(var(--g1b-bg-from) * 2.4)) 0%, rgba(255, 255, 255, var(--g1b-bg-from)) 100%) !important;
+            backdrop-filter: blur(var(--g2-blur));
+            -webkit-backdrop-filter: blur(var(--g2-blur));
             box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
-            border: 1px solid rgba(255, 255, 255, 0.25);
+            border: 1px solid rgba(255, 255, 255, var(--g1b-border));
         }
         body.glass-mode .pie-chart-center {
             background: transparent !important;
@@ -4573,17 +4629,17 @@
             color: rgba(255, 255, 255, 0.9) !important;
         }
         
-        /* 走势提示框/饼图提示框通透模式 */
+        /* 走势提示框/饼图提示框通透模式 · [v9.39.0] 归 L3 浮层 */
         body.glass-mode .trend-tooltip,
         body.glass-mode .pie-tooltip {
             background: linear-gradient(
                 135deg,
-                rgba(255,255,255, calc(0.22 * max(var(--glass-opacity-scale), 0.2))) 0%,
-                rgba(255,255,255, calc(0.15 * max(var(--glass-opacity-scale), 0.2))) 100%
+                rgba(255,255,255, var(--g3-bg-from)) 0%,
+                rgba(255,255,255, calc(var(--g3-bg-to) * 1.4)) 100%
             ) !important;
-            border: 1px solid rgba(255, 255, 255, calc(0.3 * max(var(--glass-opacity-scale), 0.2)));
-            backdrop-filter: blur(calc(20px * max(var(--glass-blur-scale), 0.2)));
-            -webkit-backdrop-filter: blur(calc(20px * max(var(--glass-blur-scale), 0.2)));
+            border: 1px solid rgba(255, 255, 255, var(--g3-border));
+            backdrop-filter: blur(var(--g3-blur));
+            -webkit-backdrop-filter: blur(var(--g3-blur));
             color: white !important;
         }
         body.glass-mode .trend-tooltip *,
@@ -4595,14 +4651,15 @@
         /* [v6.4.6] 增强模糊效果：基础值从20px提升到30px，确保遮挡下方内容 */
         body.glass-mode .task-card-menu,
         body.glass-mode .context-menu {
+            /* [v9.39.0] 归 L3 浮层（任务卡菜单 / 右键菜单） */
             background: linear-gradient(
                 135deg,
-                rgba(255,255,255, calc(0.22 * max(var(--glass-opacity-scale), 0.2))) 0%,
-                rgba(255,255,255, calc(0.15 * max(var(--glass-opacity-scale), 0.2))) 100%
+                rgba(255,255,255, var(--g3-bg-from)) 0%,
+                rgba(255,255,255, calc(var(--g3-bg-to) * 1.4)) 100%
             ) !important;
-            border: 1px solid rgba(255, 255, 255, calc(0.3 * max(var(--glass-opacity-scale), 0.2)));
-            backdrop-filter: blur(calc(30px * max(var(--glass-blur-scale), 0.3)));
-            -webkit-backdrop-filter: blur(calc(30px * max(var(--glass-blur-scale), 0.3)));
+            border: 1px solid rgba(255, 255, 255, var(--g3-border));
+            backdrop-filter: blur(var(--g3-blur));
+            -webkit-backdrop-filter: blur(var(--g3-blur));
         }
         body.glass-mode .dropdown-item,
         body.glass-mode .context-menu-item {
@@ -4613,20 +4670,20 @@
             background: rgba(255, 255, 255, 0.15);
         }
         
-        /* 工具提示通透模式 */
+        /* 工具提示通透模式 · [v9.39.0] 归 L3 浮层 */
         body.glass-mode .tooltip,
         body.glass-mode .heatmap-tooltip {
-            background: rgba(255, 255, 255, calc(0.2 * max(var(--glass-opacity-scale), 0.2))) !important;
-            border: 1px solid rgba(255, 255, 255, calc(0.3 * max(var(--glass-opacity-scale), 0.2)));
-            backdrop-filter: blur(calc(15px * max(var(--glass-blur-scale), 0.2)));
-            -webkit-backdrop-filter: blur(calc(15px * max(var(--glass-blur-scale), 0.2)));
+            background: rgba(255, 255, 255, var(--g3-bg-from)) !important;
+            border: 1px solid rgba(255, 255, 255, var(--g3-border));
+            backdrop-filter: blur(var(--g3-blur));
+            -webkit-backdrop-filter: blur(var(--g3-blur));
             color: white !important;
         }
         
-        /* 分割线和边框通透模式 */
+        /* 分割线和边框通透模式 · [v9.39.0] 归 L1.1（卡内/页面内的分隔笔触） */
         body.glass-mode hr,
         body.glass-mode .divider {
-            border-color: rgba(255, 255, 255, 0.2) !important;
+            border-color: rgba(255, 255, 255, var(--g1b-border)) !important;
         }
         
         /* 开关/Toggle通透模式 */
@@ -4645,12 +4702,9 @@
         
         /* 报告页面时间概览卡片通透模式 */
         body.glass-mode .kpi-card {
-            background: linear-gradient(135deg, rgba(255,255,255, calc(0.12 * var(--glass-opacity-scale))) 0%, rgba(255,255,255, calc(0.05 * var(--glass-opacity-scale))) 100%) !important;
-            border: 1px solid rgba(255, 255, 255, calc(0.25 * var(--glass-opacity-scale)));
-        }
-        [data-theme="dark"] body.glass-mode .kpi-card {
-            background: linear-gradient(135deg, rgba(255,255,255, calc(0.08 * var(--glass-opacity-scale))) 0%, rgba(255,255,255, calc(0.03 * var(--glass-opacity-scale))) 100%) !important;
-            border: 1px solid rgba(255, 255, 255, calc(0.12 * var(--glass-opacity-scale)));
+            /* [v9.39.0] 归 L2：报告卡内的子卡（比 .report-section 大卡实） */
+            background: linear-gradient(135deg, rgba(255,255,255, var(--g2-bg)) 0%, rgba(255,255,255, calc(var(--g2-bg) * 0.42)) 100%) !important;
+            border: 1px solid rgba(255, 255, 255, var(--g2-border));
         }
         body.glass-mode .kpi-card .kpi-value {
             color: white;
@@ -4661,11 +4715,13 @@
         }
         /* [v9.27.0] 时间概览表格网格通透模式适配（v9.19.0 新布局） */
         body.glass-mode .kpi-table-grid {
-            background: rgba(255, 255, 255, calc(0.1 * var(--glass-opacity-scale))) !important;
-            border-color: rgba(255, 255, 255, calc(0.15 * var(--glass-opacity-scale))) !important;
+            /* [v9.39.0] 归 L1.1：附着在报告卡（L1）上的时间概览网格 */
+            background: rgba(255, 255, 255, var(--g1b-bg-from)) !important;
+            border-color: rgba(255, 255, 255, var(--g1b-border)) !important;
         }
         body.glass-mode .kpi-cell {
-            background: rgba(255, 255, 255, calc(0.06 * var(--glass-opacity-scale))) !important;
+            /* 单元格比网格更淡（保留原 0.6 倍比例） */
+            background: rgba(255, 255, 255, calc(var(--g1b-bg-from) * 0.6)) !important;
         }
         body.glass-mode .kpi-cell-label {
             color: rgba(255, 255, 255, 0.7) !important;
@@ -4689,13 +4745,8 @@
         body.glass-mode .kpi-cell-delta.down {
             color: #ff8a80 !important;
         }
-        [data-theme="dark"] body.glass-mode .kpi-table-grid {
-            background: rgba(255, 255, 255, calc(0.06 * var(--glass-opacity-scale))) !important;
-            border-color: rgba(255, 255, 255, calc(0.1 * var(--glass-opacity-scale))) !important;
-        }
-        [data-theme="dark"] body.glass-mode .kpi-cell {
-            background: rgba(255, 255, 255, calc(0.04 * var(--glass-opacity-scale))) !important;
-        }
+        /* [v9.39.0] 删除深色变体：上方浅色规则已改用 L2 token，
+           深色差异由 token 的主题因子（alpha × 0.75）统一承担。 */
         /* [v9.38.4] 时间概览「热力图色块」（测试版，通透模式专用）
            背景：普通模式靠「文字颜色」（流量色系 getFlowColorScaled 的内联 color）表达好坏，
            但通透模式下这条 .kpi-cell-value{color:white!important} 会把内联色整片刷白 → 整表失去色彩信息。
@@ -4710,39 +4761,42 @@
         }
         body.glass-mode .kpi-cell[class*="kpi-heat-"] .kpi-cell-label { opacity: 0.78; }
         body.glass-mode .kpi-cell[class*="kpi-heat-"] .kpi-cell-value { font-weight: 700; }
+        /* [v9.39.0] 纳入滑块控制 +「高清保底」：色块是数据编码，不能随 0% 档位一起消失。
+           每档 0% → 0.76/0.78/0.82，120% → 0.88/0.90/0.94（保留原有的深浅梯度） */
         /* 净赚（绿）三档：浅 → 中 → 深 */
-        body.glass-mode .kpi-cell.kpi-heat-surplus-1 { background: rgba(155, 233, 168, 0.82) !important; color: #14361c !important; }
-        body.glass-mode .kpi-cell.kpi-heat-surplus-2 { background: rgba(64, 196, 99, 0.84) !important; color: #0c2913 !important; }
-        body.glass-mode .kpi-cell.kpi-heat-surplus-3 { background: rgba(33, 110, 57, 0.88) !important; color: #ffffff !important; }
+        body.glass-mode .kpi-cell.kpi-heat-surplus-1 { background: rgba(155, 233, 168, calc(0.76 + 0.12 * var(--g-strength))) !important; color: #14361c !important; }
+        body.glass-mode .kpi-cell.kpi-heat-surplus-2 { background: rgba(64, 196, 99, calc(0.78 + 0.12 * var(--g-strength))) !important; color: #0c2913 !important; }
+        body.glass-mode .kpi-cell.kpi-heat-surplus-3 { background: rgba(33, 110, 57, calc(0.82 + 0.12 * var(--g-strength))) !important; color: #ffffff !important; }
         /* 净消费（红）三档：浅 → 中 → 深 */
-        body.glass-mode .kpi-cell.kpi-heat-deficit-1 { background: rgba(255, 205, 210, 0.82) !important; color: #55191d !important; }
-        body.glass-mode .kpi-cell.kpi-heat-deficit-2 { background: rgba(229, 115, 115, 0.84) !important; color: #3c0c0c !important; }
-        body.glass-mode .kpi-cell.kpi-heat-deficit-3 { background: rgba(244, 67, 54, 0.88) !important; color: #ffffff !important; }
+        body.glass-mode .kpi-cell.kpi-heat-deficit-1 { background: rgba(255, 205, 210, calc(0.76 + 0.12 * var(--g-strength))) !important; color: #55191d !important; }
+        body.glass-mode .kpi-cell.kpi-heat-deficit-2 { background: rgba(229, 115, 115, calc(0.78 + 0.12 * var(--g-strength))) !important; color: #3c0c0c !important; }
+        body.glass-mode .kpi-cell.kpi-heat-deficit-3 { background: rgba(244, 67, 54, calc(0.82 + 0.12 * var(--g-strength))) !important; color: #ffffff !important; }
         
         /* 排行榜通透模式 */
         body.glass-mode .leaderboard-label {
             color: rgba(255, 255, 255, 0.85);
         }
         body.glass-mode .leaderboard-bar-wrapper {
-            background: rgba(255, 255, 255, calc(0.15 * var(--glass-opacity-scale))) !important;
+            /* [v9.39.0] 归 L1.1（排行榜条形凹槽 = 内衬） */
+            background: rgba(255, 255, 255, var(--g1b-bg-from)) !important;
         }
         
-        /* 表格通透模式 */
+        /* 表格通透模式 · [v9.39.0] 归 L1.1（报告卡内的表格 = 内衬；单元格是内衬上的更浅一层） */
         body.glass-mode table {
             background: transparent !important;
         }
         body.glass-mode th {
-            background: rgba(255, 255, 255, calc(0.1 * var(--glass-opacity-scale))) !important;
+            background: rgba(255, 255, 255, calc(var(--g1b-bg-from) * 0.75)) !important;
             color: white !important;
-            border-color: rgba(255, 255, 255, calc(0.15 * var(--glass-opacity-scale))) !important;
+            border-color: rgba(255, 255, 255, var(--g1b-border)) !important;
         }
         body.glass-mode td {
-            background: rgba(255, 255, 255, calc(0.05 * var(--glass-opacity-scale))) !important;
+            background: rgba(255, 255, 255, calc(var(--g1b-bg-from) * 0.37)) !important;
             color: rgba(255, 255, 255, 0.9) !important;
-            border-color: rgba(255, 255, 255, calc(0.1 * var(--glass-opacity-scale))) !important;
+            border-color: rgba(255, 255, 255, calc(var(--g1b-bg-from) * 0.75)) !important;
         }
         body.glass-mode tr:hover td {
-            background: rgba(255, 255, 255, calc(0.12 * var(--glass-opacity-scale))) !important;
+            background: rgba(255, 255, 255, var(--g1b-bg-from)) !important;
         }
 
         .modal { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0, 0, 0, 0.5); z-index: 2000; opacity: 0; transition: opacity 0.25s ease; }
@@ -4772,12 +4826,9 @@
             from { transform: rotate(0deg); }
             to { transform: rotate(360deg); }
         }
-        body.glass-mode #taskDeleteProgressModal .modal-content {
-            background: rgba(255, 255, 255, calc(0.12 * max(var(--glass-opacity-scale), 0.2))) !important;
-            border: 1px solid rgba(255, 255, 255, calc(0.28 * max(var(--glass-opacity-scale), 0.2))) !important;
-            backdrop-filter: blur(calc(18px * max(var(--glass-blur-scale), 0.2))) !important;
-            -webkit-backdrop-filter: blur(calc(18px * max(var(--glass-blur-scale), 0.2))) !important;
-        }
+        /* [v9.39.0] 删除此弹窗的独立通透覆盖，改用通用 .modal-content 的 L3 规则。
+           原先各弹窗自写一套（0.12/0.28/18px + max 保底）是「体系外元素」，
+           收编后随全应用弹窗统一；差异仅 blur 18px→21px，肉眼难辨。 */
         
         /* [v5.10.0] 普通点击弹窗动画 - 无 opacity，避免亮度闪烁 */
         @keyframes modalPopIn {
@@ -5265,12 +5316,8 @@
         body.glass-mode .card-manager-toggle input:checked + .slider {
             background-color: rgba(var(--color-primary-rgb), 0.8) !important;
         }
-        /* [v7.5.3] 自定义报告卡片弹窗通透模式完整优化 */
-        body.glass-mode #cardManagerModal .modal-content {
-            background: linear-gradient(135deg, rgba(255,255,255, 0.15) 0%, rgba(255,255,255, 0.08) 100%) !important;
-            backdrop-filter: blur(calc(30px * var(--glass-blur-scale)));
-            -webkit-backdrop-filter: blur(calc(30px * var(--glass-blur-scale)));
-        }
+        /* [v7.5.3] 自定义报告卡片弹窗通透模式
+           [v9.39.0] 删除独立覆盖（原 0.15/0.08 + blur 30px），改用通用 .modal-content 的 L3 规则 */
         body.glass-mode #cardManagerModal .modal-title {
             color: white !important;
             text-shadow: 0 1px 3px rgba(0, 0, 0, 0.5);
@@ -5300,11 +5347,7 @@
             background: rgba(var(--color-primary-rgb), 0.8) !important;
         }
 
-        body.glass-mode #recommendWeightModal .modal-content {
-            background: linear-gradient(135deg, rgba(255,255,255, 0.15) 0%, rgba(255,255,255, 0.08) 100%) !important;
-            backdrop-filter: blur(calc(30px * var(--glass-blur-scale)));
-            -webkit-backdrop-filter: blur(calc(30px * var(--glass-blur-scale)));
-        }
+        /* [v9.39.0] 删除独立覆盖（原 0.15/0.08 + blur 30px），改用通用 .modal-content 的 L3 规则 */
         body.glass-mode #recommendWeightModal .modal-title {
             color: white !important;
             text-shadow: 0 1px 3px rgba(0, 0, 0, 0.5);
@@ -5361,17 +5404,14 @@
         .widget-preview-title { font-size: 0.8rem; font-weight: 500; color: var(--text-color); text-align: center; }
         .widget-preview-desc { font-size: 0.7rem; color: var(--text-color-light); text-align: center; }
         /* [v7.14.0] 通透模式小组件选择器 */
-        body.glass-mode #widgetSelectorModal .modal-content {
-            background: linear-gradient(135deg, rgba(255,255,255, 0.15) 0%, rgba(255,255,255, 0.08) 100%) !important;
-            backdrop-filter: blur(calc(30px * var(--glass-blur-scale)));
-            -webkit-backdrop-filter: blur(calc(30px * var(--glass-blur-scale)));
-        }
+        /* [v9.39.0] 删除独立覆盖（原 0.15/0.08 + blur 30px），改用通用 .modal-content 的 L3 规则 */
         body.glass-mode .widget-preview-item {
-            background: rgba(255, 255, 255, 0.12) !important;
-            border: 1px solid rgba(255, 255, 255, 0.2);
+            /* [v9.39.0] 归 L4（小组件选择器弹窗内的预览项） */
+            background: rgba(255, 255, 255, calc(var(--g4-bg) * 0.7)) !important;
+            border: 1px solid rgba(255, 255, 255, calc(var(--g4-bg) * 1.4));
         }
         body.glass-mode .widget-preview-item:hover {
-            background: rgba(255, 255, 255, 0.2) !important;
+            background: rgba(255, 255, 255, calc(var(--g4-bg) * 0.85)) !important;
         }
         body.glass-mode .widget-preview-title {
             color: rgba(255, 255, 255, 0.9) !important;
@@ -5430,12 +5470,14 @@
         .sleep-settings-modal .modal-footer {
             margin-top: var(--space-lg); display: flex; gap: var(--space-md); justify-content: flex-end;
         }
-        /* 玻璃模式适配 - 小睡/夜间设置弹窗 */
+        /* 玻璃模式适配 - 小睡/夜间设置弹窗
+           [v9.39.0] 归 L3 浮层：保留「深色实底」特色（此弹窗整体为深色主题），
+           alpha 与 blur 改由 L3 token 派生，从而随「通透强度」滑块联动。 */
         body.glass-mode .sleep-settings-modal .modal-content {
-            background: rgba(30, 30, 40, 0.85);
-            backdrop-filter: blur(calc(20px * var(--glass-blur-scale)));
-            -webkit-backdrop-filter: blur(calc(20px * var(--glass-blur-scale)));
-            border: 1px solid rgba(255, 255, 255, 0.15);
+            background: rgba(30, 30, 40, calc(var(--g3-bg-from) * 4));
+            backdrop-filter: blur(var(--g3-blur));
+            -webkit-backdrop-filter: blur(var(--g3-blur));
+            border: 1px solid rgba(255, 255, 255, var(--g3-border));
         }
         body.glass-mode .sleep-settings-modal .modal-title,
         body.glass-mode .sleep-settings-modal .label {
@@ -5683,25 +5725,25 @@
         /* --- 通透模式：半透明色条 + 磨砂 --- */
         body.glass-mode .sleep-bar.level-1 {
             background: rgba(102,187,106,0.50);
-            backdrop-filter: blur(calc(4px * var(--glass-blur-scale))); -webkit-backdrop-filter: blur(calc(4px * var(--glass-blur-scale)));
+            backdrop-filter: blur(var(--g2-blur)); -webkit-backdrop-filter: blur(var(--g2-blur));
             border: 1px solid rgba(102,187,106,0.25);
             box-shadow: none;
         }
         body.glass-mode .sleep-bar.level-2 {
             background: rgba(66,165,245,0.50);
-            backdrop-filter: blur(calc(4px * var(--glass-blur-scale))); -webkit-backdrop-filter: blur(calc(4px * var(--glass-blur-scale)));
+            backdrop-filter: blur(var(--g2-blur)); -webkit-backdrop-filter: blur(var(--g2-blur));
             border: 1px solid rgba(66,165,245,0.25);
             box-shadow: none;
         }
         body.glass-mode .sleep-bar.level-3 {
             background: rgba(255,167,38,0.50);
-            backdrop-filter: blur(calc(4px * var(--glass-blur-scale))); -webkit-backdrop-filter: blur(calc(4px * var(--glass-blur-scale)));
+            backdrop-filter: blur(var(--g2-blur)); -webkit-backdrop-filter: blur(var(--g2-blur));
             border: 1px solid rgba(255,167,38,0.25);
             box-shadow: none;
         }
         body.glass-mode .sleep-bar.level-4 {
             background: rgba(239,83,80,0.50);
-            backdrop-filter: blur(calc(4px * var(--glass-blur-scale))); -webkit-backdrop-filter: blur(calc(4px * var(--glass-blur-scale)));
+            backdrop-filter: blur(var(--g2-blur)); -webkit-backdrop-filter: blur(var(--g2-blur));
             border: 1px solid rgba(239,83,80,0.25);
             box-shadow: none;
         }
@@ -6475,17 +6517,17 @@
         .category-expand-btn.expanded .expand-icon {
             transform: rotate(180deg);
         }
-        /* [v7.14.1] 分类展开按钮通透模式 */
+        /* [v7.14.1] 分类展开按钮通透模式 · [v9.39.0] 归 L2 */
         body.glass-mode .category-expand-btn {
-            background: rgba(255, 255, 255, calc(0.1 * var(--glass-opacity-scale))) !important;
+            background: rgba(255, 255, 255, calc(var(--g2-bg) * 0.75)) !important;
             color: rgba(255, 255, 255, 0.8) !important;
             text-shadow: 0 1px 2px rgba(0, 0, 0, 0.3);
-            backdrop-filter: blur(calc(10px * var(--glass-blur-scale)));
-            -webkit-backdrop-filter: blur(calc(10px * var(--glass-blur-scale)));
+            backdrop-filter: blur(var(--g2-blur));
+            -webkit-backdrop-filter: blur(var(--g2-blur));
         }
         body.glass-mode .category-expand-btn:hover {
             color: white !important;
-            background: rgba(255, 255, 255, calc(0.15 * var(--glass-opacity-scale))) !important;
+            background: rgba(255, 255, 255, var(--g2-bg)) !important;
         }
 
         /* [v7.17.0] 任务卡片展开/收起标签 - 右下角紧贴底部 */
@@ -6531,8 +6573,8 @@
         /* 通透模式样式 - 统一风格 */
         body.glass-mode .task-expand-tag {
             background: rgba(255, 255, 255, 0.2);
-            backdrop-filter: blur(calc(8px * var(--glass-blur-scale)));
-            -webkit-backdrop-filter: blur(calc(8px * var(--glass-blur-scale)));
+            backdrop-filter: blur(var(--g2-blur));
+            -webkit-backdrop-filter: blur(var(--g2-blur));
             border: 1px solid rgba(255, 255, 255, 0.25);
             border-right: none;
             border-bottom: none;
@@ -8653,12 +8695,13 @@
      ② 气泡：单体小浮层、一次性入场动画，不在列表滚动路径上，保留原弹簧 pop；
      ③ blur 半径沿用弹窗级参数，不额外加大。 */
 body.glass-mode .time-bot-chat-card {
+    /* [v9.39.0] 归 L3 浮层（Time Bot 对话窗，参数与 .modal-content 同源） */
     background: linear-gradient(135deg,
-        rgba(255, 255, 255, calc(0.12 * var(--glass-opacity-scale))) 0%,
-        rgba(255, 255, 255, calc(0.06 * var(--glass-opacity-scale))) 100%) !important;
-    border: 1px solid rgba(255, 255, 255, calc(0.30 * var(--glass-opacity-scale)));
-    backdrop-filter: blur(calc(25px * var(--glass-blur-scale)));
-    -webkit-backdrop-filter: blur(calc(25px * var(--glass-blur-scale)));
+        rgba(255, 255, 255, var(--g3-bg-from)) 0%,
+        rgba(255, 255, 255, var(--g3-bg-to)) 100%) !important;
+    border: 1px solid rgba(255, 255, 255, var(--g3-border));
+    backdrop-filter: blur(var(--g3-blur));
+    -webkit-backdrop-filter: blur(var(--g3-blur));
     color: #fff !important;
     box-shadow: 0 8px 32px rgba(0, 0, 0, 0.30);
 }
@@ -8675,17 +8718,18 @@ body.glass-mode .time-bot-chat-card:not(.show) > * {
 }
 /* 气泡：保留原弹簧 pop */
 body.glass-mode .time-bot-bubble {
+    /* [v9.39.0] 归 L3 浮层（Time Bot 气泡） */
     background: linear-gradient(135deg,
-        rgba(255, 255, 255, calc(0.16 * var(--glass-opacity-scale))) 0%,
-        rgba(255, 255, 255, calc(0.09 * var(--glass-opacity-scale))) 100%) !important;
-    border: 1px solid rgba(255, 255, 255, calc(0.28 * var(--glass-opacity-scale)));
-    backdrop-filter: blur(calc(18px * var(--glass-blur-scale)));
-    -webkit-backdrop-filter: blur(calc(18px * var(--glass-blur-scale)));
+        rgba(255, 255, 255, var(--g3-bg-from)) 0%,
+        rgba(255, 255, 255, calc(var(--g3-bg-to) * 1.4)) 100%) !important;
+    border: 1px solid rgba(255, 255, 255, var(--g3-border));
+    backdrop-filter: blur(var(--g3-blur));
+    -webkit-backdrop-filter: blur(var(--g3-blur));
     color: #fff !important;
     box-shadow: 0 4px 18px rgba(0, 0, 0, 0.28);
 }
 body.glass-mode .time-bot-bubble::after {
-    background: rgba(255, 255, 255, calc(0.14 * var(--glass-opacity-scale))) !important;
+    background: rgba(255, 255, 255, var(--g3-bg-from)) !important;
 }
 body.glass-mode .time-bot-chat-header,
 body.glass-mode .time-bot-chat-footer { border-color: rgba(255, 255, 255, 0.15) !important; }

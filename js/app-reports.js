@@ -6175,6 +6175,67 @@ function snapGlassLevel(val) {
     return closest;
 }
 
+// [v9.39.0] 通透强度**分层曲线表**：每层每个 token 给出 [lo, hi]
+//   value = lo + (hi − lo) × 档位/1.2
+//   分层原则：越靠上层越实（L1 卡片壳 < L2 卡上元素 < L3 浮层 < L4 浮层内元素）
+//   lo 即该层的「下限」：背景 alpha 的 lo > 0 → 0% 档位卡片仍隐约在（不再整批归零）；
+//   而【模糊的 lo 恒为 0】→ 0% 档位完全不模糊（模糊不能有保底，否则会留下一块糊斑）
+//   调曲线只需改这张表；CSS 侧 260+ 处调用点全部引用 token，不再出现魔法数字
+// [v9.39.0-fix] blur 的下限一律为 0：模糊不该有保底。
+//   背景 alpha 的 lo 保底（避免卡片整个消失）与 blur 的 lo=0（0% 档位完全不模糊）
+//   是两件独立的事——此前误把 blur 也给了下限，导致 0% 档位下卡片底色几乎透明、
+//   但背后壁纸被模糊，呈现为「一块糊斑」。上限取「原基准 × 1.2」，使各档位模糊量与改造前一致。
+const GLASS_LAYERS = {
+    // L1 一级卡片壳（贴壁纸）
+    g1: { bgFrom: [0.040, 0.100], bgTo: [0.010, 0.035], border: [0.160, 0.340], blur: [0, 24] },
+    // [v9.39.0] L1.1「L1 卡片内的第一层容器」= L1 × 1.1（0.044 → 0.110）
+    //   用途：报告卡里的图表容器 / 表格网格 / 日历网格 / 卡内凹槽与分隔线等「贴着卡片壳的内衬」。
+    //   它比 L1 略实一点点，形成「卡片壳 → 内衬 → 功能按键」的递进，但又不跳到 L2 那么实。
+    g1b: { bgFrom: [0.044, 0.110], bgTo: [0.011, 0.0385], border: [0.176, 0.374], blur: [0, 24] },
+    // L2 功能按键（可交互元素）—— [v9.39.0] 按「L1 的 2 倍」提亮，与内衬拉开区分；
+    //   [v9.39.0+] 再按用户要求整体 +50%：0.120 → 0.300（= L1 × 3）。
+    //   按钮必须比它所在的卡片/内衬明显更"实"，用户才能一眼看出"这是能点的"。
+    g2: { bg: [0.120, 0.300], border: [0.270, 0.600], blur: [0, 10] },
+    // L3 浮层
+    g3: { bgFrom: [0.100, 0.240], bgTo: [0.050, 0.130], border: [0.140, 0.320], blur: [0, 30] },
+    // L4 浮层内元素
+    g4: { bg: [0.140, 0.320], border: [0.180, 0.380], blur: [0, 18] }
+};
+const GLASS_DARK_ALPHA_FACTOR = 0.75; // 深色主题：各 alpha × 0.75（blur 不变）
+
+// [v9.39.0] 计算并写入全部分层 token（供 applyGlassStrength 与主题切换监听共用）
+function _applyGlassTokens(scale) {
+    const root = document.documentElement;
+    const isDark = (document.documentElement.getAttribute('data-theme') || document.body.getAttribute('data-theme')) === 'dark';
+    const factor = isDark ? GLASS_DARK_ALPHA_FACTOR : 1;
+    const t = scale / 1.2;
+    // [v9.39.0-fix] 无保底的强度因子（0 ~ 1），供「彩色 / 装饰元素」使用：
+    //   按钮底、睡眠色条、类目标签、时间流条块、负余额红底等，在 0% 档位应彻底归零，
+    //   不能像「容器背景」那样带 lo 保底——否则 0% 时会在透明卡片上残留一片色块。
+    root.style.setProperty('--g-strength', t.toFixed(4));
+    for (const layer of Object.keys(GLASS_LAYERS)) {
+        const tokens = GLASS_LAYERS[layer];
+        for (const name of Object.keys(tokens)) {
+            const range = tokens[name];
+            const v = range[0] + (range[1] - range[0]) * t;
+            // bgFrom → --g1-bg-from
+            const cssName = '--' + layer + '-' + name.replace(/[A-Z]/g, c => '-' + c.toLowerCase());
+            root.style.setProperty(cssName, name === 'blur' ? v.toFixed(1) + 'px' : (v * factor).toFixed(4));
+        }
+    }
+}
+
+// [v9.39.0] 主题切换时重算分层 token（深色系 alpha 需 × 0.75）。
+// 用 MutationObserver 统一覆盖所有路径：手动切换 / 系统跟随 / Android UiMode 回调，
+// 与 time-bot.js 监听 data-theme 的做法一致，避免在每个切换点各插一次调用。
+(function observeThemeForGlass() {
+    if (typeof MutationObserver !== 'function') return;
+    const obs = new MutationObserver(() => {
+        _applyGlassTokens((screenTimeSettings.glassStrength || 90) / 100);
+    });
+    obs.observe(document.documentElement, { attributes: true, attributeFilter: ['data-theme'] });
+})();
+
 // [v9.28.1] 通透强度调节（合并：一个滑块同时控制透明度与模糊度）
 function applyGlassStrength(percent = 100, persist = true) {
     const slider = document.getElementById('glassStrengthSlider');
@@ -6187,9 +6248,12 @@ function applyGlassStrength(percent = 100, persist = true) {
     screenTimeSettings.glassBlurStrength = clamped; // [v9.28.1] 合并后模糊与通透保持一致
     if (glassStrengthRaf) cancelAnimationFrame(glassStrengthRaf);
     glassStrengthRaf = requestAnimationFrame(() => {
-document.documentElement.style.setProperty('--glass-strength', scale);
-document.documentElement.style.setProperty('--glass-opacity-scale', scale);
-document.documentElement.style.setProperty('--glass-blur-scale', scale);
+        // [v9.39.0] 一次写入 4 层 token
+        _applyGlassTokens(scale);
+        // [v9.39.0] 兼容位：仅剩 3 处「非通透模式也要生效」的固定模糊仍用 --glass-blur-scale
+        // （.task-card 基础样式 + 两处普通 tooltip）；透明度变量已全量迁移到分层 token，
+        //  死变量 --glass-strength 已一并删除）
+        document.documentElement.style.setProperty('--glass-blur-scale', scale);
 if (persist) saveScreenTimeSettings();
 glassStrengthRaf = null;
     });
@@ -6280,13 +6344,10 @@ bottomTabs.classList.add(style);
     }
     // 通透强度控制条显隐
     const glassStrengthSetting = document.getElementById('glassStrengthSetting');
-    const glassAffectList = document.getElementById('glassAffectList');
     if (glassStrengthSetting) {
 glassStrengthSetting.style.display = style === 'glass' ? 'flex' : 'none';
     }
-    if (glassAffectList) {
-glassAffectList.style.display = style === 'glass' ? 'block' : 'none';
-    }
+    // [v9.39.0] 删除 #glassAffectList 死引用（index.html 中已无此元素）
     // 切换到通透时，应用当前强度
     if (style === 'glass') {
 applyGlassStrength(screenTimeSettings.glassStrength || 90, false);

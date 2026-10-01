@@ -9,7 +9,7 @@
       Do NOT update the version number in <title> or any other place.
       The user designates the version number at the START of an update cycle.
     -->
-    <title>时间银行 - Time Bank v9.38.4</title>
+    <title>时间银行 - Time Bank v9.39.0</title>
 
     <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' fill='%231a2744'/%3E%3Ctext x='16' y='22' text-anchor='middle' font-size='20' fill='white'%3E⏳%3C/text%3E%3C/svg%3E">
     <link rel="manifest" href="manifest.json">
@@ -276,7 +276,7 @@
         <div class="header">
             <h1>时间银行</h1>
         </div>
-        <div class="version-subtitle">TimeBank v9.38.4 · Time Bot 伙伴 · 气泡对话 · 背景图生图</div>
+        <div class="version-subtitle">TimeBank v9.39.0 · Time Bot 伙伴 · 气泡对话 · 背景图生图</div>
 
         <div class="main-container">
 
@@ -1833,7 +1833,7 @@
                     <div class="about-container" style="padding: 16px 0 8px; line-height: 1.5;">
                         <div class="about-header" style="text-align: center; margin-bottom: 20px; padding-top: 12px;">
                             <div style="font-size: 1.25rem; font-weight: 600; margin-bottom: 4px;">时间银行</div>
-                            <div style="font-size: 0.85rem; color: var(--text-color-light);">版本 v9.38.4</div>
+                            <div style="font-size: 0.85rem; color: var(--text-color-light);">版本 v9.39.0</div>
                         </div>
 
                         <div class="about-meta" style="font-size: 0.9rem; color: var(--text-color);">
@@ -1892,6 +1892,17 @@
                 <!-- 版本更新日志 -->
                 <details>
 <summary>版本更新日志</summary>
+                    <div class="version-history-item">
+                        <p><strong>版本 v9.39.0 (2026-10-01)</strong> 🫧 <b>通透强度大升级 · 一层一层看得清</b></p>
+                        <ul>
+                            <li><strong>[UX]</strong> 🎚️ <b>通透模式彻底重做</b>：以前「通透强度」滑块只管得到一部分元素——卡片里的进度条、表格、弹窗内的按钮各写各的，还有些元素压根不理滑块。现在把整个界面按「离你的远近」分成 5 层：最底层的卡片 → 卡片里的内衬 → 卡片上能点的按钮 → 浮在最上面的弹窗 → 弹窗里的元素。拖一次滑块五层一起动，而且<b>层级越往上越实</b>，一眼就能看出谁压在谁上面。</li>
+                            <li><strong>[UX]</strong> 🔘 <b>按钮更像按钮了</b>：卡片上的操作按钮现在明显比卡片和卡内进度条更「实」，可点感更强，不会再和背景糊在一起。</li>
+                            <li><strong>[Fix]</strong> 🫧 <b>修复「调到最透时卡片糊成一片」</b>：之前把滑块拉到最左，卡片底色几乎没了、背后的壁纸却被糊住，看起来像一块白蒙蒙的斑；现在该清楚就清楚、该干净就干净。</li>
+                            <li><strong>[Fix]</strong> 📊 <b>数据图形始终看得清</b>：构成分析的饼图、时间概览与活动日历的色块，以前完全不理会滑块；现在会跟着一起变，但<b>永远不会淡到看不清</b>——任何档位都读得出数据。</li>
+                            <li><strong>[UX]</strong> 🎛️ <b>拉到最透不再是"消失"</b>：原来滑块拉到 0% 时卡片会整个不见、只剩文字飘在壁纸上；现在会保留一层极淡的底，文字始终有垫子。</li>
+                            <li><strong>[UI]</strong> 🧹 <b>观感更统一</b>：全部 33 个弹窗、悬浮标签栏、右下角按钮、Time Bot 对话窗与气泡、各种菜单和提示框，现在共用同一套材质并同步跟手，不再有"这个变了那个没变"的割裂感；深色主题也自动按比例适配。</li>
+                        </ul>
+                    </div>
                     <div class="version-history-item">
                         <p><strong>版本 v9.38.4 (2026-09-30)</strong> 🫧 <b>通透模式全面适配 · 每日详情饼图回归</b></p>
                         <ul>
