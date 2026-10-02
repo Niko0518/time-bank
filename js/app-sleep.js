@@ -1650,26 +1650,8 @@ function showSleepReportModal(record, footerMode = 'known') {
     const baseTotal = Math.round(r.bedtimeReward || 0) + Math.round(r.wakeReward || 0) + Math.round(r.toleranceBonus || 0) + Math.round(r.durationReward || 0);
     const totalClr = baseTotal >= 0 ? '#4CAF50' : '#F44336';
 
-    // 倍率徽标【颜色接口】：颜色由 main.css 变量 --mult-turbo / --mult-balance 统一控制
-    // 奖励取获取倍率、惩罚取消费倍率；未来均衡消费倍率启用后会自动生效
-    let multHtml = '';
-    try {
-        const tbOn = (typeof turboMode !== 'undefined' && turboMode.enabled);
-        const blOn = (typeof balanceMode !== 'undefined' && balanceMode.enabled);
-        const isReward = baseTotal >= 0;
-        const getter = isReward ? getEarnMultiplier : getSpendMultiplier;
-        // 首选对应倍率函数；缺失时按模式回退取倍率值
-        let mv = (typeof getter === 'function') ? getter() : null;
-        if (mv == null) mv = tbOn ? 1.5 : (blOn ? getBalanceMultiplier() : 1.0);
-        const badgeColor = tbOn ? 'var(--mult-turbo)' : 'var(--mult-balance)';
-        const badgeCss = 'display:inline-block;background:' + badgeColor + ';color:#fff;font-size:0.8rem;font-weight:600;padding:2px 12px;border-radius:999px;';
-        // 不乘入数值，仅色彩+数值提示；turbo 恒显示，均衡仅在确有倍率效果时显示
-        if (tbOn) {
-            multHtml = `<span style="${badgeCss}">×${mv}</span>`;
-        } else if (blOn && mv !== 1) {
-            multHtml = `<span style="${badgeCss}">×${mv}</span>`;
-        }
-    } catch (e) {}
+    // [v9.39.1] 已删除总分行右侧的「×倍率」徽标（用户要求：睡眠报告不再出现 × 与倍率）
+    // 注：报告总分本身仍为各项相加的基准值，未乘倍率，显示口径与之前完全一致
 
     // 时长行：计划(含容差写进计划列) 与 实际
     const planDur = fmtDurCompact(sleepSettings.targetDurationMinutes) || '8h';
@@ -1707,7 +1689,6 @@ function showSleepReportModal(record, footerMode = 'known') {
 
     const totalHtml = `<div style="display:flex;align-items:center;justify-content:center;gap:12px;margin:14px 0 4px;">
         <span style="font-size:2rem;font-weight:700;color:${totalClr};">${fmtHzm(baseTotal)}</span>
-        ${multHtml}
     </div>`;
 
     const modal = document.createElement('div');
@@ -1834,22 +1815,7 @@ function sleepCardRowHtml(name, plan, actual, val) {
     </tr>`;
 }
 
-// 倍率徽标（与夜间弹窗一致：turbo/均衡）
-function sleepCardMultHtml(isReward) {
-    let multHtml = '';
-    try {
-        const tbOn = (typeof turboMode !== 'undefined' && turboMode.enabled);
-        const blOn = (typeof balanceMode !== 'undefined' && balanceMode.enabled);
-        const getter = isReward ? getEarnMultiplier : getSpendMultiplier;
-        let mv = (typeof getter === 'function') ? getter() : null;
-        if (mv == null) mv = tbOn ? 1.5 : (blOn ? getBalanceMultiplier() : 1.0);
-        const badgeColor = tbOn ? 'var(--mult-turbo)' : 'var(--mult-balance)';
-        const badgeCss = 'display:inline-block;background:' + badgeColor + ';color:#fff;font-size:0.8rem;font-weight:600;padding:2px 12px;border-radius:999px;';
-        if (tbOn) multHtml = `<span style="${badgeCss}">×${mv}</span>`;
-        else if (blOn && mv !== 1) multHtml = `<span style="${badgeCss}">×${mv}</span>`;
-    } catch (e) {}
-    return multHtml;
-}
+// [v9.39.1] sleepCardMultHtml() 已删除：睡眠报告不再显示「×倍率」徽标（唯一调用点已移除）
 
 // 日期标签（今日/昨日/M月D日 + 周几），与夜间报告一致
 function sleepCardDateLabel(dateStr, ts) {
@@ -1882,7 +1848,7 @@ function buildSleepCardNapReportHtml() {
     });
 
     // 倍率（奖励侧）
-    const multHtml = sleepCardMultHtml(true);
+    // [v9.39.1] 已删除总分行右侧的「×倍率」徽标（乘入数值的逻辑不变）
     let mult = 1;
     try {
         const getter = (typeof getEarnMultiplier === 'function') ? getEarnMultiplier() : null;
@@ -1920,7 +1886,6 @@ function buildSleepCardNapReportHtml() {
     const totalClr = baseRewardMin > 0 ? '#4CAF50' : 'var(--text-color-light)';
     const totalHtml = `<div style="display:flex;align-items:center;justify-content:center;gap:12px;margin:14px 0 4px;">
         <span style="font-size:2rem;font-weight:700;color:${totalClr};">${sleepCardFmtHzm(baseRewardMin)}</span>
-        ${multHtml}
     </div>`;
 
     return sleepReportTitleHtml('💤', `小睡报告（${dateLabel}）`, 'nap') +
@@ -1959,7 +1924,7 @@ function buildSleepCardNightReportHtml() {
         } catch (e) {}
     }
     const totalClr = total >= 0 ? '#4CAF50' : '#F44336';
-    const multHtml = sleepCardMultHtml(total >= 0);
+    // [v9.39.1] 已删除总分行右侧的「×倍率」徽标（乘入数值的逻辑不变）
 
     const planDur = sleepCardFmtDurCompact(sleepSettings.targetDurationMinutes) || '8h';
     const planTol = '±' + (sleepSettings.durationTolerance || 0) + 'm';
@@ -1983,7 +1948,6 @@ function buildSleepCardNightReportHtml() {
 
     const totalHtml = `<div style="display:flex;align-items:center;justify-content:center;gap:12px;margin:14px 0 4px;">
         <span style="font-size:2rem;font-weight:700;color:${totalClr};">${sleepCardFmtHzm(total)}</span>
-        ${multHtml}
     </div>`;
 
     return sleepReportTitleHtml('😴', `睡眠报告（${dateLabel}）`, 'night') +
@@ -2641,7 +2605,7 @@ function buildAlarmInfoHtml() {
     })();
 
     const modeBtns = `
-        <div style="display:flex; border:1px solid var(--border-color); border-radius:10px; overflow:hidden; margin:8px 0 12px;">
+        <div style="display:flex; border:1px solid var(--border-color); border-radius:10px; overflow:hidden; margin:0;">
             <button type="button" class="btn" style="flex:1; border:none; border-right:1px solid var(--border-color); border-radius:0; padding:8px 0; background:${selectedType === 'night' ? 'var(--color-primary)' : 'transparent'}; color:${selectedType === 'night' ? '#fff' : 'var(--text-color)'};" onclick="setSleepCountdownMode('night')">夜间</button>
             <button type="button" class="btn" style="flex:1; border:none; border-radius:0; padding:8px 0; background:${selectedType === 'nap' ? 'var(--color-primary)' : 'transparent'}; color:${selectedType === 'nap' ? '#fff' : 'var(--text-color)'};" onclick="setSleepCountdownMode('nap')">小睡</button>
         </div>
@@ -2662,7 +2626,7 @@ function buildAlarmInfoHtml() {
 
     const napControls = `
         <div style="margin:8px 0 10px; padding:10px; border-radius:8px; background: rgba(var(--color-primary-rgb), 0.05); ${selectedType === 'nap' ? '' : 'display:none;'}">
-            <div style="font-weight:600; margin-bottom:8px;">💤 小睡闹钟</div>
+            <div style="font-weight:600; margin-bottom:8px;">小睡闹钟</div>
             <div style="display:grid; grid-template-columns:repeat(2, 1fr); gap:6px; margin-bottom:8px;">
                 <button type="button" class="btn" style="padding:6px 0; border:${sleepCountdownSession.napAlarmType === 'time' ? '1px solid var(--color-primary)' : '1px solid var(--border-color)'}; background:${sleepCountdownSession.napAlarmType === 'time' ? 'rgba(var(--color-primary-rgb), 0.12)' : 'transparent'};" onclick="setSleepNapAlarmType('time')">按时间</button>
                 <button type="button" class="btn" style="padding:6px 0; border:${sleepCountdownSession.napAlarmType === 'duration' ? '1px solid var(--color-primary)' : '1px solid var(--border-color)'}; background:${sleepCountdownSession.napAlarmType === 'duration' ? 'rgba(var(--color-primary-rgb), 0.12)' : 'transparent'};" onclick="setSleepNapAlarmType('duration')">按时长</button>
@@ -2682,7 +2646,7 @@ function buildAlarmInfoHtml() {
 
     const nightControls = `
         <div style="margin:8px 0 10px; padding:10px; border-radius:8px; background: rgba(var(--color-primary-rgb), 0.05); ${selectedType === 'night' ? '' : 'display:none;'}">
-            <div style="font-weight:600; margin-bottom:8px;">🌙 夜间闹钟</div>
+            <div style="font-weight:600; margin-bottom:8px;">夜间闹钟</div>
             <div style="display:grid; grid-template-columns:repeat(2, 1fr); gap:6px; margin-bottom:8px;">
                 <button type="button" class="btn" style="padding:6px 0; border:${sleepCountdownSession.nightAlarmType === 'time' ? '1px solid var(--color-primary)' : '1px solid var(--border-color)'}; background:${sleepCountdownSession.nightAlarmType === 'time' ? 'rgba(var(--color-primary-rgb), 0.12)' : 'transparent'};" onclick="setSleepNightAlarmType('time')">按时间</button>
                 <button type="button" class="btn" style="padding:6px 0; border:${sleepCountdownSession.nightAlarmType === 'duration' ? '1px solid var(--color-primary)' : '1px solid var(--border-color)'}; background:${sleepCountdownSession.nightAlarmType === 'duration' ? 'rgba(var(--color-primary-rgb), 0.12)' : 'transparent'};" onclick="setSleepNightAlarmType('duration')">按时长</button>
@@ -2715,10 +2679,17 @@ function buildAlarmInfoHtml() {
         </div>
     `;
 
+    // [v9.39.1] 「本次睡眠模式」与「小睡/夜间闹钟」采用同样的浅色圆角面板容器，观感统一
+    const modePanel = `
+        <div style="margin:8px 0 10px; padding:10px; border-radius:8px; background: rgba(var(--color-primary-rgb), 0.05);">
+            <div style="font-weight:600; margin-bottom:8px;">本次睡眠模式</div>
+            ${modeBtns}
+        </div>
+    `;
+
     return `
         <div style="margin-bottom: 12px; text-align:left;">
-            <div style="font-size: 0.82rem; color: var(--text-color-light); margin-bottom:6px;">本次睡眠模式</div>
-            ${modeBtns}
+            ${modePanel}
             ${napControls}
             ${nightControls}
             ${compactControls}

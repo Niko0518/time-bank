@@ -2819,19 +2819,13 @@ function updateScreenTimeCard() {
         const isGlass = screenTimeSettings.cardStyle === 'glass';
         
         if (isGlass) {
-            // [v7.18.1] 通透模式：进度条颜色使用图形配色方案1
-            let progressStart, progressEnd;
-            if (percent <= 33) {
-                progressStart = '#81c784'; progressEnd = '#27ae60';      // 浅绿→深绿
-            } else if (percent <= 66) {
-                progressStart = '#64b5f6'; progressEnd = '#3498db';      // 浅蓝→深蓝
-            } else if (percent <= 100) {
-                progressStart = '#ffb74d'; progressEnd = '#f39c12';      // 浅橙→深橙
-            } else {
-                progressStart = '#e57373'; progressEnd = '#c0392b';      // 浅红→深红
-            }
+            // [v9.39.1] 通透模式：进度条改为「半透明纯色」（去渐变痕迹），与睡眠卡片条形图同款
+            // 根因：原实现注入内联彩色渐变，与通透模式的"保留色相、去渐变"规范冲突。
+            // 现清空内联样式，颜色由 CSS 按等级类（level-1~4）接管：
+            //   css/main.css → body.glass-mode .st-progress-bar.level-N
             if (progressBar) {
-                progressBar.style.background = `linear-gradient(90deg, ${progressStart}, ${progressEnd})`;
+                progressBar.style.background = '';
+                progressBar.style.color = '';
             }
             // 通透模式不设置wrapper背景渐变（由CSS控制毛玻璃效果）
             if (wrapper) wrapper.style.background = '';
@@ -5012,6 +5006,8 @@ function showScreenTimeDetails() {
         
         // [v5.5.0] 获取应用使用时长列表
         let appUsageHtml = '';
+        // [v9.39.1] 饼图扇区标签数据（渲染后用于绝对定位，见本函数末尾）
+        let stPieLabels = null;
         if (Android.getAppUsageList) {
             try {
                 const appListJson = Android.getAppUsageList(JSON.stringify(screenTimeSettings.whitelistApps));
@@ -5023,41 +5019,66 @@ function showScreenTimeDetails() {
                     const othersTime = others.reduce((sum, app) => sum + app.timeMs, 0);
                     const othersCount = others.length;
                     
-                    // 颜色调色板
-                    const colors = ['#4CAF50', '#FF9800', '#2196F3', '#9C27B0', '#795548', '#607D8B'];
-                    
+                    // [v9.39.1] 配色改用 App 既有「消费色阶」（与成熟饼图同源调色板），
+                    //   不再用彩虹色（与任何现有图表都不一致、观感突兀）；
+                    //   「其他」用任务视图的 OTHER_COLOR 浅灰，避免与第 5 档浅粉撞色。
+                    const spendRamp = (typeof TASK_VIEW_SPEND_COLORS !== 'undefined' && TASK_VIEW_SPEND_COLORS)
+                        ? TASK_VIEW_SPEND_COLORS
+                        : ['#f44336', '#FF5722', '#FF9800', '#FFC107', '#F8BBD0'];
+                    const otherSliceColor = (typeof OTHER_COLOR !== 'undefined' && OTHER_COLOR) ? OTHER_COLOR : '#BDBDBD';
+
+                    // [v9.39.1] 「今日使用分布」= 饼图 + **扇区上直接标注**（与「构成分析 · 任务视图」同款），
+                    //   不再使用右侧图例；饼图尺寸回到成熟规范的 180px 居中。
+                    //   ⚠️ 通透模式下 CSS 会把 .pie-chart 的 conic-gradient 强制透明，
+                    //   所以必须同时生成 SVG 扇区层（buildPieHighlightSVG），否则外圈会整圈消失。
+                    const PIE_SIZE = 180;
+                    const items = top5.map((app, index) => ({ name: app.appName, timeMs: app.timeMs, color: spendRamp[index] || otherSliceColor }));
+                    if (othersCount > 0) {
+                        items.push({ name: `其他 (${othersCount}个)`, timeMs: othersTime, color: otherSliceColor, isOther: true });
+                    }
+                    const pieTotal = items.reduce((sum, it) => sum + it.timeMs, 0) || 1;
+
+                    let pieAngle = 0;
+                    const slices = [];
+                    const gradientParts = items.map(it => {
+                        const percent = it.timeMs / pieTotal * 100;
+                        const start = pieAngle;
+                        const end = pieAngle + percent;
+                        pieAngle = end;
+                        slices.push({ name: it.name, start, end, color: it.color });
+                        return `${it.color} ${start}% ${end}%`;
+                    });
+                    // 不加 data-pie-meta → 容器不参与长按/触摸交互（此处是只读展示）
+                    const pieSvg = (typeof buildPieHighlightSVG === 'function')
+                        ? buildPieHighlightSVG(slices, PIE_SIZE, 10) : '';
+                    const pieMinutes = Math.max(0, Math.round(usedMs / 60000));
+
+                    // 扇区标签数据：渲染后由本函数末尾统一落位（需先有真实尺寸）
+                    stPieLabels = items.map(it => ({
+                        percent: it.timeMs / pieTotal,
+                        name: it.name,
+                        timeText: (typeof formatTime === 'function')
+                            ? formatTime(Math.round(it.timeMs / 1000))
+                            : `${Math.floor(it.timeMs / 60000)}分`
+                    }));
+
+                    // [v9.39.1] 分区标题去掉 emoji，并与「最近结算记录」保持左对齐（不再居中）
                     appUsageHtml = `
                     <div style="margin-top: 16px; border-top: 1px solid var(--border-color); padding-top: 12px;">
-                        <div style="font-weight: 600; margin-bottom: 10px; font-size: 0.95rem;">📊 今日使用分布</div>
-                        <div style="display: flex; flex-direction: column; gap: 8px;">`;
-                    
-                    top5.forEach((app, index) => {
-                        const timeMinutes = Math.floor(app.timeMs / 60000);
-                        const percent = usedMs > 0 ? Math.round(app.timeMs / usedMs * 100) : 0;
-                        const color = colors[index];
-                        appUsageHtml += `
-                        <div style="display: flex; align-items: center; gap: 10px;">
-                            <div style="width: 10px; height: 10px; border-radius: 50%; background: ${color}; flex-shrink: 0;"></div>
-                            <div style="flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 0.9rem;">${app.appName}</div>
-                            <div style="font-weight: 600; font-size: 0.85rem; color: var(--text-color-light); white-space: nowrap;">${formatScreenTimeCompact(timeMinutes)}</div>
-                            <div style="width: 40px; text-align: right; font-size: 0.8rem; color: var(--text-color-light);">${percent}%</div>
-                        </div>`;
-                    });
-                    
-                    // 显示"其他"类别
-                    if (othersCount > 0) {
-                        const othersMinutes = Math.floor(othersTime / 60000);
-                        const othersPercent = usedMs > 0 ? Math.round(othersTime / usedMs * 100) : 0;
-                        appUsageHtml += `
-                        <div style="display: flex; align-items: center; gap: 10px;">
-                            <div style="width: 10px; height: 10px; border-radius: 50%; background: ${colors[5]}; flex-shrink: 0;"></div>
-                            <div style="flex: 1; min-width: 0; font-size: 0.9rem; color: var(--text-color-light);">其他 (${othersCount}个)</div>
-                            <div style="font-weight: 600; font-size: 0.85rem; color: var(--text-color-light); white-space: nowrap;">${formatScreenTimeCompact(othersMinutes)}</div>
-                            <div style="width: 40px; text-align: right; font-size: 0.8rem; color: var(--text-color-light);">${othersPercent}%</div>
-                        </div>`;
-                    }
-                    
-                    appUsageHtml += '</div></div>';
+                        <div style="font-weight: 600; margin-bottom: 10px; font-size: 0.95rem;">今日使用分布</div>
+                        <div class="pie-chart-wrapper">
+                            <div class="pie-chart-container">
+                                ${pieSvg}
+                                <div class="pie-chart" style="background: conic-gradient(from 0deg, ${gradientParts.join(', ')});"></div>
+                                <div class="pie-slice-labels"></div>
+                                <div class="pie-chart-center">
+                                    <div class="pie-center-title">使用时长</div>
+                                    <div class="pie-center-value">${Math.floor(pieMinutes / 60)}小时</div>
+                                    <div class="pie-center-value">${pieMinutes % 60}分</div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>`;
                 }
             } catch (e) {
                 console.error('获取应用使用列表失败:', e);
@@ -5107,22 +5128,35 @@ function showScreenTimeDetails() {
             historyHtml += '</div></div>';
         }
         
+        // [v9.39.1] 抬头按「睡眠报告」四行排版重排（用户指定）：
+        //   ①📱 居中  ②标题「屏幕时间报告」  ③已使用/限额  ④预计奖励的数值
+        // ④ 与睡眠报告总分完全同款：只放数字（+/- 号表意，去掉「预计奖励/预计消耗」文字），
+        //   正数绿 #4CAF50、负数红 #F44336（颜色由 .info-modal-total.positive/.negative 单点控制，
+        //   通透模式需要 CSS 侧的高优先级规则才能保住红绿，故不写内联颜色）。
+        const diffText = (diff >= 0 ? '+' : '-') + formatScreenTimeMinutes(Math.abs(diff));
         const content = `
-            <div style="text-align: center; padding: 20px 0;">
-                <div style="font-size: 2.5rem; margin-bottom: 8px;">📱</div>
-                <div style="font-size: 1.5rem; font-weight: bold; color: var(--color-primary);">${formatScreenTimeMinutes(usedMinutes)}</div>
-                <div style="color: var(--text-color-light); margin-top: 4px;">今日已使用 / 限额 ${formatScreenTimeMinutes(limitMinutes)}</div>
-                <div style="margin-top: 0px; margin-bottom: -18px; padding: 12px; background: ${diff >= 0 ? 'var(--color-primary-light)' : 'rgba(231, 76, 60, 0.1)'}; border-radius: 8px;">
-                    <span style="font-weight: 600; color: ${diff >= 0 ? 'var(--color-primary)' : '#e74c3c'};">
-                        ${diff >= 0 ? '预计奖励: +' + formatScreenTimeMinutes(diff) : '预计消耗: ' + formatScreenTimeMinutes(-diff)}
-                    </span>
-                </div>
+            <div style="display: flex; align-items: center; justify-content: center; gap: 12px; margin: 6px 0 4px;">
+                <span class="info-modal-total ${diff >= 0 ? 'positive' : 'negative'}">${diffText}</span>
             </div>
             ${appUsageHtml}
             ${historyHtml}
         `;
         
-        showInfoModal('屏幕时间详情', content);
+        showInfoModal('屏幕时间报告', content, {
+            icon: '📱',
+            subtitle: `已使用 ${formatScreenTimeMinutes(usedMinutes)} / 限额 ${formatScreenTimeMinutes(limitMinutes)}`
+        });
+
+        // [v9.39.1] 饼图扇区标签落位：与「构成分析 · 任务视图」同一套做法 ——
+        //   绝对定位在半径 0.725 处（从 12 点方向顺时针），名字超 6 字截断，
+        //   占比 < 5% 只显示名字 + 百分比。必须等弹窗内容进入 DOM 拿到真实尺寸，故延到下一帧。
+        if (stPieLabels && stPieLabels.length) {
+            setTimeout(() => {
+                const pieContainer = document.querySelector('#generalInfoModal .pie-chart-container');
+                // 落位逻辑与「构成分析 · 任务视图」共用同一实现（app-reports.js 的 layoutPieSliceLabels）
+                if (typeof layoutPieSliceLabels === 'function') layoutPieSliceLabels(pieContainer, stPieLabels);
+            }, 0);
+        }
     }
 }
 

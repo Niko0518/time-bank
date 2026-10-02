@@ -12,7 +12,7 @@
 // [v9.3.1] 架构重构：悬浮窗定时器状态以原生 Service 为唯一事实来源。修复 30+ 分钟后"任务消失/计时被吞"根因
 // [v9.3.2] Bug 1 修复：stopTask/cancelTask 静默期追踪 + __onFloatingTimerAction 恢复逻辑改为"云端权威源"（修复 v9.3.1 的"任务复活"回归）
 // [v9.3.3 final] 原生层云端同步保活：CloudSyncScheduler（WorkManager 周期任务） + __onNativeCloudDelta + visibilitychange always-reconcile + JS 心跳失败上报
-const APP_VERSION = 'v9.39.0';
+const APP_VERSION = 'v9.40.1';
 
 // [v9.3.3 final] App 启动时间戳（用于"初始化中"状态窗口判定）
 // 注：声明为 const 而非 let，避免被覆盖
@@ -1917,6 +1917,12 @@ async function reconcileCloudAfterWatch(source = 'watch') {
             return false;
         }
 
+        // [v9.38.3] tb_running 云端对账（跨设备"结束任务"删除传播的第三条路径，见函数注释）
+        // 不 await：失败/耗时都不阻塞主同步流程；内部自带节流与安全护栏
+        if (typeof __scheduleRunningReconcile === 'function') {
+            __scheduleRunningReconcile(`reconcile:${source}`);
+        }
+
         // [v7.28.0] 增量同步优先：30 分钟内有同步记录时用 fetchDelta（轻量，无需全表加载）
         const timeSinceSyncMs = now - lastCloudSyncAt;
         let syncSuccessful = false;
@@ -2599,6 +2605,103 @@ function __scheduleUpdateAllUIFromWatch() {
         __watchUiUpdateTimer = null;
         if (typeof updateAllUI === 'function') updateAllUI();
     }, WATCH_UI_UPDATE_DEBOUNCE_MS);
+}
+
+// ========== [v9.38.3] tb_running 云端对账（跨设备"结束任务"删除传播兜底） ==========
+// 背景（v9.38.2 遗留缺口，实测现象："平板端结束十几分钟的任务，手机端 30 分钟仍在跑，重启才消失"）：
+//   tb_running 的跨设备删除只有两条传播路径，且都可能失效：
+//     ① watch remove 事件 —— 依赖 DAL.runningCache（taskId→docId）反查 taskId。本机开始任务时
+//        watch add 事件带 clientId=本机被 continue 拦截 → runningCache 无映射 → 反查失败 → 残留。
+//        （v9.38.3 已修：add/update 事件无条件登记映射，见 Running watch onChange）
+//     ② fetchRunningDelta 增量 —— 按 _updateTime 查"仍存在"的文档；云端 stopTask 是**硬删除**，
+//        被删文档永远查不到 → 该路径**在原理上无法传播删除**（mergeRunningDelta 里的 _isDeleted
+//        分支是软删除时代的遗留，现已无生产者）。
+//   叠加：6 小时全量对账在"存在进行中任务"时被无限推迟（见 reconcileCloudAfterWatch 上游逻辑），
+//        于是幽灵任务只能靠用户杀进程重载（loadAll → loadRunningTasks 全量）才消失。
+// 本对账提供第三条路径：主动拉云端 running 全量，本地有、云端无 → 判定已被其他设备结束。
+//
+// ⚠️ 安全护栏（缺一不可，否则会误删本机正在运行的任务）：
+//   1. 未登录 / 离线 → 返回
+//   2. 云端查询失败 → 返回（**绝不能把"查询失败"当成"云端为空"**）
+//   3. 失败队列里有 startTask 积压 → 返回（云端可能尚未写入）
+//   4. 任务 startTime 距今 < RUNNING_RECONCILE_GRACE_MS → 跳过（刚点开始，云端写入有延迟）
+//   5. stopTask / cancelTask 静默期内 → 跳过
+//   6. 节流：RUNNING_RECONCILE_MIN_INTERVAL_MS 内最多执行一次
+const RUNNING_RECONCILE_GRACE_MS = 60000;        // 本机新建任务宽限期
+const RUNNING_RECONCILE_MIN_INTERVAL_MS = 60000; // 对账节流间隔
+let __runningReconcileAt = 0;
+let __runningReconcilePromise = null;
+
+function __scheduleRunningReconcile(reason = 'manual') {
+    if (__runningReconcilePromise) return __runningReconcilePromise;
+    if (Date.now() - __runningReconcileAt < RUNNING_RECONCILE_MIN_INTERVAL_MS) return Promise.resolve(false);
+    __runningReconcilePromise = __reconcileRunningFromCloud(reason)
+        .catch(e => { console.warn('[v9.38.3 running 对账] 异常:', e?.message || e); return false; })
+        .finally(() => { __runningReconcilePromise = null; });
+    return __runningReconcilePromise;
+}
+
+async function __reconcileRunningFromCloud(reason = 'manual') {
+    if (typeof isLoggedIn === 'function' && !isLoggedIn()) return false;
+    if (typeof navigator !== 'undefined' && navigator.onLine === false) return false;
+    if (typeof runningTasks === 'undefined' || !runningTasks || typeof DAL === 'undefined') return false;
+    if (runningTasks.size === 0) return false; // 本地无运行任务，无需对账
+
+    // 护栏 3：本机还有"开始任务"未落云端时，云端快照不可信
+    //   3a) 失败队列中仍有 startTask
+    if (typeof MutationFailureHandler !== 'undefined' && MutationFailureHandler.getFailedMutations) {
+        const failed = MutationFailureHandler.getFailedMutations() || [];
+        if (failed.some(f => f && f.action === 'startTask')) {
+            console.warn('[v9.38.3 running 对账] 存在未落云端的 startTask（失败队列），跳过本次对账');
+            return false;
+        }
+    }
+    //   3b) 待执行队列中仍有 startTask（云函数在途，云端可能尚未写入）
+    if (typeof mutationQueue !== 'undefined' && Array.isArray(mutationQueue)
+        && mutationQueue.some(m => m && m.action === 'startTask')) {
+        console.warn('[v9.38.3 running 对账] 存在待执行的 startTask（在途），跳过本次对账');
+        return false;
+    }
+
+    __runningReconcileAt = Date.now(); // 无论成败都计时，避免失败时高频重试
+
+    // 护栏 2：直接查云端（不复用 loadRunningTasks —— 它查询失败时返回空 Map，语义歧义）
+    let cloudTaskIds;
+    try {
+        const res = await db.collection(TABLES.RUNNING).get();
+        cloudTaskIds = new Set((res.data || []).map(d => d.taskId).filter(Boolean));
+    } catch (e) {
+        console.warn('[v9.38.3 running 对账] 云端查询失败，跳过（不删除）:', e?.message || e);
+        return false;
+    }
+
+    const now = Date.now();
+    let changed = false;
+    for (const [taskId, localData] of Array.from(runningTasks.entries())) {
+        if (cloudTaskIds.has(taskId)) continue;
+        // 护栏 4：刚启动的任务给云端写入留时间
+        const st = Number(localData && localData.startTime);
+        if (Number.isFinite(st) && st > 0 && now - st < RUNNING_RECONCILE_GRACE_MS) {
+            console.log(`[v9.38.3 running 对账] 跳过宽限期内任务: ${taskId}`);
+            continue;
+        }
+        // 护栏 5：本机刚结束/取消的静默期（防御性保留）
+        if (typeof __stopTaskSilenceUntil !== 'undefined' && __stopTaskSilenceUntil.has(taskId)
+            && now < __stopTaskSilenceUntil.get(taskId)) {
+            console.log(`[v9.38.3 running 对账] 跳过静默期任务: ${taskId}`);
+            continue;
+        }
+        runningTasks.delete(taskId);
+        if (DAL.runningCache) DAL.runningCache.delete(taskId);
+        changed = true;
+        console.log(`✅ [v9.38.3 running 对账] 云端已无该运行任务，本地清除: ${taskId} (reason=${reason})`);
+    }
+
+    if (changed) {
+        if (typeof saveLocalCache === 'function') saveLocalCache();
+        if (typeof updateAllUI === 'function') updateAllUI();
+    }
+    return changed;
 }
 
 // [v9.34.2] activeSync 智能跳过：watch 全 healthy 时的最后一次强制拉取时间
@@ -4573,7 +4676,7 @@ const DAL = {
 
         // [v9.0.2] 保存快照用于回滚
         const cachedRunning = this.runningCache.get(taskId);
-        callMutation('startTask', {
+        const __res = await callMutation('startTask', {
             _openid: currentUid,
             taskId,
             startTime: data.startTime,
@@ -4597,6 +4700,14 @@ const DAL = {
                 console.log(`[DAL.startTask] 已回滚 ${taskId} 的乐观启动`);
             }
         });
+        // [v9.38.3] 本机开始的任务必须登记 runningCache（taskId → 云端 _id）：
+        // 本机 watch add 事件带 clientId=本机（在 onChange 中被 clientId 拦截 continue），
+        // 若这里不登记，另一台设备结束时下发的 remove 事件（doc 为空）就无法反查 taskId
+        // → 本机 runningTasks 残留（现象："平板结束、手机仍在跑"）。
+        if (__res && __res.id && typeof runningTasks !== 'undefined' && runningTasks && runningTasks.has(taskId)) {
+            this.runningCache.set(taskId, __res.id);
+            console.log(`[v9.38.3 DAL.startTask] runningCache 已登记: ${taskId} → ${__res.id}`);
+        }
         console.log('[DAL.startTask] ✅ 已提交云函数');
     },
 
@@ -5209,13 +5320,25 @@ const DAL = {
                             }).call(this);
                             if (!__resolvedTaskId) {
                                 if (change.dataType === 'remove') {
-                                    console.warn('📡 [DAL] Running remove 无法定位 taskId（已忽略）:', change.docId || '(无 docId)');
+                                    // [v9.38.3] 反查失败不再静默忽略：触发一次云端 running 全量对账
+                                    // （兜住"跨版本残留映射 / docId 口径差异"等一切无法反查的情况）
+                                    console.warn('📡 [DAL] Running remove 无法定位 taskId（触发云端对账兜底）:', change.docId || '(无 docId)');
+                                    if (typeof __scheduleRunningReconcile === 'function') {
+                                        __scheduleRunningReconcile('watch-remove-unresolved');
+                                    }
                                 }
                                 continue;
                             }
                             console.log(`📡 [DAL] Running ${change.dataType}:`, __resolvedTaskId, 'remoteClientId:', remoteClientId, 'localClientId:', clientId);
 
                             if (change.dataType === 'add') {
+                                // [v9.38.3] 关键修复：**先无条件登记 taskId→docId 映射，再做 clientId 判断**。
+                                // 根因：本机开始任务时 watch add 事件带 clientId=本机，原实现在下面直接
+                                //   continue → runningCache 永远没有该映射；当另一台设备结束该任务时，云端
+                                //   硬删除下发 remove 事件（doc 为空）→ 反查 runningCache 失败 → 本机
+                                //   runningTasks 残留（现象："平板结束、手机仍在跑 30 分钟不消失，重启才自愈"）。
+                                const __docKey = doc._id || doc.id || change.docId;
+                                if (__docKey) this.runningCache.set(__resolvedTaskId, __docKey);
                                 // [v9.2.1] null-safe：旧数据无 clientId 字段时跳过"本机"判断，避免误判
                                 if (remoteClientId && remoteClientId === clientId) {
                                     console.log(`🛡️ [DAL] 忽略 add 事件: 本机触发 (taskId=${__resolvedTaskId})`);
@@ -5223,18 +5346,19 @@ const DAL = {
                                 }
                                 console.log('📡 [DAL] 任务开始:', __resolvedTaskId, '(来自其他设备)');
                                 if (!runningTasks.has(__resolvedTaskId)) {
-                                    this.runningCache.set(__resolvedTaskId, doc._id || doc.id);
                                     runningTasks.set(__resolvedTaskId, data);
                                 }
                                 __meaningful = true; // [v9.34.2] 非本机事件（本机已被 clientId 拦截 continue）
                             } else if (change.dataType === 'update') {
+                                // [v9.38.3] 同上：映射登记提到 clientId 拦截之前（本机回声也要登记）
+                                const __docKey = doc._id || doc.id || change.docId;
+                                if (__docKey) this.runningCache.set(__resolvedTaskId, __docKey);
                                 // [v9.2.1] null-safe：旧数据无 clientId 字段时跳过"本机"判断，避免误判
                                 if (remoteClientId && remoteClientId === clientId) {
                                     console.log(`🛡️ [DAL] 忽略 update 事件: 本机触发 (taskId=${__resolvedTaskId})`);
                                     continue;
                                 }
                                 console.log('📡 [DAL] 任务状态更新:', __resolvedTaskId, data?.isPaused ? '(已暂停)' : '(运行中)', `(来自其他设备)`);
-                                this.runningCache.set(__resolvedTaskId, doc._id || doc.id);
                                 if (data) {
                                     runningTasks.set(__resolvedTaskId, data);
                                 }

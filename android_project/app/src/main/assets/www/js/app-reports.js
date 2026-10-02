@@ -2907,8 +2907,39 @@ function showDayDetailsWithAnimation(localDateStr) {
 function hideDayDetailModal() { document.getElementById('dayDetailModal').classList.remove('show', 'from-tooltip'); }
 function hideCategoryDetailModal() { document.getElementById('categoryDetailModal').classList.remove('show', 'from-pie'); }
 // [v5.2.0] 通用信息弹窗函数
-function showInfoModal(title, content) { 
-    document.getElementById('generalInfoModalTitle').textContent = title; 
+// [v9.39.1] 新增可选第 3 参 opts：{ icon, subtitle }
+//   传入后抬头切换为「睡眠报告同款」：右上角悬浮关闭按钮 + 居中大图标 + 居中标题 + 灰色副标题
+//   （目前仅「屏幕时间报告」使用；其他调用方不传 opts，抬头保持原有左标题/右关闭样式）
+function showInfoModal(title, content, opts) { 
+    const modal = document.getElementById('generalInfoModal');
+    const header = modal ? modal.querySelector('.modal-header') : null;
+    if (opts && (opts.icon || opts.subtitle) && header) {
+        header.style.display = 'block';
+        header.style.marginBottom = '0';
+        // [v9.39.1] 关键：.modal-content 本身没有 text-align:center（睡眠报告是内联写死的），
+        // 若不在 header 上补居中，📱/标题/副标题这些块级元素会全部贴左
+        header.style.textAlign = 'center';
+        header.innerHTML = `
+            <button class="close-btn" style="position:absolute; top:10px; right:10px;" onclick="hideInfoModal()">×</button>
+            ${opts.icon ? '<div class="info-modal-hero-icon"></div>' : ''}
+            <h3 class="info-modal-hero-title" style="margin-bottom:6px;"></h3>
+            ${opts.subtitle ? '<p class="text-muted info-modal-hero-sub" style="margin-bottom:10px;"></p>' : ''}
+        `;
+        const iconEl = header.querySelector('.info-modal-hero-icon');
+        if (iconEl) iconEl.textContent = opts.icon;
+        header.querySelector('.info-modal-hero-title').textContent = title;
+        const subEl = header.querySelector('.info-modal-hero-sub');
+        if (subEl) subEl.textContent = opts.subtitle;
+        const box = modal.querySelector('.modal-content');
+        if (box) box.style.position = 'relative';
+    } else if (header) {
+        // 还原标准抬头（保证其他调用方的外观完全不变）
+        header.style.display = '';
+        header.style.marginBottom = '';
+        header.style.textAlign = '';
+        header.innerHTML = '<div class="modal-title" id="generalInfoModalTitle"></div><button class="close-btn" onclick="hideInfoModal()">×</button>';
+        document.getElementById('generalInfoModalTitle').textContent = title;
+    }
     document.getElementById('generalInfoModalContent').innerHTML = content; 
     document.getElementById('generalInfoModal').classList.add('show'); 
 }
@@ -5992,7 +6023,8 @@ overlay.innerHTML = `
             color: ${isGlass ? 'rgba(255,255,255,0.7)' : 'var(--text-color)'};
         }
         .prompt-btn-ok {
-            background: linear-gradient(135deg, #007aff 0%, #0055cc 100%);
+            /* [v9.39.1] 通透模式：去掉渐变，改为主题色半透明纯色（随通透强度联动） */
+            background: ${isGlass ? 'rgba(var(--color-primary-rgb), calc(0.9 * var(--g-strength)))' : 'linear-gradient(135deg, #007aff 0%, #0055cc 100%)'};
             color: white;
         }
     </style>
@@ -6573,6 +6605,17 @@ function renderKpiCards(transactions, _data, _pieIndex = 0, forceRender = false)
     const current = computeKpiMetrics(transactions);
     const previous = computeKpiPreviousPeriod(period);
 
+    // [v9.39.1] 窄屏保护 · 第一道 + 单位统一：先按宽度估算「是否有任何一格放不下中文单位」，
+    //   有则**整张表**统一降级为紧凑英文单位（同一片区域不允许中英文单位混用：
+    //   数值格、以及第 2 行那些以「时长」为单位的变动值，都要一起降级）。
+    //   9 个数值格即时间概览里的全部时长项。
+    //   ⚠️ 必须放在 timeChange / timeCell 之前（它们都依赖这个判定）。
+    const kpiForceCompact = [
+        current.totalEarned, -current.totalSpent, current.totalNet,
+        current.avgDailyEarned, -current.avgDailySpent, current.avgDailyNet,
+        current.maxDailyEarned, -current.maxDailySpent, current.maxAbsNetSigned
+    ].some(v => kpiTimeNeedsCompact(Math.round(v)));
+
     // 百分比变动（无加号，仅 ↑/↓ + 数值）
     function pctChange(cur, prev) {
         if (!previous || prev === 0) return null;
@@ -6592,28 +6635,36 @@ function renderKpiCards(transactions, _data, _pieIndex = 0, forceRender = false)
     }
 
     // 时长差值（绝对值）：↑30分 / ↓1小时
+    // [v9.39.1] 单位统一：整表降级为紧凑英文单位时，变动值也必须跟着用英文单位（↑30m / ↓1h30m）
     function timeChange(cur, prev) {
         if (!previous || prev === 0) return null;
         const delta = cur - prev;
         if (delta === 0) return null;
         const sign = delta > 0 ? '↑' : '↓';
-        return { sign, text: formatTime(Math.abs(Math.round(delta))) };
+        const absSec = Math.abs(Math.round(delta));
+        return { sign, text: kpiForceCompact ? formatKpiTimeCompact(absSec) : formatTime(absSec) };
     }
 
     // 时长值：[v9.29.1] 流量色系（方向定红绿，绝对值按周期缩放阈值分档）
     const periodScaleDays = period === '7d' ? 7 : period === '30d' ? 30 :
         (transactions.length > 0 ? Math.max(1, Math.ceil((Date.now() - Math.min(...transactions.map(t => typeof t.timestamp === 'number' ? t.timestamp : new Date(t.timestamp).getTime()))) / 86400000)) : 1);
     function timeCell(seconds) {
-        const v = formatTime(Math.round(seconds));
+        const rounded = Math.round(seconds);
+        // 带 data-seconds 供渲染后实测兜底（fixOverflowKpiTimeCells）
+        const v = kpiForceCompact ? formatKpiTimeCompact(rounded) : formatTime(rounded);
         const color = getFlowColorScaled(seconds, periodScaleDays);
-        return `<div class="kpi-cell-value kpi-time" style="color:${color}">${v}</div>`;
+        // [v9.39.1] 通透模式改走「文字上色」：把提亮版色值注入 --kpi-glass-color，
+        // 由 CSS（body.glass-mode .kpi-time）接管 → 切换通透模式无需重渲染即时生效。
+        // 旧方案是把 class 打在 .kpi-cell 上做「背景色块」（v9.38.4 测试版），已回退。
+        const glassColor = (typeof getFlowColorScaledGlass === 'function')
+            ? getFlowColorScaledGlass(seconds, periodScaleDays) : color;
+        return `<div class="kpi-cell-value kpi-time" data-seconds="${rounded}" style="color:${color};--kpi-glass-color:${glassColor}">${v}</div>`;
     }
 
     // 极值行无变动列
-    // [v9.38.4] heatClass：通透模式下用于「热力图色块」的档位类（空/未传 = 不上色块）
-    function cell(label, valueHtml, changeHtml, showChange, heatClass) {
+    function cell(label, valueHtml, changeHtml, showChange) {
         return `
-            <div class="kpi-cell${heatClass ? ' ' + heatClass : ''}">
+            <div class="kpi-cell">
                 <div class="kpi-cell-label">${label}</div>
                 ${valueHtml}
                 <div class="kpi-cell-change">${showChange ? (changeHtml || '<span class="kpi-cell-delta">-</span>') : ''}</div>
@@ -6657,32 +6708,528 @@ function renderKpiCards(transactions, _data, _pieIndex = 0, forceRender = false)
 
     // 日均获得：上升为好（up）；日均消费：上升为坏（down）
     const netSignPositive = (chg) => chg ? (chg.sign === '↑' ? 'up' : 'down') : '';
+    // [v9.39.1] 格子弹窗的上下文（统计周期 + 记录数），供 initKpiCellTooltips 读取
+    const periodLabel = period === '7d' ? '近 7 天' : (period === '30d' ? '近 30 天' : '全部时间');
     const html = `
-        <div class="kpi-table-grid">
+        <div class="kpi-table-grid" data-period-label="${periodLabel}" data-record-count="${transactions.length}">
             <!-- 第1行：总获得组 -->
-            ${cell('总获得', timeCell(current.totalEarned), deltaHtml(totalEarnedChg, true), true, getFlowHeatClassScaled(current.totalEarned, periodScaleDays))}
-            ${cell('总消费', timeCell(-current.totalSpent), deltaHtml(totalSpentChg, false), true, getFlowHeatClassScaled(-current.totalSpent, periodScaleDays))}
-            ${cell('净余额', timeCell(current.totalNet), deltaHtml(totalNetChg, current.totalNet >= 0), true, getFlowHeatClassScaled(current.totalNet, periodScaleDays))}
+            ${cell('总获得', timeCell(current.totalEarned), deltaHtml(totalEarnedChg, true), true)}
+            ${cell('总消费', timeCell(-current.totalSpent), deltaHtml(totalSpentChg, false), true)}
+            ${cell('净余额', timeCell(current.totalNet), deltaHtml(totalNetChg, current.totalNet >= 0), true)}
 
             <!-- 第2行：日均获得组 -->
-            ${cell('日均获得', timeCell(current.avgDailyEarned), deltaHtml(avgEarnedChg, true), true, getFlowHeatClassScaled(current.avgDailyEarned, periodScaleDays))}
-            ${cell('日均消费', timeCell(-current.avgDailySpent), deltaHtml(avgSpentChg, false), true, getFlowHeatClassScaled(-current.avgDailySpent, periodScaleDays))}
-            ${cell('日均净增', timeCell(current.avgDailyNet), deltaHtml(avgNetChg, current.avgDailyNet >= 0), true, getFlowHeatClassScaled(current.avgDailyNet, periodScaleDays))}
+            ${cell('日均获得', timeCell(current.avgDailyEarned), deltaHtml(avgEarnedChg, true), true)}
+            ${cell('日均消费', timeCell(-current.avgDailySpent), deltaHtml(avgSpentChg, false), true)}
+            ${cell('日均净增', timeCell(current.avgDailyNet), deltaHtml(avgNetChg, current.avgDailyNet >= 0), true)}
 
             <!-- 第3行：最高单日组（无变动列） -->
-            ${cell('最高单日获得', timeCell(current.maxDailyEarned), `<span class="kpi-cell-delta">${formatDateShort(current.maxEarnedDate)}</span>`, true, getFlowHeatClassScaled(current.maxDailyEarned, periodScaleDays))}
-            ${cell('最高单日消费', timeCell(-current.maxDailySpent), `<span class="kpi-cell-delta">${formatDateShort(current.maxSpentDate)}</span>`, true, getFlowHeatClassScaled(-current.maxDailySpent, periodScaleDays))}
-            ${cell('最大单日变动', timeCell(current.maxAbsNetSigned), `<span class="kpi-cell-delta">${formatDateShort(current.maxAbsNetDate)}</span>`, true, getFlowHeatClassScaled(current.maxAbsNetSigned, periodScaleDays))}
+            ${cell('最高单日获得', timeCell(current.maxDailyEarned), `<span class="kpi-cell-delta">${formatDateShort(current.maxEarnedDate)}</span>`, true)}
+            ${cell('最高单日消费', timeCell(-current.maxDailySpent), `<span class="kpi-cell-delta">${formatDateShort(current.maxSpentDate)}</span>`, true)}
+            ${cell('最大单日变动', timeCell(current.maxAbsNetSigned), `<span class="kpi-cell-delta">${formatDateShort(current.maxAbsNetDate)}</span>`, true)}
 
-            <!-- 第4行：活跃天数组（计数类 → 只取绿系「活跃度」档位） -->
-            ${cell('活跃天数', `<div class="kpi-cell-value">${current.uniqueDays}天</div>`, activeChg ? `<span class="kpi-cell-delta ${activeChg.positive ? 'up' : 'down'}">${activeChg.text}</span>` : '', true, getCountHeatClass(current.uniqueDays / periodScaleDays, 0.5, 0.8))}
-            ${cell('总记录数', `<div class="kpi-cell-value">${current.totalRecords}条</div>`, deltaHtml(totalRecordsChg, true), true, getCountHeatClass(current.totalRecords, 30, 60))}
-            ${cell('日均记录', `<div class="kpi-cell-value">${current.avgDailyRecords.toFixed(1)}条</div>`, deltaHtml(avgRecordsChg, true), true, getCountHeatClass(current.avgDailyRecords, 2, 5))}
+            <!-- 第4行：活跃天数组（计数类：无方向语义 → 通透模式保持白色文字） -->
+            ${cell('活跃天数', `<div class="kpi-cell-value">${current.uniqueDays}天</div>`, activeChg ? `<span class="kpi-cell-delta ${activeChg.positive ? 'up' : 'down'}">${activeChg.text}</span>` : '', true)}
+            ${cell('总记录数', `<div class="kpi-cell-value">${current.totalRecords}条</div>`, deltaHtml(totalRecordsChg, true), true)}
+            ${cell('日均记录', `<div class="kpi-cell-value">${current.avgDailyRecords.toFixed(1)}条</div>`, deltaHtml(avgRecordsChg, true), true)}
         </div>
     `;
     container.innerHTML = html;
+    // [v9.39.1] 时间概览窄屏兜底：任一格实测溢出 → 整张表统一换成紧凑英文单位（12h30m），
+    //   保证同一片区域单位一致（中英文不混用）
+    fixOverflowKpiTimeCells(container);
+    // [v9.39.1] 格子弹窗里的分布数据（统一口径：**前四大任务 + 其他**）：
+    //   总获得 / 总消费 / 净余额 —— 整个周期；
+    //   最高单日获得 / 最高单日消费 / 最大单日变动 —— 只取那一格指向的那一天。
+    //   周期聚合走 processDashboardData（缓存友好）；按天聚合走 _computeDashboardData（绕过缓存，
+    //   避免把"某一天的聚合"误写进 view|period 缓存）。
+    const kpiTipDists = (() => {
+        try {
+            const TOP_N = 4;
+            const pickFromAgg = (agg, key) => {
+                const val = (it) => (key === 'involved' ? (it.earned + it.spent) : it[key]);
+                const list = agg.map(it => ({ it, v: val(it) })).filter(x => x.v > 0).sort((a, b) => b.v - a.v);
+                if (!list.length) return null;
+                const total = list.reduce((sum, x) => sum + x.v, 0);
+                const items = list.slice(0, TOP_N).map(x => ({
+                    name: x.it.name, value: x.v, category: x.it.category,
+                    net: x.it.earned - x.it.spent   // mixed（不分方向）取色用
+                }));
+                const restValue = list.slice(TOP_N).reduce((sum, x) => sum + x.v, 0);
+                if (restValue > 0) items.push({ name: `其他 (${list.length - TOP_N}个)`, value: restValue, isOther: true });
+                return { total, items };
+            };
+            const periodAgg = processDashboardData(transactions, 'task', period).aggregatedData;
+            const dayAgg = (dateStr) => {
+                if (!dateStr) return null;
+                const dayTxs = transactions.filter(t => getLocalDateString(new Date(getTs(t))) === dateStr);
+                if (!dayTxs.length) return null;
+                return _computeDashboardData(dayTxs, 'task').aggregatedData;
+            };
+            return {
+                totalEarn: pickFromAgg(periodAgg, 'earned'),
+                totalSpend: pickFromAgg(periodAgg, 'spent'),
+                net: pickFromAgg(periodAgg, 'involved'),          // 不分消费/获得
+                maxEarnedDay: pickFromAgg(dayAgg(current.maxEarnedDate) || [], 'earned'),
+                maxSpentDay: pickFromAgg(dayAgg(current.maxSpentDate) || [], 'spent'),
+                maxNetDay: pickFromAgg(dayAgg(current.maxAbsNetDate) || [], 'involved')  // 不分方向
+            };
+        } catch (e) {
+            console.warn('[KPI tip] 分布数据计算失败:', e && e.message);
+            return null;
+        }
+    })();
+    // [v9.39.1] 给每一格挂上「点按 / 长按滑动」弹窗（内容取自格子自身，参考活动日历的长按弹窗）
+    //   极值格带上具体日期 → 支持「长按 3 秒打开当日详情」（对齐活动日历的 3 秒自动进详情）
+    initKpiCellTooltips(container, kpiTipDists, {
+        '最高单日获得': current.maxEarnedDate || '',
+        '最高单日消费': current.maxSpentDate || '',
+        '最大单日变动': current.maxAbsNetDate || ''
+    });
     // 静默引用以保留意图
     void netSignPositive;
+}
+
+// ==================== [v9.39.1] 时间概览格子弹窗（点按 / 长按滑动） ====================
+// 设计参考活动日历的长按弹窗：同款视觉（复用 .heatmap-tooltip 家族）、同款「格子高亮 + 气泡」、
+// 同款交互（长按 250ms 激活 → **按住滑动可逐格浏览，气泡依次浮现并播放翻页动画**）。
+// 弹窗内容 = 该格已渲染的标签 / 数值 / 变动（「弹窗所说 = 格子所见」）；
+// 合计格与极值格（总获得 / 总消费 / 净余额 / 最高单日获得 / 最高单日消费 / 最大单日变动）
+// 额外附一张「**前四大任务 + 其他**」分布饼图（净余额与最大单日变动不分获得/消费，
+// 按各任务的时长流动总量排序、并按各自净方向取色）。
+// 独立元素 #kpiCellTooltip：与活动日历的 #heatmapTooltip 互不干扰（显示时顺手收起日历那个）。
+//
+// ★ 与活动日历「逐条对齐」清单（v9.39.1 复核后补齐 4 项）：
+//   1. 长按 250ms 激活（震动 15ms）→ 按住滑动逐格浏览（elementFromPoint 命中即切换，切换震动 10ms）
+//   2. 切换格子：在旧位置克隆一个「影子气泡」播放 1s 翻出动画，新位置播 120ms 翻入动画（波浪效果）
+//   3. 滑出所有格子 → 立即收起（对齐日历）
+//   4. 抬手 / pointercancel → 收起（对齐日历；要"常驻阅读"请用点按，点按的气泡会留着）
+//   5. 被选中格子加 .kpi-tip-active：放大 + 内圈高亮，0.15s 进 / 1s 退（对齐日期格子的 active）
+//   6. 带日期的极值格：气泡内显示进度条 + 提示，长按满 3 秒自动打开该日「每日详情」（震动 20ms）
+//   7. 长按激活期间拦 touchmove，阻断页面原生滚动（日历格子靠 touch-action: pan-y，同理）
+const KPI_TIP_LONGPRESS_MS = 250;   // 与活动日历一致
+const KPI_TIP_MOVE_PX = 10;         // 与活动日历的滑动取消阈值一致
+let kpiTipLongPressTimer = null;
+let kpiTipAutoOpenTimer = null;     // 长按满 3 秒打开当日详情（同活动日历）
+let kpiTipActiveCell = null;
+let kpiTipLastCell = null;
+let kpiTipPointerId = null;
+let kpiTipStartX = 0;
+let kpiTipStartY = 0;
+let kpiTipLongPressActive = false;  // 长按已激活（激活后可按住滑动逐格浏览）
+let kpiTipJustLongPressedAt = 0;
+let kpiTipGlobalBound = false;
+let kpiTipMoveHandler = null;
+let kpiTipEndHandler = null;
+let kpiTipTouchMoveHandler = null;
+
+function vibrateKpiTip(ms) {
+    try {
+        if (typeof Android !== 'undefined' && Android.vibrate) Android.vibrate(ms);
+        else if (navigator.vibrate) navigator.vibrate(ms);
+    } catch (e) {}
+}
+
+// 通用：饼图扇区标签落位（与「构成分析 · 任务视图」同一套算法：
+//   半径系数 0.725、从 12 点方向顺时针、名字超 6 字截断、占比 < 5% 只显示名字 + 百分比）
+function layoutPieSliceLabels(pieContainer, labels, radiusFactor = 0.725) {
+    if (!pieContainer || !labels || !labels.length) return;
+    const labelsContainer = pieContainer.querySelector('.pie-slice-labels');
+    if (!labelsContainer) return;
+    labelsContainer.innerHTML = '';
+    const cx = pieContainer.offsetWidth / 2;
+    const cy = pieContainer.offsetHeight / 2;
+    let angle = -Math.PI / 2;
+    labels.forEach(item => {
+        const sliceAngle = 2 * Math.PI * item.percent;
+        const midAngle = angle + sliceAngle / 2;
+        const percentText = `${(item.percent * 100).toFixed(0)}%`;
+        const shortName = item.name.length > 6 ? item.name.slice(0, 6) + '…' : item.name;
+        const labelEl = document.createElement('div');
+        labelEl.className = 'pie-slice-label';
+        labelEl.innerHTML = item.percent < 0.05
+            ? `${escapeHtml(shortName)}<br>${percentText}`
+            : `${escapeHtml(shortName)}<br><span class="time-value">${escapeHtml(item.timeText)}</span><br>${percentText}`;
+        labelEl.style.left = `${cx + cx * radiusFactor * Math.cos(midAngle)}px`;
+        labelEl.style.top = `${cy + cy * radiusFactor * Math.sin(midAngle)}px`;
+        labelsContainer.appendChild(labelEl);
+        angle += sliceAngle;
+    });
+}
+
+// 格子弹窗里的「前四大任务 + 其他」分布饼图（供 6 个格子共用）：配色与「构成分析 · 任务视图」同源
+//   opts.centerTitle：中心标题（总获得 / 当日获得 / 净余额 …）
+//   opts.tone：'earn' 整张偏获得（绿系，其他=蓝灰）
+//              'spend' 整张偏消费（暖色系，其他=粉）
+//              'mixed' 不分方向（净余额 / 最大单日变动）：每个任务按「自身净方向」取色
+//                      （净赚走绿系、净花走暖色系），其他=浅灰；排序口径 = 时长流动总量（获得+消费）
+function buildKpiTipPieHtml(dist, opts = {}, pieSize = 150) {
+    if (!dist || !dist.items || dist.items.length === 0) return '';
+    const total = dist.total || 1;
+    const tone = opts.tone || 'earn';
+    const centerTitle = opts.centerTitle || '分布';
+    const taskItems = dist.items.filter(it => !it.isOther).map(it => ({ name: it.name, category: it.category }));
+    const canMap = (typeof buildTaskViewColorMap === 'function');
+    const primaryMap = canMap ? buildTaskViewColorMap(taskItems, tone === 'spend' ? 'spend' : 'earn') : new Map();
+    const mixedSpendMap = (tone === 'mixed' && canMap) ? buildTaskViewColorMap(taskItems, 'spend') : null;
+    const earnOther = (typeof OTHER_EARN_COLOR !== 'undefined' && OTHER_EARN_COLOR) || '#78909C';
+    const spendOther = (typeof OTHER_SPEND_COLOR !== 'undefined' && OTHER_SPEND_COLOR) || '#F48FB1';
+    const neutralOther = (typeof OTHER_COLOR !== 'undefined' && OTHER_COLOR) || '#BDBDBD';
+    const colorOf = (it) => {
+        if (it.isOther) return tone === 'spend' ? spendOther : (tone === 'mixed' ? neutralOther : earnOther);
+        if (tone === 'mixed' && it.net < 0 && mixedSpendMap) return mixedSpendMap.get(it.name) || spendOther;
+        return primaryMap.get(it.name) || (tone === 'spend' ? spendOther : earnOther);
+    };
+    let angle = 0;
+    const slices = [];
+    const labels = [];
+    const gradientParts = dist.items.map(it => {
+        const percent = it.value / total * 100;
+        const color = colorOf(it);
+        const start = angle;
+        const end = angle + percent;
+        angle = end;
+        slices.push({ name: it.name, start, end, color });
+        labels.push({ name: it.name, percent: percent / 100, timeText: formatTime(Math.round(it.value)) });
+        return `${color} ${start}% ${end}%`;
+    });
+    const svg = (typeof buildPieHighlightSVG === 'function') ? buildPieHighlightSVG(slices, pieSize, 10) : '';
+    const minutes = Math.max(0, Math.round(total / 60));
+    return `
+        <div class="kpi-tip-pie" data-labels="${encodeURIComponent(JSON.stringify(labels))}">
+            <div class="pie-chart-container">
+                ${svg}
+                <div class="pie-chart" style="background: conic-gradient(from 0deg, ${gradientParts.join(', ')});"></div>
+                <div class="pie-slice-labels"></div>
+                <div class="pie-chart-center">
+                    <div class="pie-center-title">${escapeHtml(centerTitle)}</div>
+                    <div class="pie-center-value">${Math.floor(minutes / 60)}小时</div>
+                    <div class="pie-center-value">${minutes % 60}分</div>
+                </div>
+            </div>
+        </div>`;
+}
+
+// 气泡内饼图的标签落位（标签数据以 data-labels 存在元素上，避免闭包跨帧持有）
+function layoutKpiTipPieLabels(tipEl) {
+    if (!tipEl) return;
+    const pieWrap = tipEl.querySelector('.kpi-tip-pie');
+    if (!pieWrap) return;
+    const pieContainer = pieWrap.querySelector('.pie-chart-container');
+    if (!pieContainer) return;
+    let labels = null;
+    try { labels = JSON.parse(decodeURIComponent(pieWrap.getAttribute('data-labels') || '')); } catch (e) { labels = null; }
+    if (labels && labels.length) layoutPieSliceLabels(pieContainer, labels);
+}
+
+function getKpiTipEl() { return document.getElementById('kpiCellTooltip'); }
+
+// 影子气泡：在旧位置播放 1s 翻出动画（对齐活动日历 hideHeatmapTooltip / showHeatmapTooltip）
+function spawnKpiTipShadow(el) {
+    if (!el || !el.classList.contains('show')) return;
+    const shadow = el.cloneNode(true);
+    shadow.id = '';
+    shadow.classList.remove('show', 'flipping');
+    shadow.classList.add('heatmap-tooltip-shadow');
+    const progressBar = shadow.querySelector('.heatmap-tooltip-progress');
+    if (progressBar) progressBar.remove();
+    document.body.appendChild(shadow);
+    shadow.addEventListener('animationend', () => shadow.remove(), { once: true });
+}
+
+// 集中管理高亮格子的切换，避免遗漏清理（对齐 setHeatmapActiveCell / clearHeatmapActiveCell）
+function clearKpiTipActiveCell() {
+    const grid = document.getElementById('kpiGrid');
+    if (grid) grid.querySelectorAll('.kpi-cell.kpi-tip-active').forEach(el => el.classList.remove('kpi-tip-active'));
+    kpiTipActiveCell = null;
+}
+
+function setKpiTipActiveCell(cell) {
+    clearKpiTipActiveCell();
+    if (cell) {
+        kpiTipActiveCell = cell;
+        cell.classList.add('kpi-tip-active');
+    }
+}
+
+function hideKpiCellTooltip() {
+    clearTimeout(kpiTipLongPressTimer);
+    clearTimeout(kpiTipAutoOpenTimer);
+    kpiTipLongPressTimer = null;
+    kpiTipAutoOpenTimer = null;
+    kpiTipPointerId = null;
+    const el = getKpiTipEl();
+    if (el) {
+        spawnKpiTipShadow(el);          // 旧位置翻出（1s）
+        el.classList.remove('show', 'flipping');
+        const progressBar = el.querySelector('.heatmap-tooltip-progress');
+        if (progressBar) {
+            progressBar.classList.remove('animating');
+            progressBar.style.width = '0%';
+        }
+    }
+    clearKpiTipActiveCell();
+    kpiTipLastCell = null;
+}
+
+// 与活动日历的 startHeatmapAutoOpenTimer 同款：
+//   带日期的极值格 → 进度条 3.25s 走满，长按满 3 秒自动打开该日「每日详情」（并震动 20ms）
+function startKpiTipAutoOpenTimer(cell) {
+    clearTimeout(kpiTipAutoOpenTimer);
+    kpiTipAutoOpenTimer = null;
+    const el = getKpiTipEl();
+    const progressBar = el ? el.querySelector('.heatmap-tooltip-progress') : null;
+    const date = cell ? cell.getAttribute('data-date') : null;
+    if (!date) {
+        if (progressBar) progressBar.style.display = 'none';
+        return;
+    }
+    if (progressBar) {
+        progressBar.style.display = '';
+        progressBar.classList.remove('animating');
+        progressBar.style.width = '0%';
+        requestAnimationFrame(() => {
+            progressBar.style.width = '';
+            progressBar.classList.add('animating');
+        });
+    }
+    kpiTipAutoOpenTimer = setTimeout(() => {
+        if (!kpiTipLongPressActive || !cell) return;
+        vibrateKpiTip(20);
+        kpiTipLongPressActive = false;
+        hideKpiCellTooltip();
+        if (typeof showDayDetailsWithAnimation === 'function') showDayDetailsWithAnimation(date);
+        else if (typeof showDayDetails === 'function') showDayDetails(date);
+    }, 3250);
+}
+
+// 与活动日历的 positionHeatmapTooltip 同款：优先在格子上方，放不下则下方；水平夹在视口内
+function positionKpiCellTooltip(cell, el) {
+    const rect = cell.getBoundingClientRect();
+    const tipRect = el.getBoundingClientRect();
+    const margin = 8;
+    let left = rect.left + rect.width / 2 - tipRect.width / 2;
+    left = Math.max(margin, Math.min(left, window.innerWidth - tipRect.width - margin));
+    let top = rect.top - tipRect.height - 10;
+    if (top < margin) top = rect.bottom + 10;
+    el.style.left = `${left}px`;
+    el.style.top = `${top}px`;
+}
+
+// 与活动日历的 showHeatmapTooltip 同款流程：
+//   ① 换格时先在旧位置留影子（翻出）② 更新内容（含 has-pie 先定宽，避免定位用旧宽度）
+//   ③ 首次显示先隐藏测量再定位（防止先在旧位置闪一下）④ 播 120ms 翻入
+//   ⑤ 带日期的格子启动「3 秒自动打开当日详情」
+function showKpiCellTooltip(cell, isMoving = false) {
+    const el = getKpiTipEl();
+    if (!el || !cell) return;
+    const encoded = cell.getAttribute('data-tooltip');
+    if (!encoded) return;
+    if (typeof hideHeatmapTooltip === 'function') hideHeatmapTooltip(); // 同一时刻只留一个气泡
+    const wasShown = el.classList.contains('show');
+    const isNewCell = cell !== kpiTipLastCell;
+    if (isMoving && wasShown && isNewCell) spawnKpiTipShadow(el);       // ① 旧位置翻出（波浪效果）
+    el.innerHTML = decodeURIComponent(encoded);
+    el.classList.toggle('has-pie', !!el.querySelector('.kpi-tip-pie')); // ② 先定宽再量
+    if (!wasShown) {                                                    // ③ 首次显示：隐藏测量
+        el.style.visibility = 'hidden';
+        el.style.display = 'block';
+    }
+    el.classList.add('show');
+    setKpiTipActiveCell(cell);
+    positionKpiCellTooltip(cell, el);
+    layoutKpiTipPieLabels(el);   // 饼图标签：同一帧落位，不会先空后填
+    el.style.visibility = '';
+    el.style.display = '';
+    el.classList.remove('flipping');                                    // ④ 翻入动画（首次 / 换格都播）
+    void el.offsetWidth;
+    el.classList.add('flipping');
+    kpiTipLastCell = cell;
+    // ⑤ 只有「长按」才启动 3 秒自动打开详情；点按出来的气泡不跑进度条（避免误示"即将跳转"）
+    if (kpiTipLongPressActive) {
+        startKpiTipAutoOpenTimer(cell);
+    } else {
+        const pb = el.querySelector('.heatmap-tooltip-progress');
+        if (pb) pb.style.display = 'none';
+    }
+}
+
+// 全局收起：点空白处 / 滚动（只绑一次）
+function bindKpiTipGlobalOnce() {
+    if (kpiTipGlobalBound) return;
+    kpiTipGlobalBound = true;
+    document.addEventListener('pointerdown', (e) => {
+        if (!kpiTipActiveCell) return;
+        const el = getKpiTipEl();
+        if (el && el.contains(e.target)) return;
+        if (e.target && e.target.closest && e.target.closest('#kpiGrid .kpi-cell')) return;
+        hideKpiCellTooltip();
+    }, true);
+    window.addEventListener('scroll', () => { if (kpiTipActiveCell) hideKpiCellTooltip(); }, true);
+}
+
+// 一次按压的生命周期：按下 → 250ms 内不移动即「长按激活」→ 激活后按住滑动逐格浏览 → 抬手结束
+function startKpiTipPress(e, cell) {
+    if (e.pointerType === 'mouse') return; // 桌面端走点按
+    clearTimeout(kpiTipLongPressTimer);
+    removeKpiTipWindowListeners();
+    kpiTipPointerId = e.pointerId;
+    kpiTipStartX = e.clientX;
+    kpiTipStartY = e.clientY;
+    kpiTipLongPressActive = false;
+
+    const moveHandler = (evt) => {
+        if (evt.pointerId !== kpiTipPointerId) return;
+        if (kpiTipLongPressActive) {
+            // 已激活：手指滑到哪一格就显示哪一格的弹窗（与活动日历同款）
+            evt.preventDefault(); // 阻断页面滚动/选中
+            const target = document.elementFromPoint(evt.clientX, evt.clientY);
+            const newCell = (target && target.closest) ? target.closest('.kpi-cell[data-tooltip]') : null;
+            if (newCell && newCell !== kpiTipActiveCell) {
+                vibrateKpiTip(10);
+                showKpiCellTooltip(newCell, true);
+            } else if (!newCell && kpiTipActiveCell) {
+                // 滑出所有格子 → 立即收起（对齐活动日历）
+                hideKpiCellTooltip();
+            }
+        } else {
+            const dx = Math.abs(evt.clientX - kpiTipStartX);
+            const dy = Math.abs(evt.clientY - kpiTipStartY);
+            if (dx > KPI_TIP_MOVE_PX || dy > KPI_TIP_MOVE_PX) {
+                // 触发前就滑走了 → 视为滚动，取消长按
+                clearTimeout(kpiTipLongPressTimer);
+                kpiTipLongPressTimer = null;
+                kpiTipPointerId = null;
+                removeKpiTipWindowListeners();
+            }
+        }
+    };
+    const endHandler = (evt) => {
+        if (kpiTipPointerId !== evt.pointerId && !kpiTipLongPressActive) { removeKpiTipWindowListeners(); return; }
+        const wasLongPress = kpiTipLongPressActive;
+        clearTimeout(kpiTipLongPressTimer);
+        clearTimeout(kpiTipAutoOpenTimer);
+        kpiTipLongPressTimer = null;
+        kpiTipAutoOpenTimer = null;
+        kpiTipPointerId = null;
+        if (wasLongPress) {
+            evt.preventDefault();
+            evt.stopPropagation();
+        }
+        // [v9.39.1] 对齐活动日历：长按结束（抬手 / pointercancel）即收起气泡；
+        //   想"常驻阅读"用点按（点按的气泡会保留到点空白处或再点一次）。
+        //   注意：普通点按在这里**不收起**，否则会把上一次的气泡先关掉、再被 click 重新打开。
+        if (wasLongPress || evt.type === 'pointercancel') {
+            kpiTipLongPressActive = false;
+            hideKpiCellTooltip();
+        }
+        removeKpiTipWindowListeners();
+    };
+    // [v9.39.1] 关键：长按激活后必须拦 touchmove，否则浏览器仍会按 .kpi-cell 的
+    //   touch-action: pan-y 去滚动页面（pointermove 的 preventDefault 对原生滚动无效）。
+    //   未激活时放行 → 从格子起手的普通滚动不受影响。
+    const touchMoveHandler = (evt) => {
+        if (kpiTipLongPressActive) evt.preventDefault();
+    };
+
+    kpiTipMoveHandler = moveHandler;
+    kpiTipEndHandler = endHandler;
+    kpiTipTouchMoveHandler = touchMoveHandler;
+    window.addEventListener('pointermove', moveHandler, { passive: false, capture: true });
+    window.addEventListener('pointerup', endHandler, true);
+    window.addEventListener('pointercancel', endHandler, true);
+    window.addEventListener('touchmove', touchMoveHandler, { passive: false, capture: true });
+
+    kpiTipLongPressTimer = setTimeout(() => {
+        kpiTipLongPressTimer = null;
+        if (kpiTipPointerId !== e.pointerId) return;
+        kpiTipLongPressActive = true;
+        kpiTipJustLongPressedAt = Date.now();
+        vibrateKpiTip(15);
+        showKpiCellTooltip(cell);
+    }, KPI_TIP_LONGPRESS_MS);
+}
+
+function removeKpiTipWindowListeners() {
+    if (kpiTipMoveHandler) window.removeEventListener('pointermove', kpiTipMoveHandler, true);
+    if (kpiTipEndHandler) {
+        window.removeEventListener('pointerup', kpiTipEndHandler, true);
+        window.removeEventListener('pointercancel', kpiTipEndHandler, true);
+    }
+    if (kpiTipTouchMoveHandler) window.removeEventListener('touchmove', kpiTipTouchMoveHandler, true);
+    kpiTipMoveHandler = null;
+    kpiTipEndHandler = null;
+    kpiTipTouchMoveHandler = null;
+}
+
+// dists：六个格子（总获得/总消费/净余额/最高单日获得/最高单日消费/最大单日变动）的分布数据；
+// dateMap：极值格 → 该极值日期（YYYY-MM-DD），用于「长按 3 秒打开当日详情」
+function initKpiCellTooltips(container, dists, dateMap) {
+    hideKpiCellTooltip();
+    bindKpiTipGlobalOnce();
+    const grid = container ? container.querySelector('.kpi-table-grid') : null;
+    if (!grid) return;
+    const periodLabel = grid.getAttribute('data-period-label') || '';
+    const recordCount = grid.getAttribute('data-record-count') || '';
+    const contextText = [periodLabel, recordCount ? `共 ${recordCount} 条记录` : ''].filter(Boolean).join(' · ');
+
+    grid.querySelectorAll('.kpi-cell').forEach(cell => {
+        const label = (cell.querySelector('.kpi-cell-label') ? cell.querySelector('.kpi-cell-label').textContent : '').trim();
+        const valueEl = cell.querySelector('.kpi-cell-value');
+        const valueText = valueEl ? valueEl.textContent.trim() : '';
+        const rawChange = (cell.querySelector('.kpi-cell-change') ? cell.querySelector('.kpi-cell-change').textContent : '').trim();
+        // 数值方向（仅时长格）：正=绿、负=红，与格内数字同义
+        let tone = '';
+        if (valueEl && valueEl.classList.contains('kpi-time')) {
+            const sec = Number(valueEl.getAttribute('data-seconds'));
+            if (Number.isFinite(sec)) tone = sec >= 0 ? 'positive' : 'negative';
+        }
+        // 第三行可能是「变动」（↑12.3% / ↑1天）也可能是「极值发生的日期」（07-14），分别措辞
+        let changeLine;
+        if (!rawChange || rawChange === '-') {
+            changeLine = `<div class="heatmap-tooltip-stats" style="opacity:0.7">本期无对比数据</div>`;
+        } else if (/^\d{2}-\d{2}$/.test(rawChange)) {
+            changeLine = `<div class="heatmap-tooltip-stats">发生于 ${escapeHtml(rawChange)}</div>`;
+        } else {
+            changeLine = `<div class="heatmap-tooltip-stats">较上期 ${escapeHtml(rawChange)}</div>`;
+        }
+        // 分布情况（合计格 + 极值格，统一「前四大任务 + 其他」）
+        let pieHtml = '';
+        if (dists) {
+            if (label === '总获得') pieHtml = buildKpiTipPieHtml(dists.totalEarn, { centerTitle: '总获得', tone: 'earn' });
+            else if (label === '总消费') pieHtml = buildKpiTipPieHtml(dists.totalSpend, { centerTitle: '总消费', tone: 'spend' });
+            else if (label === '净余额') pieHtml = buildKpiTipPieHtml(dists.net, { centerTitle: '流动总量', tone: 'mixed' });
+            else if (label === '最高单日获得') pieHtml = buildKpiTipPieHtml(dists.maxEarnedDay, { centerTitle: '当日获得', tone: 'earn' });
+            else if (label === '最高单日消费') pieHtml = buildKpiTipPieHtml(dists.maxSpentDay, { centerTitle: '当日消费', tone: 'spend' });
+            else if (label === '最大单日变动') pieHtml = buildKpiTipPieHtml(dists.maxNetDay, { centerTitle: '当日流动', tone: 'mixed' });
+        }
+        // 极值格（有确切日期）→ 挂 data-date，并在气泡底部加「长按 3 秒打开当日详情」提示 + 进度条
+        const dateStr = (dateMap && dateMap[label]) || '';
+        if (dateStr) cell.setAttribute('data-date', dateStr);
+        const hintHtml = dateStr
+            ? `<div class="heatmap-tooltip-hint">长按 3 秒打开当日详情</div><div class="heatmap-tooltip-progress"></div>`
+            : '';
+        // 无饼图格子：标题 / 数值 / 变动 / 上下文 四行
+        const textHtml = `<div class="heatmap-tooltip-date">${escapeHtml(label)}</div>` +
+            `<div class="heatmap-tooltip-net ${tone}">${escapeHtml(valueText)}</div>` +
+            changeLine +
+            (contextText ? `<div class="heatmap-tooltip-stats" style="margin-top:6px;opacity:0.7">${escapeHtml(contextText)}</div>` : '');
+        // [v9.39.1] 有饼图的格子：**删除饼图上方所有内容**，气泡只剩「左上角标题 + 饼图」
+        //   （饼心已写"总获得 / 当日获得 / 流动总量…"，标题与合计信息不丢）
+        const tip = pieHtml
+            ? `<div class="kpi-tip-title">详情</div>` + pieHtml + hintHtml
+            : textHtml + hintHtml;
+        cell.setAttribute('data-tooltip', encodeURIComponent(tip));
+
+        // —— 点按：开/关 ——
+        cell.addEventListener('click', (e) => {
+            if (Date.now() - kpiTipJustLongPressedAt < 600) return; // 长按后浏览器补发的 click 不处理
+            e.stopPropagation();
+            if (kpiTipActiveCell === cell) hideKpiCellTooltip();
+            else showKpiCellTooltip(cell);
+        });
+        // —— 长按（250ms）→ 激活后可按住在格子上滑动逐格浏览 ——
+        cell.addEventListener('pointerdown', (e) => startKpiTipPress(e, cell));
+    });
 }
 
 function updateInteractiveAnalysisModule(aggregatedData, filteredTransactions) {
@@ -8375,6 +8922,48 @@ function formatTimeMini(seconds) { if (seconds === null || isNaN(seconds) || sec
 // [v7.13.0] 格式化时间（历史记录详情专用）：超过1小时不显示秒，确保统一体验
 function formatTimeNoSeconds(seconds) { if (seconds === null || isNaN(seconds)) return '0秒'; if (seconds < 0) return '-' + formatTimeNoSeconds(-seconds); if (seconds === 0) return '0秒'; seconds = Math.round(seconds); const h = Math.floor(seconds / 3600); const m = Math.floor((seconds % 3600) / 60); const parts = []; if (h > 0) parts.push(`${h}小时`); if (m > 0 || (h > 0 && m === 0)) parts.push(`${m}分`); else if (h === 0) parts.push(`${seconds % 60}秒`); return parts.length > 0 ? parts.join('') : '0秒'; }
 function formatTimeForPie(seconds) { if (seconds === null || isNaN(seconds)) return '0分'; if (seconds < 0) return '-' + formatTimeForPie(-seconds); const totalMinutes = Math.round(seconds / 60); if (totalMinutes < 1) return '0分'; if (totalMinutes < 60) return `${totalMinutes}分`; const h = Math.floor(totalMinutes / 60); const m = totalMinutes % 60; const parts = []; if (h > 0) parts.push(`${h}小时`); if (m > 0) parts.push(`${m}分`); return parts.join(''); }
+// [v9.39.1] 时间概览专用「紧凑英文单位」格式：中文「xx小时xx分」在窄屏 3 列网格里
+// 一旦多出一位（如 -8小时30分 = 7 个字）就会被 ellipsis 截断，此时改用 12h30m。
+// 例：-8小时30分 → -8h30m；1234小时30分 → 1234h30m；45分 → 45m；30秒 → 30s（不足 1 分钟才带秒）
+function formatKpiTimeCompact(seconds) {
+    if (seconds === null || isNaN(seconds)) return '0m';
+    const sign = seconds < 0 ? '-' : '';
+    const abs = Math.abs(Math.round(seconds));
+    const h = Math.floor(abs / 3600);
+    const m = Math.floor((abs % 3600) / 60);
+    const s = abs % 60;
+    const parts = [];
+    if (h > 0) parts.push(h + 'h');
+    if (m > 0) parts.push(m + 'm');
+    if (parts.length === 0) parts.push(s > 0 ? s + 's' : '0m');
+    return sign + parts.join('');
+}
+// [v9.39.1] 时间概览数值的「显示宽度」估算：中文记 1.0，数字/字母/负号记 0.55。
+//   预算：3 列网格在窄屏上内容宽约 90px、字号 0.95rem ≈ 5.6 个字宽（比例字体近似值）。
+function kpiTimeWidthUnits(text) {
+    let width = 0;
+    for (const ch of text) width += /[\u3400-\u9fff]/.test(ch) ? 1 : 0.55;
+    return width;
+}
+// [v9.39.1] 该数值用中文单位是否会超出窄屏预算（超出 → 整表降级为紧凑英文单位）
+function kpiTimeNeedsCompact(roundedSeconds) {
+    return kpiTimeWidthUnits(formatTime(roundedSeconds)) > 5.6;
+}
+// [v9.39.1] 窄屏保护 · 第二道（渲染后实测）：估算可能因机型 / 系统字体缩放而失准，
+// 这里在渲染完成的同一帧量一次真实宽度。
+// ★ 单位统一铁律：**同一片区域（同一张时间概览表格）不允许中英文单位混用** ——
+//   只要有一格溢出，整张表的数值格一起切换为紧凑英文单位（不会闪一下，同一帧完成）。
+function fixOverflowKpiTimeCells(container) {
+    if (!container || !container.querySelectorAll) return;
+    const cells = Array.prototype.slice.call(container.querySelectorAll('.kpi-cell-value.kpi-time'));
+    if (cells.length === 0) return;
+    const anyOverflow = cells.some(el => el.clientWidth > 0 && el.scrollWidth > el.clientWidth + 1);
+    if (!anyOverflow) return;
+    cells.forEach(el => {
+        const sec = Number(el.dataset.seconds);
+        if (Number.isFinite(sec)) el.textContent = formatKpiTimeCompact(sec);
+    });
+}
 function formatTimeHoursDecimal(seconds) { if (seconds === null || isNaN(seconds)) return '0.0小时'; const sign = seconds < 0 ? '-' : ''; const absSeconds = Math.abs(seconds); if (absSeconds === 0) return '0.0小时'; const hours = absSeconds / 3600; return `${sign}${hours.toFixed(1)}小时`; }
 // [v7.15.1] 格式化为 x.xh 缩写形式（用于走势分析）
 function formatHoursShort(seconds) { if (seconds === null || isNaN(seconds)) return '0h'; const sign = seconds < 0 ? '-' : ''; const absSeconds = Math.abs(seconds); if (absSeconds === 0) return '0h'; const hours = absSeconds / 3600; return `${sign}${hours.toFixed(1)}h`; }

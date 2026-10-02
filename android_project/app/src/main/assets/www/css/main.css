@@ -1067,9 +1067,35 @@
             -webkit-backdrop-filter: blur(var(--g2-blur));
             border: 1px solid rgba(255, 255, 255, var(--g1b-border));
         }
-        /* 进度条保留原有颜色，仅添加光晕效果 */
-        body.glass-mode .st-progress-bar {
-            box-shadow: 0 0 8px currentColor;
+        /* [v9.39.1] 通透模式屏幕时间进度条：等级色由「渐变」改为「半透明纯色」
+           背景（去渐变痕迹），并**与睡眠卡片条形图完全同款**（同一套 token 与写法）：
+           半透明同色 0.5 档 + 磨砂质感 + 同色描边，去掉此前的 0.75 实底与光晕
+           （光晕是屏幕时间独有的，会让两张卡片的进度条观感不一致）。
+           注意：JS(updateScreenTimeCard) 在通透模式不再注入内联渐变/颜色，改由这里接管；
+           !important 用于兜住切换模式时的历史内联样式残留。 */
+        body.glass-mode .st-progress-bar.level-1 {
+            background: rgba(102, 187, 106, calc(0.5 * var(--g-strength))) !important;
+            border: 1px solid rgba(102, 187, 106, calc(0.25 * var(--g-strength)));
+            backdrop-filter: blur(var(--g2-blur));
+            -webkit-backdrop-filter: blur(var(--g2-blur));
+        }
+        body.glass-mode .st-progress-bar.level-2 {
+            background: rgba(66, 165, 245, calc(0.5 * var(--g-strength))) !important;
+            border: 1px solid rgba(66, 165, 245, calc(0.25 * var(--g-strength)));
+            backdrop-filter: blur(var(--g2-blur));
+            -webkit-backdrop-filter: blur(var(--g2-blur));
+        }
+        body.glass-mode .st-progress-bar.level-3 {
+            background: rgba(255, 167, 38, calc(0.5 * var(--g-strength))) !important;
+            border: 1px solid rgba(255, 167, 38, calc(0.25 * var(--g-strength)));
+            backdrop-filter: blur(var(--g2-blur));
+            -webkit-backdrop-filter: blur(var(--g2-blur));
+        }
+        body.glass-mode .st-progress-bar.level-4 {
+            background: rgba(239, 83, 80, calc(0.5 * var(--g-strength))) !important;
+            border: 1px solid rgba(239, 83, 80, calc(0.25 * var(--g-strength)));
+            backdrop-filter: blur(var(--g2-blur));
+            -webkit-backdrop-filter: blur(var(--g2-blur));
         }
         /* [v7.25.2] 纯色模式屏幕时间进度条：配色与睡眠卡片条形图一致 */
         body.flat-style:not(.glass-mode) .st-progress {
@@ -2662,6 +2688,27 @@
             background: var(--accent-gradient);
             color: #f8f8f8;
         }
+        /* [v9.39.1] 通透模式计时徽章：去掉渐变痕迹，改为「分类色半透明毛玻璃胶囊」
+           —— 与同文件 .task-card.glass .task-category 同一套配色规范（保留分类色辨识度，
+           半透明 + 磨砂），并随「通透强度」滑块（--g-strength）联动。
+           --cat-rgb 由 JS 在生成徽章时注入（同卡片上的分类标签）。 */
+        body.glass-mode .task-timer-badge {
+            background: rgba(var(--cat-rgb), calc(0.55 * var(--g-strength))) !important;
+            border: 1px solid rgba(var(--cat-rgb), calc(0.7 * var(--g-strength)));
+            backdrop-filter: blur(var(--g2-blur));
+            -webkit-backdrop-filter: blur(var(--g2-blur));
+            box-shadow: 0 1px 4px rgba(0, 0, 0, 0.15), inset 0 1px 0 rgba(255, 255, 255, 0.15);
+            text-shadow: 0 1px 2px rgba(0, 0, 0, 0.5);
+            color: #fff;
+        }
+        [data-theme="dark"] body.glass-mode .task-timer-badge {
+            color: #f8f8f8;
+        }
+        /* 暂停态徽章：中性白玻璃（保持"暂停＝灰"的语义，不跟随分类色） */
+        body.glass-mode .task-timer-badge.paused {
+            background: rgba(255, 255, 255, calc(0.28 * var(--g-strength))) !important;
+            border-color: rgba(255, 255, 255, var(--g2-border));
+        }
         .task-timer-badge.with-progress {
             font-size: 0.74rem;
         }
@@ -3566,6 +3613,16 @@
         body.glass-mode #sleepReportModal .sleep-report-details .text-muted {
             color: rgba(255, 255, 255, 0.85) !important;
         }
+        /* [v9.39.1] 睡眠报告弹窗表格：通透模式下不再给单元格铺白底。
+           根因：全局 `body.glass-mode th/td` 规则（报告卡内表格的内衬规范）会一并给睡眠报告的
+           表格铺上半透明白底，导致报告下半部分糊成一块白板。此处按弹窗局部覆盖为透明，
+           只保留表头下的一条分隔线，恢复「纯文字 + 细线」的干净观感。 */
+        body.glass-mode #sleepReportModal table,
+        body.glass-mode #sleepReportModal th,
+        body.glass-mode #sleepReportModal td,
+        body.glass-mode #sleepReportModal tr:hover td {
+            background: transparent !important;
+        }
         /* [v7.9.8] 手动补录弹窗预览区域样式 */
         .manual-sleep-preview .preview-label {
             color: var(--text-color-light);
@@ -4328,12 +4385,13 @@
         }
         
         /* [v7.16.0] 入睡倒计时闹钟信息区域通透模式 */
-        body.glass-mode #sleepAlarmInfoSection {
-            background: rgba(255, 255, 255, 0.12) !important;
-            border: 1px solid rgba(255, 255, 255, 0.25);
-        }
+        /* [v9.39.1] 删除该区域（本次睡眠模式 → 设置系统闹钟）在通透模式下的整块半透明白色底框，
+           改为直接随弹窗透出壁纸；文字仍强制高亮白色以保证任意壁纸上可读。
+           span：时长两个输入框后的「小时 / 分」此前沿用 --text-color-light 深色，通透模式下看不清 */
         body.glass-mode #sleepAlarmInfoSection div,
-        body.glass-mode #sleepAlarmInfoSection label {
+        body.glass-mode #sleepAlarmInfoSection label,
+        body.glass-mode #sleepAlarmInfoSection span,
+        body.glass-mode #sleepAlarmInfoSection button {
             color: rgba(255, 255, 255, 0.9) !important;
             text-shadow: 0 1px 3px rgba(0, 0, 0, 0.4);
         }
@@ -4747,30 +4805,15 @@
         }
         /* [v9.39.0] 删除深色变体：上方浅色规则已改用 L2 token，
            深色差异由 token 的主题因子（alpha × 0.75）统一承担。 */
-        /* [v9.38.4] 时间概览「热力图色块」（测试版，通透模式专用）
-           背景：普通模式靠「文字颜色」（流量色系 getFlowColorScaled 的内联 color）表达好坏，
-           但通透模式下这条 .kpi-cell-value{color:white!important} 会把内联色整片刷白 → 整表失去色彩信息。
-           改为：格子底色套用活动日历的 6 档色块（浅色档在色块方案下才可用），文字按底色深浅自动取深色/白色。
-           非通透模式不定义这些类 → 零影响（文字仍走流量色系）。 */
-        body.glass-mode .kpi-cell[class*="kpi-heat-"] .kpi-cell-label,
-        body.glass-mode .kpi-cell[class*="kpi-heat-"] .kpi-cell-value,
-        body.glass-mode .kpi-cell[class*="kpi-heat-"] .kpi-cell-change,
-        body.glass-mode .kpi-cell[class*="kpi-heat-"] .kpi-cell-delta {
-            color: inherit !important;
-            text-shadow: none !important;
+        /* [v9.39.1] 时间概览改为「文字上色」（回退 v9.38.4 的测试版「热力图色块」方案）。
+           通透模式下 .kpi-cell-value 会被强制刷白，这里用更高优先级的选择器把数值格
+           （.kpi-time）恢复成彩色文字：色值由 JS 注入 --kpi-glass-color（与普通模式同阈值、
+           同方向，但整体提亮以适配玻璃底），因此切换通透模式无需重渲染即可即时接管。
+           计数类（活跃天数 / 总记录数 / 日均记录）没有方向语义 → 通透模式保持白色文字。 */
+        body.glass-mode .kpi-table-grid .kpi-cell-value.kpi-time {
+            color: var(--kpi-glass-color, #ffffff) !important;
+            text-shadow: 0 1px 3px rgba(0, 0, 0, 0.5);
         }
-        body.glass-mode .kpi-cell[class*="kpi-heat-"] .kpi-cell-label { opacity: 0.78; }
-        body.glass-mode .kpi-cell[class*="kpi-heat-"] .kpi-cell-value { font-weight: 700; }
-        /* [v9.39.0] 纳入滑块控制 +「高清保底」：色块是数据编码，不能随 0% 档位一起消失。
-           每档 0% → 0.76/0.78/0.82，120% → 0.88/0.90/0.94（保留原有的深浅梯度） */
-        /* 净赚（绿）三档：浅 → 中 → 深 */
-        body.glass-mode .kpi-cell.kpi-heat-surplus-1 { background: rgba(155, 233, 168, calc(0.76 + 0.12 * var(--g-strength))) !important; color: #14361c !important; }
-        body.glass-mode .kpi-cell.kpi-heat-surplus-2 { background: rgba(64, 196, 99, calc(0.78 + 0.12 * var(--g-strength))) !important; color: #0c2913 !important; }
-        body.glass-mode .kpi-cell.kpi-heat-surplus-3 { background: rgba(33, 110, 57, calc(0.82 + 0.12 * var(--g-strength))) !important; color: #ffffff !important; }
-        /* 净消费（红）三档：浅 → 中 → 深 */
-        body.glass-mode .kpi-cell.kpi-heat-deficit-1 { background: rgba(255, 205, 210, calc(0.76 + 0.12 * var(--g-strength))) !important; color: #55191d !important; }
-        body.glass-mode .kpi-cell.kpi-heat-deficit-2 { background: rgba(229, 115, 115, calc(0.78 + 0.12 * var(--g-strength))) !important; color: #3c0c0c !important; }
-        body.glass-mode .kpi-cell.kpi-heat-deficit-3 { background: rgba(244, 67, 54, calc(0.82 + 0.12 * var(--g-strength))) !important; color: #ffffff !important; }
         
         /* 排行榜通透模式 */
         body.glass-mode .leaderboard-label {
@@ -4901,6 +4944,32 @@
         .modal-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: var(--space-xl); }
         .modal-title { font-size: 1.2rem; font-weight: 600; color: var(--text-color); }
         .close-btn { background: none; border: none; font-size: 1.5rem; cursor: pointer; color: var(--text-color-light); padding: 0; width: 30px; height: 30px; display: flex; align-items: center; justify-content: center; }
+        /* [v9.39.1] 通用信息弹窗的「报告式抬头」（屏幕时间报告用）：与睡眠报告弹窗观感一致 —
+           居中大图标（2.4rem）+ 居中标题 + 灰色副标题，关闭按钮悬浮右上角。
+           仅在 showInfoModal(title, content, { icon, subtitle }) 传参时生成。 */
+        .info-modal-hero-icon {
+            font-size: 2.4rem;
+            margin-bottom: 6px;
+        }
+        /* [v9.39.1] 屏幕时间报告的总分数字（红绿与睡眠报告同款）。
+           注意：通透模式必须用「带 ID 的高优先级 + !important」才能保住红绿 ——
+           v6.0.0 有一条 `body.glass-mode .modal.show .modal-content span[style]` 会把
+           #generalInfoModal 内带内联样式的 span 一律刷成白色（睡眠报告用 .modal-overlay
+           结构，所以不受影响、一直有红绿）。此处不再依赖内联颜色，颜色单点定义在这里。 */
+        .info-modal-total {
+            font-size: 2rem;
+            font-weight: 700;
+        }
+        .info-modal-total.positive { color: #4CAF50; }
+        .info-modal-total.negative { color: #F44336; }
+        body.glass-mode #generalInfoModal .info-modal-total.positive {
+            color: #4CAF50 !important;
+            text-shadow: 0 1px 3px rgba(0, 0, 0, 0.45);
+        }
+        body.glass-mode #generalInfoModal .info-modal-total.negative {
+            color: #F44336 !important;
+            text-shadow: 0 1px 3px rgba(0, 0, 0, 0.45);
+        }
 
         .form-group { margin-bottom: var(--space-lg); }
         .form-label { display: block; margin-bottom: var(--space-sm); font-weight: 500; color: var(--text-color); }
@@ -7223,6 +7292,8 @@
         .day-detail-pie-section .pie-chart-container {
             margin: 0 auto;
         }
+        /* [v9.39.1] 屏幕时间报告的饼图：直接复用标准 180px .pie-chart-container
+           （标签画在扇区上，与「构成分析 · 任务视图」同款，故不再需要紧凑容器与右侧图例） */
 
         #kpiDashboard { display: flex; flex-direction: column; gap: var(--space-xl); }
 
@@ -7272,6 +7343,45 @@
         }
         .kpi-cell-value.positive { color: var(--color-positive); }
         .kpi-cell-value.negative { color: var(--color-negative); }
+        /* [v9.39.1] 时间概览格子：长按激活后可按住滑动逐格浏览（同活动日历的日期格子），
+           故只保留纵向滚动（横向交给长按滑动），并禁止长按选中 / 弹出系统菜单 */
+        .kpi-cell {
+            touch-action: pan-y;
+            -webkit-user-select: none;
+            user-select: none;
+            -webkit-touch-callout: none;
+            /* 退出时柔和缩回（1s），进入时快速响应（0.15s）—— 与活动日历日期格子同款节奏 */
+            transition: transform 1s ease-out, box-shadow 1s ease-out;
+        }
+        /* [v9.39.1] 时间概览格子弹窗：被选中（点按/长按）的格子放大 + 内圈高亮，
+           与活动日历日期格子的 active 提示同款做法（放大需 position 才能盖住邻格） */
+        .kpi-cell.kpi-tip-active {
+            position: relative;
+            z-index: 10;
+            transform: scale(1.06);
+            box-shadow: inset 0 0 0 2px var(--color-primary);
+            border-radius: 8px;
+            transition: transform 0.15s ease-out, box-shadow 0.15s ease-out;
+        }
+        /* [v9.39.1] 格子弹窗里的「前五大任务 + 其他」分布饼图：紧凑 150px 版 */
+        .heatmap-tooltip .kpi-tip-pie .pie-chart-container {
+            width: 150px;
+            height: 150px;
+            margin: 8px auto 2px;
+        }
+        .heatmap-tooltip .kpi-tip-pie .pie-chart-center { width: calc(150px * 0.39); }
+        .heatmap-tooltip .kpi-tip-pie .pie-center-title { font-size: 0.68rem; }
+        .heatmap-tooltip .kpi-tip-pie .pie-center-value { font-size: 0.78rem; }
+        /* 带饼图的气泡放宽（默认 max-width: 200px 会挤压饼图） */
+        .heatmap-tooltip.has-pie { max-width: none; }
+        /* [v9.39.1] 带饼图的格子弹窗：左上角标题「详情」 */
+        .heatmap-tooltip .kpi-tip-title {
+            text-align: left;
+            font-weight: 700;
+            font-size: 0.82rem;
+            margin: 0 0 4px;
+            opacity: 0.9;
+        }
         .kpi-cell-change {
             font-size: 0.7rem;
             color: var(--text-color-light);
@@ -8244,6 +8354,11 @@
     background: linear-gradient(135deg, rgba(var(--color-primary-rgb), 0.1), rgba(156, 39, 176, 0.08));
 }
 .ai-model-row.selected .ai-model-row-check { opacity: 1; }
+/* [v9.39.1] 通透模式：AI 模型选中项去掉"蓝→紫"渐变底色，改为浮层内元素(L4)白色半透明高亮 */
+body.glass-mode .ai-model-row.selected {
+    background: rgba(255, 255, 255, var(--g4-bg)) !important;
+    border-color: rgba(255, 255, 255, var(--g4-border));
+}
 
 /* 记忆状态胶囊 */
 .ai-memory-badge {

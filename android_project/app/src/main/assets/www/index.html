@@ -9,7 +9,7 @@
       Do NOT update the version number in <title> or any other place.
       The user designates the version number at the START of an update cycle.
     -->
-    <title>时间银行 - Time Bank v9.39.0</title>
+    <title>时间银行 - Time Bank v9.40.1</title>
 
     <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' fill='%231a2744'/%3E%3Ctext x='16' y='22' text-anchor='middle' font-size='20' fill='white'%3E⏳%3C/text%3E%3C/svg%3E">
     <link rel="manifest" href="manifest.json">
@@ -276,7 +276,7 @@
         <div class="header">
             <h1>时间银行</h1>
         </div>
-        <div class="version-subtitle">TimeBank v9.39.0 · Time Bot 伙伴 · 气泡对话 · 背景图生图</div>
+        <div class="version-subtitle">TimeBank v9.40.1 · Time Bot 伙伴 · 气泡对话 · 背景图生图</div>
 
         <div class="main-container">
 
@@ -1833,7 +1833,7 @@
                     <div class="about-container" style="padding: 16px 0 8px; line-height: 1.5;">
                         <div class="about-header" style="text-align: center; margin-bottom: 20px; padding-top: 12px;">
                             <div style="font-size: 1.25rem; font-weight: 600; margin-bottom: 4px;">时间银行</div>
-                            <div style="font-size: 0.85rem; color: var(--text-color-light);">版本 v9.39.0</div>
+                            <div style="font-size: 0.85rem; color: var(--text-color-light);">版本 v9.40.1</div>
                         </div>
 
                         <div class="about-meta" style="font-size: 0.9rem; color: var(--text-color);">
@@ -1892,6 +1892,19 @@
                 <!-- 版本更新日志 -->
                 <details>
 <summary>版本更新日志</summary>
+                    <div class="version-history-item">
+                        <p><strong>版本 v9.40.1 (2026-10-02)</strong> 🫧 <b>通透模式收口 · 时间概览可点开看详情</b></p>
+                        <ul>
+                            <li><strong>[Feat]</strong> 📊 <b>时间概览每一格都能点开看详情</b>：点按弹出详情气泡；长按可以<b>按住左右滑动逐格浏览</b>——气泡依次浮现、带翻页动画，被选中的格子会放大高亮。其中「总获得 / 总消费 / 净余额 / 最高单日获得 / 最高单日消费 / 最大单日变动」六格还带<b>前四大任务 + 其他</b>的分布饼图；三个极值格<b>长按满 3 秒</b>可直接进那一天的每日详情。</li>
+                            <li><strong>[Fix]</strong> 📏 <b>概览数字不再被截断</b>：以前"1234小时30分"这类长数字在小屏上会被省略号吃掉；现在放不下时<b>整张表统一</b>改用 `1234h30m` 这种紧凑写法，绝不出现省略号。</li>
+                            <li><strong>[UX]</strong> 🫧 <b>通透模式下的彩色元素统一"去渐变"</b>：任务卡计时徽章、分类标签、走势与收支条、AI 模型选中项、提示按钮等，统一成半透明磨砂纯色（保留颜色辨识度），并跟着「通透强度」滑块一起变。</li>
+                            <li><strong>[Fix]</strong> 🎨 <b>修复通透模式下数字看不见颜色</b>：时间概览的正负数值、屏幕时间报告的总分数字，以前在通透模式下会被刷成一色；现在深绿/亮红正常显示。</li>
+                            <li><strong>[Fix]</strong> ⏱️ <b>屏幕时间卡片与睡眠卡片配色统一</b>：通透模式下屏幕时间的进度条以前更实、还带光晕，现在与睡眠条形图完全同款。</li>
+                            <li><strong>[Feat]</strong> 🥧 <b>「今日使用分布」变成饼图</b>：直接在扇区上标注应用名、时长与占比；屏幕时间报告的开头也重排成与睡眠报告一致的「📱 / 标题 / 已使用·限额 / 红绿数字」四行。</li>
+                            <li><strong>[Fix]</strong> 😴 <b>准备入睡弹窗更干净</b>：去掉通透模式下那整块发白的底板，「本次睡眠模式」与小睡/夜间闹钟统一成同款浅色面板，时长输入框后的「小时/分」在任何壁纸下都看得清。</li>
+                            <li><strong>[Fix]</strong> 🔚 <b>跨设备不再残留"幽灵任务"</b>：在另一台设备结束或删除任务后，本机不用重启也能立刻消失（新增第三条云端对账兜底）。</li>
+                        </ul>
+                    </div>
                     <div class="version-history-item">
                         <p><strong>版本 v9.39.0 (2026-10-01)</strong> 🫧 <b>通透强度大升级 · 一层一层看得清</b></p>
                         <ul>
@@ -3313,6 +3326,7 @@
     <div id="pieTooltip" class="trend-tooltip pie-tooltip"></div> <!-- [v5.1.0] 饼图长按弹窗 -->
     <div id="flowTooltip" class="trend-tooltip flow-tooltip"></div> <!-- [v5.1.1] 时间流图长按弹窗 -->
     <div id="heatmapTooltip" class="heatmap-tooltip"></div>
+    <div id="kpiCellTooltip" class="heatmap-tooltip"></div> <!-- [v9.39.1] 时间概览格子点按/长按弹窗（复用活动日历弹窗视觉） -->
     <!-- [v6.4.6] 全局浮动任务菜单，独立于任务卡片以支持backdrop-filter -->
     <div id="globalTaskMenu" class="global-task-menu"></div>
 

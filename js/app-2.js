@@ -107,9 +107,19 @@ const hslToHex = (h, s, l) => {
 // [v7.20.1] 获取当前渐变风格设置
 const getGradientStyle = () => localStorage.getItem('gradientStyle') || 'gradient';
 
+// [v9.39.1] 通透模式判定（彩色装饰元素的单一判定点）
+// 背景：setCardVisualMode('glass') 内部会写入 gradientStyle='gradient'，
+//   于是所有「只判断 getGradientStyle()==='flat'」的彩色元素（徽章/分类标签/图表条）
+//   在通透模式下都会误走渐变分支 → 通透界面里残留渐变痕迹。
+//   此类元素在通透模式下的最终外观由 CSS 的 body.glass-mode 规则接管（半透明纯色 + 磨砂），
+//   本函数用于让 JS 侧同样返回纯色，避免非 CSS 路径（内联样式）漏出渐变。
+const isGlassVisualMode = () => document.body.classList.contains('glass-mode');
+
 // [v7.20.1] 徽章/标签渐变色生成（徽章左浅右深）
 const getBadgeGradient = (baseColor) => {
     const color = baseColor || '#7c4dff';
+    // [v9.39.1] 通透模式：返回纯色（渐变痕迹清除）
+    if (isGlassVisualMode()) return color;
     // [v7.20.1] 纯色系模式直接返回纯色
     if (getGradientStyle() === 'flat') return color;
     const hsl = hexToHsl(color);
@@ -133,6 +143,8 @@ const getBadgeGradient = (baseColor) => {
 // [v7.20.1] 分类标签渐变（左深右浅）
 const getCategoryGradient = (baseColor) => {
     const color = baseColor || '#7c4dff';
+    // [v9.39.1] 通透模式：返回纯色（CSS 负责把它渲染成半透明毛玻璃胶囊）
+    if (isGlassVisualMode()) return color;
     // [v7.20.1] 纯色系模式直接返回纯色
     if (getGradientStyle() === 'flat') return color;
     const hsl = hexToHsl(color);
@@ -155,6 +167,8 @@ const getCategoryGradient = (baseColor) => {
 
 // [v7.20.1] 暂停徽章背景获取（支持纯色/渐变切换）
 const getPausedBadgeBg = () => {
+    // [v9.39.1] 通透模式：纯灰（实际外观由 CSS 的 body.glass-mode .task-timer-badge.paused 接管）
+    if (isGlassVisualMode()) return '#9e9e9e';
     if (getGradientStyle() === 'flat') return '#9e9e9e';
     return 'linear-gradient(135deg, #b5b5b5, #8a8a8a)';
 };
@@ -1770,7 +1784,10 @@ function renderTaskCards(taskList, options = {}) {
                 } 
                 const pausedBadgeBg = getPausedBadgeBg(); // [v7.20.1] 使用统一函数获取暂停徽章背景
                 const badgeBg = isPaused ? pausedBadgeBg : badgeGradient;
-                timerBadge = `<span class="${timerClass}" style="background:${badgeBg};">${timerText}</span>`; 
+                // [v9.39.1] 通透模式：不注入渐变内联样式（改由 CSS 的半透明毛玻璃胶囊接管），
+                //   但仍注入 --cat-rgb 供 CSS 派生分类色；暂停态额外加 .paused 类。
+                const __badgeStyle = `--cat-rgb: ${catRgbStr};` + (isGlassVisualMode() ? '' : ` background:${badgeBg};`);
+                timerBadge = `<span class="${timerClass}${isPaused ? ' paused' : ''}" style="${__badgeStyle}">${timerText}</span>`; 
             paramsRow = `<div class="task-row task-parameters has-timer-badge"><span>${paramsText}</span><span>${timerBadge}</span></div>`;
         
             } else { let actionButton = ''; switch (task.type) { case 'reward': actionButton = `<button class="task-btn success solo" onclick="completeTask('${task.id}')">完成</button>`; break; case 'instant_redeem': actionButton = `<button class="task-btn danger solo" onclick="redeemTask('${task.id}')">兑换</button>`; break; default: actionButton = `<button class="task-btn primary solo" onclick="startTask(event, '${task.id}')">开始</button>`; break; } actionRow = `<div class="task-row task-actions">${actionButton}</div>`; } 
@@ -1954,6 +1971,10 @@ function updateRunningTimers() {
             if (timerElements.length > 0) {
                 const colorHex = categoryColors.get(task.category) || '#666';
                 const badgeGradient = getBadgeGradient(colorHex);
+                // [v9.39.1] 通透模式：清空内联渐变、补注入 --cat-rgb，实际外观由 CSS 半透明胶囊接管
+                const __glassBadge = isGlassVisualMode();
+                const __rgb = hexToRgb(colorHex);
+                const __catRgb = __rgb ? `${__rgb.r}, ${__rgb.g}, ${__rgb.b}` : '124, 77, 255';
                 timerElements.forEach(timerElement => {
                     // [v9.18.0] 迷你卡片使用紧凑时间格式
                     const isMini = timerElement.closest('.task-card-mini');
@@ -1966,7 +1987,12 @@ function updateRunningTimers() {
                     }
                     timerElement.textContent = timerText;
                     timerElement.className = timerClass;
-                    timerElement.style.background = badgeGradient;
+                    if (__glassBadge) {
+                        timerElement.style.background = '';
+                        timerElement.style.setProperty('--cat-rgb', __catRgb);
+                    } else {
+                        timerElement.style.background = badgeGradient;
+                    }
                 });
             }
         } 
@@ -2276,30 +2302,22 @@ function getFlowColorScaled(amountSeconds, scaleDays) {
     }
 }
 
-// [v9.38.4] 时间概览「色块档位」：套用热力图（活动日历）的背景色块体系
-// 与 getFlowColorScaled 同阈值（1h / 3h × 周期缩放），但输出的是 class 而非文字色，
-// 供通透模式把「文字上色」换成「背景色块 + 高对比文字」（浅色档位在色块方案下才可用）
-function getFlowHeatClassScaled(amountSeconds, scaleDays) {
+// [v9.39.1] 时间概览「通透模式文字色」：阈值与方向同 getFlowColorScaled，
+// 但整体提亮（同色相、高亮度）——通透模式格子底是半透明深底，
+// 普通模式那套深绿(#216e39)/正红(#f44336)会看不清。
+// 由 renderKpiCards 注入到 --kpi-glass-color，CSS 在 body.glass-mode 下接管
+// （v9.38.4 的「热力图色块」方案已回退，见 main.css）
+function getFlowColorScaledGlass(amountSeconds, scaleDays) {
     const scale = Math.max(1, scaleDays);
     const absH = Math.abs(amountSeconds) / 3600;
     if (amountSeconds >= 0) {
-        if (absH < 1 * scale) return 'kpi-heat-surplus-1';
-        if (absH < 3 * scale) return 'kpi-heat-surplus-2';
-        return 'kpi-heat-surplus-3';
+        if (absH < 1 * scale) return '#b9f6c4';   // 轻度净赚 - 亮浅绿
+        if (absH < 3 * scale) return '#82ef95';   // 中度净赚 - 亮绿
+        return '#4ade6e';                         // 强度净赚 - 亮松绿
     }
-    if (absH < 1 * scale) return 'kpi-heat-deficit-1';
-    if (absH < 3 * scale) return 'kpi-heat-deficit-2';
-    return 'kpi-heat-deficit-3';
-}
-
-// [v9.38.4] 计数类指标（活跃天数 / 总记录数 / 日均记录）的色块档位
-// 这三个指标只有「活跃度」方向、没有「坏」的语义，因此只取绿系 3 档；value ≤ 0 时不上色
-// 阈值由调用方按各自口径给出（见 renderKpiCards）
-function getCountHeatClass(value, t2, t3) {
-    if (!(value > 0)) return '';
-    if (value >= t3) return 'kpi-heat-surplus-3';
-    if (value >= t2) return 'kpi-heat-surplus-2';
-    return 'kpi-heat-surplus-1';
+    if (absH < 1 * scale) return '#ffc9c4';       // 轻度净消费 - 亮浅粉
+    if (absH < 3 * scale) return '#ff9d94';       // 中度净消费 - 亮珊瑚
+    return '#ff8a80';                             // 强度净消费 - 亮红（与通透模式负值同色）
 }
 
 // [v9.29.1] 近期余额卡片：支持 7日/30日/90日/全部 切换
@@ -2745,6 +2763,18 @@ balanceTrendStyles.textContent = `
         color: var(--text-color-light);
         margin-top: 4px;
     }
+    /* [v9.39.1] 通透模式：走势分析正/负色条去掉渐变，改为半透明纯色
+       （贴合通透模式"保留色相辨识度、去渐变"的规范，并随通透强度联动） */
+    body.glass-mode .trend-bar.positive,
+    body.glass-mode .trend-h-bar.positive,
+    body.glass-mode .trend-s-bar.positive {
+        background: rgba(76, 175, 80, calc(0.8 * var(--g-strength))) !important;
+    }
+    body.glass-mode .trend-bar.negative,
+    body.glass-mode .trend-h-bar.negative,
+    body.glass-mode .trend-s-bar.negative {
+        background: rgba(244, 67, 54, calc(0.8 * var(--g-strength))) !important;
+    }
 `;
 document.head.appendChild(balanceTrendStyles);
 
@@ -2894,6 +2924,13 @@ financeDetailStyles.textContent = `
         text-align: center;
         font-size: 1rem;
         font-weight: 600;
+    }
+    /* [v9.39.1] 通透模式：收支条形图去掉渐变，改为半透明纯色（同走势分析口径） */
+    body.glass-mode .finance-bar.positive {
+        background: rgba(76, 175, 80, calc(0.8 * var(--g-strength))) !important;
+    }
+    body.glass-mode .finance-bar.negative {
+        background: rgba(244, 67, 54, calc(0.8 * var(--g-strength))) !important;
     }
 `;
 document.head.appendChild(financeDetailStyles);
