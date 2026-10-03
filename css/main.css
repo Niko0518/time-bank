@@ -1659,6 +1659,70 @@
             padding: 6px 0;
         }
 
+        /* ============================================================================
+           [v9.41.0] 实际睡眠数据 —— 卡片新增视觉（术语：记录睡眠＝用户给的；实际睡眠＝设备给的）
+           1) 参考轨色号：由容器上的 level 类统一输出 --pc-line，虚线色与条形同色系但深一档
+           2) 四个时间数字：条外＝记录入睡/醒来（压暗白）／条内＝实际入睡/醒来（亮白）
+              位置只由锚点 left:X% 决定、延伸方向由 anchor-left / anchor-right 决定
+              → 同一行内互不侵犯（朝背离锚点的方向排）
+           3) 该夜没有第二条睡眠记录时不渲染上述任何元素 → 卡片与旧版完全一致
+           ============================================================================ */
+        .sleep-card-bar-container { --pc-line: #388E3C; }
+        .sleep-card-bar-container.level-1 { --pc-line: #388E3C; }   /* 条形 #66BB6A */
+        .sleep-card-bar-container.level-2 { --pc-line: #1976D2; }   /* 条形 #42A5F5 */
+        .sleep-card-bar-container.level-3 { --pc-line: #EF6C00; }   /* 条形 #FFA726 */
+        .sleep-card-bar-container.level-4 { --pc-line: #D32F2F; }   /* 条形 #EF5350 */
+        /* 通透模式：深一档 + alpha 随通透强度联动（与现有 level 条形图同规范） */
+        body.glass-mode .sleep-card-bar-container.level-1 { --pc-line: rgba(56,142,60, calc(0.85 * var(--g-strength))); }
+        body.glass-mode .sleep-card-bar-container.level-2 { --pc-line: rgba(25,118,210, calc(0.85 * var(--g-strength))); }
+        body.glass-mode .sleep-card-bar-container.level-3 { --pc-line: rgba(239,108,0, calc(0.85 * var(--g-strength))); }
+        body.glass-mode .sleep-card-bar-container.level-4 { --pc-line: rgba(211,47,47, calc(0.85 * var(--g-strength))); }
+
+        /* 参考轨边界：竖直虚线（压在计划虚线之上） */
+        .sleep-card-chart .sleep-card-bar-marker.precise {
+            border-left: 2px dashed var(--pc-line);
+            z-index: 5;
+        }
+
+        .sleep-card-time {
+            position: absolute;
+            top: 50%;
+            white-space: nowrap;
+            z-index: 6;
+        }
+        /* 条外：记录入睡/醒来（压暗、小一号，作参照） */
+        .sleep-card-time.outside {
+            font-size: 0.5rem;
+            font-weight: 600;
+            letter-spacing: 0.02em;
+            color: rgba(255, 255, 255, 0.6);
+            text-shadow: 0 1px 2px rgba(0, 0, 0, 0.45);
+        }
+        /* 条内：实际入睡/醒来（亮白，主体） */
+        .sleep-card-time.inside {
+            font-size: 0.55rem;
+            font-weight: 700;
+            letter-spacing: 0.02em;
+            color: #fff;
+            text-shadow: 0 1px 2px rgba(0, 0, 0, 0.55);
+        }
+        .sleep-card-time.anchor-right { transform: translate(-100%, -50%); }  /* 右端贴锚点 → 向左排 */
+        .sleep-card-time.anchor-left  { transform: translateY(-50%); }        /* 左端贴锚点 → 向右排 */
+
+        /* 有参考轨时，条形内只剩时长文字 → 居中 */
+        .sleep-card-chart .sleep-card-bar.center-only { justify-content: center; }
+
+        /* [v9.41.0] 导入设备睡眠数据弹窗的底部说明 */
+        .precise-import-hint {
+            margin-top: 12px;
+            padding: 9px 11px;
+            border-radius: 8px;
+            background: var(--bg-secondary);
+            color: var(--text-color-light);
+            font-size: 0.74rem;
+            line-height: 1.7;
+        }
+
         /* [v5.2.0] 屏幕时间管理卡片 */
         .screen-time-card {
             background: linear-gradient(135deg, var(--color-primary) 0%, #5a8dee 100%);

@@ -39,7 +39,7 @@
 | `createdAt` | string | **记录写入系统的时刻**。与 `timestamp` 相差越大，越可能是事后补录 |
 | `businessDate` | string | 只到日的归属日期（`YYYY-MM-DD`，本地时区）= `occurredAt`（时刻未知时用 `timestamp`）的日历日期；时刻未知时仍有值。**睡眠记录例外：统一按「醒来日」**（= 醒来时刻所在的那天）→ 因此「这一夜」恒等于 `businessDate − 1 天`（见第 6 节 sleep_night） |
 | `entryMode` | string | 录入方式：`live`（实时）/ `backfill`（补录）/ `auto`（系统生成）/ `import` |
-| `timeSource` | string | 时刻来源：`live` / `user` / `estimated` / `auto` |
+| `timeSource` | string | 时刻来源：`live` / `user` / `estimated` / `auto` / `device`（设备实测，见第 4 节） |
 | `timePrecision` | string | 时刻精度：`exact` / `minute` / `date` / `derived` |
 | `type` | string | `earn`（赚取）/ `spend`（消耗）。**`amount` 恒为正数**，方向由本字段决定 |
 | `amount` | number | 结算后的金额（秒）。**含额度定价与倍率，不可当作时长使用** |
@@ -65,6 +65,10 @@
 | `sleepType` | `night`（夜间睡眠）/ `nap`（日间小睡） |
 | `manualEntry` | 是否由用户手工录入 |
 | `plannedBedtime` / `plannedWakeTime` / `targetDurationMinutes` | 计划值快照（**仅夜间睡眠路径写入**，小睡与部分历史记录没有） |
+| `source` | **v9.41.0 引入**。`device` = **实际睡眠**（外部设备实测的导入）；字段缺失 = **记录睡眠**（用户给的时刻） |
+| `isReference` | **v9.41.0 引入**。`true` = 该条是这一夜的**参考轨**（不计奖：`amount = 0`、不参与统计）；字段缺失 / `false` = 该条**计奖**（参与奖惩结算与统计）。**同一夜最多只有一条计奖**。哪条计奖由 App 设置「奖励依据」决定，见第 6 节 `sleep_device` |
+| `deviceName` | 来源设备名（仅 `source === 'device'`，如"华为手环9"） |
+| `importedAt` | 该数据被导入 App 的时刻（ISO 8601；仅 `source === 'device'`） |
 
 > **小睡的判定规则**（不在数据里，仅系统逻辑）：入睡小时 ∈ [20:00, 06:00) **或** 总时长 ≥ 240 分钟 → 夜间睡眠；否则为小睡。
 
@@ -88,7 +92,7 @@
 
 ---
 
-## 4. 记录可信度体系（四档）
+## 4. 记录可信度体系（五档）
 
 | `timeSource` | `timePrecision` | 来源 | 误差性质 | 允许的分析 |
 |---|---|---|---|---|
@@ -98,6 +102,7 @@
 | `auto` | `exact` | 系统结算但时刻来自用户动作（如睡眠：入睡时刻 = 点击入睡） | 无记忆误差 | 可按 `exact` 使用 |
 | `user` | `exact` | **老格式睡眠记录**（2026-01 ~ 07）：入睡/醒来时刻原本只写在 `description` 文本里（如 `😴 夜间睡眠: 02:05~10:17`），导出时由 App 解析成结构化时刻 | 用户当时记录的值，无记忆误差 | 可按 `exact` 使用 |
 | `auto` | `date` | 系统整日累计（利息、屏幕时间、自动补录/修正） | 时刻未知 | **仅日级分析**，参考 `meta.specialData` |
+| `device` | `exact` | **设备实测**（v9.41.0 引入）：由用户从手环 / 手表等外部设备导入的真实入睡、醒来时刻（见第 6 节 `sleep_device`） | 仪器测量误差（分钟级），**无用户回忆误差、也无"点击时刻 ≠ 生理时刻"的偏差** | **任何分析**。可信度**高于 `live`**：`live` 是"用户点击那一刻"，`device` 是"身体真的睡着了那一刻" |
 
 > `derived` 为保留值（未来系统推算类记录使用），当前数据中不出现。
 
@@ -149,6 +154,7 @@
 |------|----------|------|----------|
 | `sleep_night` | `sleepData.sleepType === 'night'` | 夜间睡眠结算 | `entryMode='auto'`（系统结算），`timeSource` 反映时刻来源：`manualEntry=true` → `user`，否则 `live`。**「入睡时刻」= 用户点击入睡、放下手机的时刻，不是真正睡着时刻**。`occurredAt` = 入睡时刻；**夜晚归属**：若入睡时刻的本地小时 < 12，则该夜归属到**前一天**（例：9/25 00:44 入睡 → 该夜为 9/24 的夜）。**老格式（无 `sleepData`）**：入睡时刻从 `description` 解析（如 `😴 夜间睡眠: 23:26~06:15`），`occurredAt` = 解析出的入睡时刻、`timeSource='user'`、`timePrecision='exact'`。**归属日统一为「醒来日」**（如 `23:26~06:15` 记在**醒来那天**）；若要按"这一夜"聚合，用 `businessDate − 1 天` |
 | `sleep_nap` | `sleepData.sleepType === 'nap'` | 日间小睡 | 与夜间睡眠独立结算；不含 `plannedBedtime` 等字段 |
+| `sleep_device` | `sleepData.source === 'device'` | **实际睡眠数据**（v9.41.0 引入）：用户从外部设备导入的真实入睡 / 醒来时刻（术语：**记录睡眠**＝用户给的时刻，**实际睡眠**＝设备给的时刻） | 恒有 `entryMode='import'`、`timeSource='device'`、`timePrecision='exact'`；归属日同 `sleep_night`（按醒来日）。<br>**与同夜 `sleep_night` 平级并存、互为参考**：一夜最多两条睡眠记录（`sleep_night`＝记录睡眠；`sleep_device`＝实际睡眠），其中**只有一条计奖**（`isReference` 不为 `true`，金额按睡眠规则结算），另一条是参考轨（`isReference = true`、`amount = 0`，不参与统计）。<br>**哪条计奖由 App 设置「奖励依据」决定**：`record`（默认）＝记录睡眠优先；`actual`＝实际睡眠优先；**依据那条不存在时回退用另一条**（例如只导入了实际数据、没有记录睡眠 → 该条照样计奖）。<br>⚠️ **同一夜的两条记录里"哪条有金额"取决于用户设置，绝不能把两条金额相加**（会重复计夜）。<br>**分析建议**：做睡眠时长 / 质量分析优先用 `sleep_device`（时刻更准）；做"记账口径"分析用 `isReference` 不为 `true` 的那条 |
 | `interest` | `isSystem && systemType === 'interest'` | 余额利息（按日利率结算，整日累计） | 非用户行为，行为分析应排除；`occurredAt=null`、`timePrecision='date'`（`timestamp` 为昨日 23:59 占位值） |
 | `screen_time` | `isSystem && systemType === 'screen-time'` | 屏幕时间消耗（整日累计） | 系统扣减项；`occurredAt=null`、`timePrecision='date'`（`timestamp` 为当日 23:00 占位值） |
 | `auto_makeup` | `autoDetectType === 'makeup'` 或描述以 `自动补录:` 开头 | 系统检测到漏记后自动补录（金额为多日累计差额，非单次事件） | `entryMode='auto'`、`occurredAt=null`、`timePrecision='date'` —— **时刻未知，禁止时间点分析**；`timestamp` 为当日 23:00 占位值 |
@@ -169,6 +175,7 @@
 | `😴 夜间睡眠: ` / `💤 日间小睡: ` | 睡眠记录 |
 | `📱 屏幕时间: ` | 屏幕时间 |
 | `📝 手动记录` | 手工录入的睡眠记录 |
+| `📝 实际睡眠: ` | **实际睡眠**数据（v9.41.0，见第 6 节 `sleep_device`；是"该夜睡眠记录"还是"仅对照"看 `sleepData.deviceRole`）。历史前缀 `📝 设备睡眠数据: ` 同义 |
 
 ---
 

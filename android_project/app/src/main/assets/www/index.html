@@ -9,7 +9,7 @@
       Do NOT update the version number in <title> or any other place.
       The user designates the version number at the START of an update cycle.
     -->
-    <title>时间银行 - Time Bank v9.40.1</title>
+    <title>时间银行 - Time Bank v9.41.0</title>
 
     <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' fill='%231a2744'/%3E%3Ctext x='16' y='22' text-anchor='middle' font-size='20' fill='white'%3E⏳%3C/text%3E%3C/svg%3E">
     <link rel="manifest" href="manifest.json">
@@ -276,7 +276,7 @@
         <div class="header">
             <h1>时间银行</h1>
         </div>
-        <div class="version-subtitle">TimeBank v9.40.1 · Time Bot 伙伴 · 气泡对话 · 背景图生图</div>
+        <div class="version-subtitle">TimeBank v9.41.0 · Time Bot 伙伴 · 气泡对话 · 背景图生图</div>
 
         <div class="main-container">
 
@@ -525,8 +525,10 @@
                         <!-- [v7.16.0] 昨日睡眠条形图（替代文字计划时间和简报） -->
                         <div class="sleep-card-chart" id="sleepCardChart"></div>
                         <div class="sleep-action-row" id="sleepActionRow">
+                            <!-- [v9.41.0] 导入：与「补录」左右对称（仅实际睡眠数据开关打开时显示） -->
                             <button class="sleep-action-btn secondary" id="sleepAddBtn" onclick="event.stopPropagation(); showManualSleepModal()" style="display: none;">补录</button>
                             <button class="sleep-action-btn" id="sleepStartBtn" onclick="event.stopPropagation(); handleSleepAction()">开始睡眠</button>
+                            <button class="sleep-action-btn secondary" id="sleepImportBtn" onclick="event.stopPropagation(); showPreciseImportModal()" style="display: none;">导入</button>
                             <button class="sleep-action-btn secondary" id="sleepCancelBtn" onclick="event.stopPropagation(); handleSleepCancel()" style="display: none;">取消</button>
                         </div>
                     </div>
@@ -1193,6 +1195,80 @@
             </div>
         </div>
 
+        <!-- [v9.41.0] 导入设备睡眠数据弹窗（仅夜间睡眠；只记录数据，不影响余额） -->
+        <div class="sleep-settings-modal hidden" id="preciseImportModal" onclick="if(event.target===this)closePreciseImportModal()">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h3 class="modal-title">导入实际睡眠数据</h3>
+                    <button class="close-btn" onclick="closePreciseImportModal()">×</button>
+                </div>
+                <div class="modal-body">
+                    <!-- 入睡时间 -->
+                    <div class="setting-group-title">🌙 实际入睡时间</div>
+                    <div class="setting-row">
+                        <div style="flex: 1;">
+                            <input type="date" id="preciseImportBedDate" class="form-input" style="width: 100%;">
+                        </div>
+                        <div style="width: 110px; margin-left: 8px;">
+                            <input type="time" id="preciseImportBedTime" class="form-input" value="23:00" style="width: 100%;">
+                        </div>
+                    </div>
+
+                    <!-- 醒来时间 -->
+                    <div class="setting-group-title">☀️ 实际醒来时间</div>
+                    <div class="setting-row">
+                        <div style="flex: 1;">
+                            <input type="date" id="preciseImportWakeDate" class="form-input" style="width: 100%;">
+                        </div>
+                        <div style="width: 110px; margin-left: 8px;">
+                            <input type="time" id="preciseImportWakeTime" class="form-input" value="07:00" style="width: 100%;">
+                        </div>
+                    </div>
+
+                    <!-- 来源设备 -->
+                    <div class="setting-group-title">数据来源设备</div>
+                    <div class="setting-row">
+                        <div style="flex: 1;">
+                            <input type="text" id="preciseImportDevice" class="form-input" placeholder="例如：华为手环9" style="width: 100%;">
+                        </div>
+                    </div>
+
+                    <!-- 粘贴识别 -->
+                    <div class="setting-group-title">或粘贴设备读数</div>
+                    <div class="setting-row">
+                        <div style="flex: 1;">
+                            <input type="text" id="preciseImportPaste" class="form-input" placeholder="23:12 入睡 07:03 醒来" style="width: 100%;">
+                        </div>
+                        <div style="margin-left: 8px;">
+                            <button class="btn btn-secondary" type="button" id="preciseImportPasteBtn">识别</button>
+                        </div>
+                    </div>
+
+                    <!-- 预览 -->
+                    <div class="setting-group manual-sleep-preview" style="background: var(--bg-secondary); border-radius: 8px; padding: 12px; margin-top: 16px;">
+                        <div style="display: flex; justify-content: space-between; margin-bottom: 8px;">
+                            <span class="preview-label">实际睡眠时长</span>
+                            <span class="preview-value" id="preciseImportDuration">--</span>
+                        </div>
+                        <div style="display: flex; justify-content: space-between;">
+                            <span class="preview-label">本次角色</span>
+                            <span class="preview-value" id="preciseImportCompare">--</span>
+                        </div>
+                    </div>
+
+                    <div class="precise-import-hint">
+                        只做<b>夜间睡眠</b>。<br>
+                        · 这一夜<b>还没有记录睡眠</b>时：本条即该夜睡眠记录 —— 按睡眠规则结算奖惩并计入统计；<br>
+                        · 这一夜<b>已有记录睡眠</b>时：两条<b>平级并存、互为参考</b>，按设置里的「<b>奖励依据</b>」决定用哪一条发奖。
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button class="btn btn-secondary" onclick="closePreciseImportModal()">取消</button>
+                    <button class="btn btn-primary" onclick="submitPreciseImport()">保存记录</button>
+                </div>
+            </div>
+        </div>
+
         <div class="tab-content" id="settingsTab">
             <div class="settings-section" id="syncSection">
                 <div class="settings-title">数据同步</div>
@@ -1803,6 +1879,40 @@
                             </div>
                         </div>
                     </div>
+
+                    <!-- [v9.41.0] 实际睡眠数据：接收设备实测的入睡 / 醒来时刻 -->
+                    <div class="setting-item">
+                        <div class="setting-info">
+                            <div class="setting-name">实际睡眠数据</div>
+                            <div class="setting-desc" id="preciseSleepSummary">未开启</div>
+                        </div>
+                        <div class="setting-controls">
+                            <label class="switch">
+                                <input type="checkbox" id="preciseSleepToggle" onchange="togglePreciseSleep()">
+                                <span class="slider"></span>
+                            </label>
+                        </div>
+                    </div>
+                    <div class="setting-item hidden" id="preciseImportEntry" onclick="showPreciseImportModal()" style="cursor: pointer;">
+                        <div class="setting-info">
+                            <div class="setting-name">导入实际睡眠数据</div>
+                            <div class="setting-desc">填入或粘贴设备的实际入睡 / 醒来时刻</div>
+                        </div>
+                        <div class="setting-controls">
+                            <span style="color: var(--text-color-light); font-size: 1.2rem;">›</span>
+                        </div>
+                    </div>
+                    <!-- [v9.41.0] 奖励依据：同一夜同时有 记录睡眠 与实际睡眠 时，按哪一条结算（记录 / 实际 平级，互为参考） -->
+                    <div class="setting-item hidden" id="sleepRewardBasisItem" style="flex-direction: column; align-items: flex-start; gap: 12px;">
+                        <div class="setting-info" style="width: 100%;">
+                            <div class="setting-name">奖励依据</div>
+                            <div class="setting-desc">同一夜同时有记录睡眠与实际睡眠时，按哪一条结算奖惩与统计（只影响之后的结算）</div>
+                        </div>
+                        <div class="style-switcher" id="sleepRewardBasisSwitcher">
+                            <button class="style-btn active" data-basis="record" onclick="setSleepRewardBasis('record')">记录睡眠</button>
+                            <button class="style-btn" data-basis="actual" onclick="setSleepRewardBasis('actual')">实际睡眠</button>
+                        </div>
+                    </div>
                 </div>
             </div>
 
@@ -1833,7 +1943,7 @@
                     <div class="about-container" style="padding: 16px 0 8px; line-height: 1.5;">
                         <div class="about-header" style="text-align: center; margin-bottom: 20px; padding-top: 12px;">
                             <div style="font-size: 1.25rem; font-weight: 600; margin-bottom: 4px;">时间银行</div>
-                            <div style="font-size: 0.85rem; color: var(--text-color-light);">版本 v9.40.1</div>
+                            <div style="font-size: 0.85rem; color: var(--text-color-light);">版本 v9.41.0</div>
                         </div>
 
                         <div class="about-meta" style="font-size: 0.9rem; color: var(--text-color);">
@@ -1892,6 +2002,17 @@
                 <!-- 版本更新日志 -->
                 <details>
 <summary>版本更新日志</summary>
+                    <div class="version-history-item">
+                        <p><strong>版本 v9.41.0 (2026-10-03)</strong> 🛰️ <b>实际睡眠数据 · 忘了记录睡眠也能补回来</b></p>
+                        <ul>
+                            <li><strong>[Feat]</strong> 🛰️ <b>可以把手环/手表测到的真实入睡、真实醒来时间导进来了</b>：在「设置 → 睡眠时间管理」打开「实际睡眠数据」开关即出现入口，可以手动填、也可以直接粘贴设备读数一键识别。开关默认关闭，不开就完全和以前一样。</li>
+                            <li><strong>[Feat]</strong> 😴 <b>忘了记录睡眠？导入实际数据照样拿奖励</b>：如果某一夜你完全没记录过睡眠，导入的实际数据会直接成为那一夜的睡眠记录，按睡眠规则正常结算奖励并计入统计。</li>
+                            <li><strong>[Feat]</strong> ⚖️ <b>「奖励依据」交给你定</b>：同一夜既有你记录的、又有设备实测的时，两条<b>平级并存、互为参考</b>，可以设置在发奖励时以哪一条为准（默认以你记录的为准）；设置的那条不存在时，自动用另一条，不会两边都发。</li>
+                            <li><strong>[UX]</strong> 📊 <b>睡眠卡片一眼看出"你点的时间"和"真实睡的时间"差多少</b>：卡片上同时标出四个时间——外侧是你记录的入睡/醒来，里侧是设备实测的入睡/醒来，两条深色竖虚线正好框出设备实测的那一段。</li>
+                            <li><strong>[UX]</strong> 📥 <b>睡眠卡片上新增「导入」按钮</b>，与「补录」左右对称，不用进设置也能随手导入。</li>
+                            <li><strong>[Fix]</strong> 🛡️ <b>绝不重复计账</b>：无论你先导入再补录、还是先补录再导入，同一夜永远只有一条参与结算，余额不会多算。</li>
+                        </ul>
+                    </div>
                     <div class="version-history-item">
                         <p><strong>版本 v9.40.1 (2026-10-02)</strong> 🫧 <b>通透模式收口 · 时间概览可点开看详情</b></p>
                         <ul>

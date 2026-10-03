@@ -104,6 +104,8 @@ function saveSleepSettings() {
             earnCategory: sleepSettings.earnCategory,
             spendCategory: sleepSettings.spendCategory,
             countdownSeconds: sleepSettings.countdownSeconds,
+            preciseSleepEnabled: sleepSettings.preciseSleepEnabled === true,   // [v9.41.0] 实际睡眠数据总开关（跨设备同步）
+            sleepRewardBasis: (sleepSettings.sleepRewardBasis === 'actual') ? 'actual' : 'record',   // [v9.41.0] 睡眠奖励依据（跨设备同步）
             lastUpdated: sleepSettings.lastUpdated
         };
         
@@ -207,7 +209,9 @@ function getSleepHistory() {
         return _sleepHistoryCache;
     }
     _sleepHistoryCache = transactions
-        .filter(t => t && t.sleepData && t.sleepData.sleepType)
+        // [v9.41.0] 只排除"仅对照"的设备数据（deviceRole='reference'）；
+        // 作为正式记录的设备数据（deviceRole='record'）与普通睡眠记录同等参与统计
+        .filter(t => t && t.sleepData && t.sleepData.sleepType && !isSleepReferenceTx(t))
         .map(t => {
             const startTime = Number(t.sleepData.startTime);
             const wakeTime = Number(t.sleepData.wakeTime);
@@ -542,6 +546,20 @@ function initSleepSettings() {
         sleepToggle.checked = sleepSettings.enabled;
         console.log('[initSleepSettings] UI 更新后: toggle.checked=', sleepToggle.checked);
     }
+    // [v9.41.0] 实际睡眠数据开关初值 + 导入入口显隐（关闭时保持原状）
+    const preciseToggle = document.getElementById('preciseSleepToggle');
+    if (preciseToggle) preciseToggle.checked = sleepSettings.preciseSleepEnabled === true;
+    const preciseEntry = document.getElementById('preciseImportEntry');
+    if (preciseEntry) preciseEntry.classList.toggle('hidden', sleepSettings.preciseSleepEnabled !== true);
+    const basisItem = document.getElementById('sleepRewardBasisItem');
+    if (basisItem) basisItem.classList.toggle('hidden', sleepSettings.preciseSleepEnabled !== true);
+    const basisSw = document.getElementById('sleepRewardBasisSwitcher');
+    if (basisSw) {
+        const cur = (sleepSettings.sleepRewardBasis === 'actual') ? 'actual' : 'record';
+        basisSw.querySelectorAll('.style-btn').forEach(function (b) {
+            b.classList.toggle('active', b.dataset.basis === cur);
+        });
+    }
     updateSleepSettingsSummary();
     
     // [v7.11.2] 从云端 profile.sleepTimeCategories 恢复分类标签（跨设备共享）
@@ -608,6 +626,8 @@ function updateSleepSettingsSummary() {
         const durationText = mins > 0 ? `${hours}时${mins}分` : `${hours}时`;
         nightSummary.textContent = `${sleepSettings.plannedBedtime}入睡 · ${durationText} · 奖励${sleepSettings.toleranceReward}分`;
     }
+    // [v9.41.0] 实际睡眠数据摘要
+    updatePreciseSleepSummary();
 }
 
 // 切换睡眠时间管理开关
@@ -618,6 +638,446 @@ function toggleSleepManagement() {
     saveSleepSettings();
     updateSleepCardVisibility();
     updateSleepCard();
+}
+
+// ============================================================================
+// [v9.41.0] 实际睡眠数据 —— 接收外部设备实测的入睡 / 醒来时刻
+// 术语（v9.41.0 定稿）：记录睡眠＝用户给的时刻；实际睡眠＝设备给的时刻。
+// 定位：只做「手动导入设备读数 → 写入一条实际睡眠记录」。
+// 记录特征：sleepData.source === 'device'（字段值保留 device，语义＝"实际睡眠"）。
+//   · 这一夜【没有记录睡眠】→ 本条即该夜睡眠记录：按睡眠规则结算奖惩、参与统计
+//   · 这一夜【已有记录睡眠】→ 两条平级并存、互为参考：本条 amount = 0、不参与统计
+// 开关 preciseSleepEnabled 关闭时，睡眠卡片与弹窗保持原状（零可见变化）。
+// ============================================================================
+
+// 设置页摘要文案
+function updatePreciseSleepSummary() {
+    const el = document.getElementById('preciseSleepSummary');
+    if (!el) return;
+    if (sleepSettings.preciseSleepEnabled !== true) { el.textContent = '未开启'; return; }
+    el.textContent = (sleepSettings.sleepRewardBasis === 'actual')
+        ? '已开启 · 奖励依据：实际睡眠'
+        : '已开启 · 奖励依据：记录睡眠';
+}
+
+// [v9.41.0] 切换「奖励依据」：同一夜同时有 记录睡眠 与实际睡眠 时，按哪一条结算奖惩与统计。
+// 定稿：只影响之后的结算，不重算历史。
+function setSleepRewardBasis(basis) {
+    sleepSettings.sleepRewardBasis = (basis === 'actual') ? 'actual' : 'record';
+    const sw = document.getElementById('sleepRewardBasisSwitcher');
+    if (sw) {
+        sw.querySelectorAll('.style-btn').forEach(function (b) {
+            b.classList.toggle('active', b.dataset.basis === sleepSettings.sleepRewardBasis);
+        });
+    }
+    updatePreciseSleepSummary();
+    saveSleepSettings();
+}
+
+// 总开关：关闭时同时收起导入入口
+function togglePreciseSleep() {
+    const el = document.getElementById('preciseSleepToggle');
+    sleepSettings.preciseSleepEnabled = !!(el && el.checked);
+    const entry = document.getElementById('preciseImportEntry');
+    if (entry) entry.classList.toggle('hidden', !sleepSettings.preciseSleepEnabled);
+    const basisItem = document.getElementById('sleepRewardBasisItem');
+    if (basisItem) basisItem.classList.toggle('hidden', !sleepSettings.preciseSleepEnabled);
+    updatePreciseSleepSummary();
+    saveSleepSettings();
+    updateSleepCard();   // 卡片上的「导入」按钮随开关显隐
+}
+
+// 查找「某一夜」的参考轨睡眠记录（该夜两条中"不计奖"的那条，可能是记录睡眠也可能是实际睡眠）
+// 用于卡片：主轨（实心条）画计奖那条（getSleepRecordByEndDate），参考轨（虚线）画这一条
+function getReferenceSleepForNight(wakeDateStr) {
+    if (typeof transactions === 'undefined' || !Array.isArray(transactions)) return null;
+    const tx = transactions.find(t => isSleepReferenceTx(t) && getSleepEndDateStr(t) === wakeDateStr);
+    if (!tx) return null;
+    return {
+        startTime: Number(tx.sleepData.startTime),
+        wakeTime: Number(tx.sleepData.wakeTime),
+        durationMinutes: Number(tx.sleepData.durationMinutes) || 0,
+        deviceName: tx.sleepData.deviceName || '',
+        txId: tx.id
+    };
+}
+
+// 查找「某一夜」的人工睡眠记录（排除全部设备数据，无论角色）
+// 用途：导入时判断"这一夜是否已经有记录" → 决定设备数据是"正式记录"还是"仅对照"
+function getManualSleepForEndDate(dateStr) {
+    if (typeof transactions === 'undefined' || !Array.isArray(transactions)) return null;
+    return transactions.find(t =>
+        t && t.sleepData && t.sleepData.sleepType !== 'nap' && t.sleepData.startTime &&
+        t.sleepData.source !== 'device' &&
+        getSleepEndDateStr(t) === dateStr
+    ) || null;
+}
+
+// 查找「某一夜」的设备数据（任意角色）——用于导入时的"替换同夜设备数据"判断
+function getAnyDeviceSleepForNight(dateStr) {
+    if (typeof transactions === 'undefined' || !Array.isArray(transactions)) return null;
+    return transactions.find(t =>
+        t && t.sleepData && t.sleepData.source === 'device' &&
+        getSleepEndDateStr(t) === dateStr
+    ) || null;
+}
+
+// 打开导入弹窗：默认带入"昨夜"（今天结束）记录区间作为初始值
+function showPreciseImportModal() {
+    const modal = document.getElementById('preciseImportModal');
+    if (!modal) return;
+
+    const night = getSleepRecordByEndDate(getLocalDateString(new Date()));
+    const now = new Date();
+    const bedDate = new Date(now); bedDate.setDate(bedDate.getDate() - 1);
+
+    const bedDateEl = document.getElementById('preciseImportBedDate');
+    const bedTimeEl = document.getElementById('preciseImportBedTime');
+    const wakeDateEl = document.getElementById('preciseImportWakeDate');
+    const wakeTimeEl = document.getElementById('preciseImportWakeTime');
+    const devEl = document.getElementById('preciseImportDevice');
+    const pasteEl = document.getElementById('preciseImportPaste');
+
+    bedDateEl.value = getLocalDateString(night ? new Date(night.sleepStartTime) : bedDate);
+    bedTimeEl.value = night ? formatSleepTimeHM(night.sleepStartTime) : (sleepSettings.plannedBedtime || '23:00');
+    wakeDateEl.value = getLocalDateString(night ? new Date(night.wakeTime) : now);
+    wakeTimeEl.value = night ? formatSleepTimeHM(night.wakeTime) : (sleepSettings.plannedWakeTime || '08:00');
+    devEl.value = '';
+    pasteEl.value = '';
+
+    ['preciseImportBedDate', 'preciseImportBedTime', 'preciseImportWakeDate', 'preciseImportWakeTime']
+        .forEach(id => { document.getElementById(id).onchange = calcPreciseImportPreview; });
+
+    const btn = document.getElementById('preciseImportPasteBtn');
+    if (btn) btn.onclick = applyPreciseImportPaste;
+
+    calcPreciseImportPreview();
+    modal.classList.remove('hidden');
+}
+
+function closePreciseImportModal() {
+    const modal = document.getElementById('preciseImportModal');
+    if (modal) modal.classList.add('hidden');
+}
+
+// 实时预览：时长 + 与记录区间的差异提示
+function calcPreciseImportPreview() {
+    const durEl = document.getElementById('preciseImportDuration');
+    const cmpEl = document.getElementById('preciseImportCompare');
+    if (!durEl) return;
+
+    const bd = document.getElementById('preciseImportBedDate').value;
+    const bt = document.getElementById('preciseImportBedTime').value;
+    const wd = document.getElementById('preciseImportWakeDate').value;
+    const wt = document.getElementById('preciseImportWakeTime').value;
+    if (!bd || !bt || !wd || !wt) {
+        durEl.textContent = '--';
+        if (cmpEl) cmpEl.textContent = '--';
+        return;
+    }
+    const s = new Date(`${bd}T${bt}:00`).getTime();
+    const w = new Date(`${wd}T${wt}:00`).getTime();
+    if (!Number.isFinite(s) || !Number.isFinite(w) || w <= s) {
+        durEl.textContent = '时间无效';
+        durEl.style.color = '#F44336';
+        if (cmpEl) cmpEl.textContent = '--';
+        return;
+    }
+    durEl.style.color = 'var(--text-color)';
+    const mins = Math.floor((w - s) / 60000);
+    durEl.textContent = formatSleepDuration(mins);
+
+    // [v9.41.0] 结算预期：按「奖励依据」预告这条会不会计奖
+    if (cmpEl) {
+        const recordNight = getManualSleepForEndDate(getLocalDateString(new Date(w)));
+        if (!recordNight) {
+            // 这一夜没有记录睡眠 → 依据那条不存在 → 回退用本条实际睡眠
+            cmpEl.textContent = '本条即睡眠记录 · 按规则结算';
+            cmpEl.style.color = '#4CAF50';
+        } else if (sleepSettings.sleepRewardBasis === 'actual') {
+            cmpEl.textContent = '本条计奖（依据＝实际睡眠）';
+            cmpEl.style.color = '#4CAF50';
+        } else {
+            const dBed = Math.round((s - recordNight.sleepData.startTime) / 60000);
+            const dWake = Math.round((w - recordNight.sleepData.wakeTime) / 60000);
+            const sign = (v) => (v >= 0 ? '+' : '') + v + '分';
+            cmpEl.textContent = `仅作参考（依据＝记录睡眠 ${sign(dBed)}/${sign(dWake)}）`;
+            cmpEl.style.color = 'var(--text-color-light)';
+        }
+    }
+}
+
+// 解析粘贴的设备读数（宽容格式）
+// 支持：`23:12 入睡 07:03 醒来` / `23:12~07:03` / `23:12-06:25` / `设备:华为手环9 23:12 07:03`
+function parsePreciseImportText(text) {
+    if (!text) return null;
+    const s = String(text);
+    const times = s.match(/\d{1,2}[:：]\d{1,2}/g) || [];
+    if (times.length < 2) return null;
+    const norm = (t) => {
+        const p = t.replace('：', ':').split(':');
+        return String(+p[0]).padStart(2, '0') + ':' + String(+p[1]).padStart(2, '0');
+    };
+    const bed = norm(times[0]);
+    const wake = norm(times[1]);
+
+    let device = null;
+    const devM = s.match(/(?:设备|来源)[:：]\s*([^\s,，;；]+)/);
+    if (devM) device = devM[1];
+
+    // 可选日期：2026-10-02 / 2026年10月2日 / 10-02
+    let dateStr = null;
+    const dM = s.match(/(\d{4})\s*[-/年]\s*(\d{1,2})\s*[-/月]\s*(\d{1,2})/);
+    if (dM) {
+        dateStr = `${dM[1]}-${String(+dM[2]).padStart(2, '0')}-${String(+dM[3]).padStart(2, '0')}`;
+    }
+    return { bed, wake, device, dateStr };
+}
+
+// 应用粘贴：把解析结果填进表单（醒来日按"入睡时间 > 醒来时间 → 跨零点"推算）
+function applyPreciseImportPaste() {
+    const el = document.getElementById('preciseImportPaste');
+    const parsed = parsePreciseImportText(el ? el.value : '');
+    if (!parsed) {
+        showNotification('未能识别', '至少需要两个时刻，例如：23:12 入睡 07:03 醒来', 'warning');
+        return;
+    }
+    const bedTimeEl = document.getElementById('preciseImportBedTime');
+    const wakeTimeEl = document.getElementById('preciseImportWakeTime');
+    bedTimeEl.value = parsed.bed;
+    wakeTimeEl.value = parsed.wake;
+
+    // 入睡日：优先用解析到的日期，否则沿用表单当前值
+    const bedDateEl = document.getElementById('preciseImportBedDate');
+    if (parsed.dateStr) bedDateEl.value = parsed.dateStr;
+
+    // 醒来日：醒来时刻 <= 入睡时刻 → 视为跨零点 +1 天
+    const wakeDateEl = document.getElementById('preciseImportWakeDate');
+    const b = bedTimeEl.value.split(':').map(Number);
+    const w = wakeTimeEl.value.split(':').map(Number);
+    const wakeDate = new Date(`${bedDateEl.value}T00:00:00`);
+    if (w[0] * 60 + w[1] <= b[0] * 60 + b[1]) wakeDate.setDate(wakeDate.getDate() + 1);
+    wakeDateEl.value = getLocalDateString(wakeDate);
+
+    if (parsed.device) {
+        const devEl = document.getElementById('preciseImportDevice');
+        if (!devEl.value) devEl.value = parsed.device;
+    }
+    calcPreciseImportPreview();
+    showNotification('已填入', `${parsed.bed} ~ ${parsed.wake}`, 'success');
+}
+
+// 删除一条设备睡眠数据
+// [v9.41.0] 若它是"正式记录"角色（deviceRole='record'），带有已发放的奖惩 → 必须一并回退余额
+async function removeDeviceSleepRecord(txId) {
+    const idx = transactions.findIndex(t => t.id === txId);
+    if (idx === -1) return true;
+    const old = transactions[idx];
+    const amt = Number(old.amount) || 0;
+    if (amt > 0) {
+        if (old.type === 'spend') currentBalance += amt; else currentBalance -= amt;
+    }
+    if (isLoggedIn()) {
+        try {
+            await DAL.deleteTransaction(txId);
+        } catch (e) {
+            console.error('[removeDeviceSleepRecord] 云端删除失败:', e.message);
+            showNotification('删除旧设备数据失败', e.message || '', 'error');
+            return false;
+        }
+    }
+    transactions.splice(idx, 1);
+    if (typeof removeFromTransactionIndex === 'function') removeFromTransactionIndex(txId);
+    if (typeof markTransactionsDirty === 'function') markTransactionsDirty();
+    // [v9.41.0] 该夜只剩一条（或 0 条）→ 重新归位，让剩下那条恢复计奖
+    try { await settleNightSleepReward(getSleepEndDateStr(old)); }
+    catch (e) { console.error('[removeDeviceSleepRecord] 归位失败:', e); }
+    return true;
+}
+
+// ---------------------------------------------------------------------------
+// [v9.41.0] 该夜睡眠奖惩「归位」（幂等 —— 重复调用不会重复加钱）
+// 规则：一夜最多两条睡眠记录（记录睡眠 / 实际睡眠），二者平级并存、互为参考；
+//       只有一条计奖，由用户设置 sleepRewardBasis 决定（'record' 默认 / 'actual'）；
+//       依据那条不存在时回退用另一条（"忘了记录睡眠、只导入实际数据"场景）。
+// 触发时机：该夜新增 / 变更睡眠记录之后（夜间自动结算 / 手动补录 / 导入实际 / 删除实际）。
+// 注意：只处理"夜间睡眠"（sleepType !== 'nap'）；小睡不参与。
+// ---------------------------------------------------------------------------
+
+// 该条睡眠记录"应有"的奖惩明细（幂等：已有结算明细就沿用，缺失才按睡眠规则补算）
+function __desiredNightReward(tx) {
+    const d = tx.sleepData && tx.sleepData.details;
+    if (d && typeof d.totalReward === 'number') return d;
+    const startMs = Number(tx.sleepData.startTime);
+    const endMs = Number(tx.sleepData.wakeTime);
+    if (!Number.isFinite(startMs) || !Number.isFinite(endMs) || endMs <= startMs) return null;
+    const result = calculateSleepReward(startMs, endMs);
+    try {
+        if (result.totalReward !== 0) {
+            const mult = result.totalReward > 0 ? getEarnMultiplier() : getSpendMultiplier();
+            if (mult != null && mult !== 1.0) result.totalReward = Math.round(result.totalReward * mult);
+        }
+    } catch (e) { /* 倍率异常不阻断结算 */ }
+    return result;
+}
+
+// 把一条睡眠记录设成「计奖」或「参考轨」，并按【差额】修正余额（幂等）
+function __applySleepReward(tx, details, isReference) {
+    const oldAmt = Number(tx.amount) || 0;
+    const oldSpend = tx.type === 'spend';
+    let newAmt = 0, newSpend = false;
+    if (!isReference) {
+        newAmt = Math.abs(Number(details.totalReward) || 0) * 60;
+        newSpend = (Number(details.totalReward) || 0) < 0;
+        tx.sleepData.details = details;
+    }
+    const delta = (newSpend ? -newAmt : newAmt) - (oldSpend ? -oldAmt : oldAmt);
+    if (delta !== 0) currentBalance += delta;
+    tx.amount = newAmt;
+    tx.type = newSpend ? 'spend' : 'earn';
+    tx.balanceAfter = currentBalance;
+    tx.sleepData.isReference = isReference === true;
+    return delta !== 0;
+}
+
+// 按「奖励依据」把该夜的两条睡眠记录归位：计奖那条拿到正确金额，另一条清零并标为参考轨
+async function settleNightSleepReward(wakeDateStr) {
+    if (!wakeDateStr || typeof transactions === 'undefined' || !Array.isArray(transactions)) return false;
+    const nightTx = transactions.filter(t =>
+        t && t.sleepData && t.sleepData.sleepType !== 'nap' && t.sleepData.startTime &&
+        getSleepEndDateStr(t) === wakeDateStr
+    );
+    if (!nightTx.length) return false;
+
+    const recTx = nightTx.find(t => t.sleepData.source !== 'device') || null;   // 记录睡眠
+    const actTx = nightTx.find(t => t.sleepData.source === 'device') || null;   // 实际睡眠
+    const basis = (sleepSettings.sleepRewardBasis === 'actual') ? 'actual' : 'record';
+    const target = (basis === 'actual') ? (actTx || recTx) : (recTx || actTx);
+    if (!target) return false;
+
+    const desired = __desiredNightReward(target);
+    if (!desired) {
+        console.warn('[settleNightSleepReward] 目标记录时间无效，跳过归位:', target.id);
+        return false;
+    }
+
+    let touched = false;
+    for (const tx of nightTx) {
+        const isRef = (tx !== target);
+        const before = [Number(tx.amount) || 0, tx.type, tx.sleepData.isReference === true];
+        __applySleepReward(tx, isRef ? null : desired, isRef);
+        if (before[0] !== (Number(tx.amount) || 0) || before[1] !== tx.type || before[2] !== isRef) touched = true;
+    }
+    if (!touched) return false;
+
+    if (typeof markTransactionsDirty === 'function') markTransactionsDirty();
+    if (typeof updateBalance === 'function') { try { updateBalance(); } catch (e) {} }
+    if (isLoggedIn()) {
+        for (const tx of nightTx) {
+            try { await DAL.updateTransaction(tx); }
+            catch (e) { console.error('[settleNightSleepReward] 云端同步失败:', tx.id, e.message); }
+        }
+    }
+    console.log('[settleNightSleepReward] 已归位:', wakeDateStr, 'basis=' + basis, 'target=' + target.id);
+    return true;
+}
+
+// 提交导入
+async function submitPreciseImport() {
+    const bd = document.getElementById('preciseImportBedDate').value;
+    const bt = document.getElementById('preciseImportBedTime').value;
+    const wd = document.getElementById('preciseImportWakeDate').value;
+    const wt = document.getElementById('preciseImportWakeTime').value;
+    const deviceName = (document.getElementById('preciseImportDevice').value || '').trim();
+
+    if (!bd || !bt || !wd || !wt) {
+        showNotification('⚠️ 请填写完整的入睡与醒来时间', '', 'warning');
+        return;
+    }
+    const startMs = new Date(`${bd}T${bt}:00`).getTime();
+    const wakeMs = new Date(`${wd}T${wt}:00`).getTime();
+    if (!Number.isFinite(startMs) || !Number.isFinite(wakeMs)) {
+        showNotification('⚠️ 时间格式有误', '', 'warning');
+        return;
+    }
+    if (wakeMs <= startMs) {
+        showNotification('⚠️ 醒来时间必须晚于入睡时间', '', 'warning');
+        return;
+    }
+    const durationMinutes = Math.floor((wakeMs - startMs) / 60000);
+    if (durationMinutes > 24 * 60) {
+        showNotification('⚠️ 睡眠时长超过 24 小时，请检查', '', 'warning');
+        return;
+    }
+
+    // ===== [v9.41.0] 写入"实际睡眠"记录 =====
+    // 这条是"计奖"还是"仅参考"【不在这里定】—— 交给该夜归位函数 settleNightSleepReward()，
+    // 按用户设置的「奖励依据」统一决定。两条睡眠记录平级并存、互为参考。
+    // 写入时先按"仅参考"（isReference=true）落库，归位时若它是计奖那条会自动清掉标记并补算奖惩。
+    const wakeDateStr = getLocalDateString(new Date(wakeMs));
+
+    // 同一夜的旧实际睡眠数据 → 询问替换（删除时会回退它已发放的奖惩并重新归位）
+    const existingDevice = getAnyDeviceSleepForNight(wakeDateStr);
+    if (existingDevice) {
+        if (!await showConfirm('该夜已有实际睡眠数据，是否用新数据替换？', '替换实际睡眠数据')) return;
+        if (!await removeDeviceSleepRecord(existingDevice.id)) return;
+    }
+
+    const txNote = `${formatSleepTimeHM(startMs)}~${formatSleepTimeHM(wakeMs)} ${formatSleepDuration(durationMinutes)}`;
+    const transaction = {
+        id: generateId(),
+        type: 'earn',
+        taskName: '睡眠时间管理',
+        amount: 0,
+        timestamp: wakeMs,
+        description: `📝 实际睡眠: ${txNote}`,
+        note: `设备实测${deviceName ? ' · ' + deviceName : ''}`,
+        category: sleepSettings.earnCategory || '系统',
+        isSystem: true,
+        // 语义字段（addTransaction 中"调用方传入优先"，此处显式声明，导出侧可原样读出）
+        entryMode: 'import',
+        timeSource: 'device',
+        timePrecision: 'exact',
+        occurredAt: new Date(startMs).toISOString(),
+        sleepData: {
+            startTime: startMs,
+            wakeTime: wakeMs,
+            durationMinutes: durationMinutes,
+            sleepType: 'night',
+            source: 'device',
+            isReference: true,                      // 默认"仅参考"；归位时若是计奖那条会自动清掉
+            deviceName: deviceName || null,
+            importedAt: new Date().toISOString()
+        }
+    };
+
+    try {
+        await addTransaction(transaction);
+    } catch (err) {
+        console.error('[submitPreciseImport] ❌ 写入失败:', err);
+        showNotification('⚠️ 保存失败', err.message || '', 'error');
+        return;
+    }
+
+    // [v9.41.0] 归位：按「奖励依据」决定这条是否计奖（幂等；需要时给它补算奖惩）
+    try {
+        await settleNightSleepReward(wakeDateStr);
+    } catch (e) {
+        console.error('[submitPreciseImport] 睡眠奖惩归位失败:', e);
+    }
+
+    clearSleepHistoryCache();
+    try { await saveLocalCache(); } catch (e) { console.error('[submitPreciseImport] 本地缓存保存失败:', e); }
+
+    updateAllUI();
+    updateSleepCard();
+    closePreciseImportModal();
+    const isRecordNow = transaction.sleepData.isReference !== true;
+    showNotification(
+        isRecordNow ? '已导入并结算实际睡眠数据' : '已导入实际睡眠数据',
+        isRecordNow ? `${txNote} · 本条即该夜睡眠记录，已按规则结算` : `${txNote} · 该夜已有记录睡眠，本条仅作参考`,
+        'success'
+    );
 }
 
 // [v7.16.0] 小睡设置弹窗
@@ -925,6 +1385,15 @@ async function submitManualSleep() {
         // 即使云端写入失败，本地数据已经添加，继续执行
     }
 
+    // [v9.41.0] 补录夜间睡眠后，按「奖励依据」把该夜两条睡眠记录归位（幂等）
+    if (!useNap) {
+        try {
+            await settleNightSleepReward(getLocalDateString(new Date(wakeTimeMs)));
+        } catch (e) {
+            console.error('[submitManualSleep] 睡眠奖惩归位失败:', e);
+        }
+    }
+
     // [v9.9.0] 余额由 addTransaction 内部更新，此处不再重复
     // [v7.9.8] 旧逻辑：手动补录后显式更新余额（v9.9.0 由 addTransaction 统一处理）
 
@@ -1066,6 +1535,12 @@ function updateSleepCard() {
     if (addBtn) {
         addBtn.style.display = !sleepState.isSleeping ? '' : 'none';
     }
+
+    // [v9.41.0] 导入按钮：实际睡眠数据开关打开、且未在睡眠中时显示（与补录左右对称）
+    const importBtn = document.getElementById('sleepImportBtn');
+    if (importBtn) {
+        importBtn.style.display = (sleepSettings.preciseSleepEnabled === true && !sleepState.isSleeping) ? '' : 'none';
+    }
     
     // 更新状态
     wrapper.classList.remove('sleeping', 'napping');
@@ -1149,6 +1624,8 @@ function getSleepRecordForDate(dateStr) {
         if (!t || !t.sleepData || !t.sleepData.startTime) return false;
         // [v7.16.0] 仅匹配夜间睡眠记录（排除小睡）
         if (t.sleepData.sleepType === 'nap') return false;
+        // [v9.41.0] 只排除"仅对照"的设备数据（正式记录角色的设备数据要能作为该夜记录被返回）
+        if (isSleepReferenceTx(t)) return false;
         // [v7.9.0] 使用睡眠周期日期匹配（凌晨入睡算前一天）
         const cycleDate = getSleepCycleDate(t.sleepData.startTime);
         return cycleDate === dateStr;
@@ -1224,6 +1701,7 @@ function getSleepRecordByEndDate(dateStr) {
     if (typeof transactions === 'undefined' || !Array.isArray(transactions)) return null;
     const tx = [...transactions].reverse().find(t =>
         t && t.sleepData && t.sleepData.sleepType !== 'nap' && t.sleepData.startTime &&
+        !isSleepReferenceTx(t) &&                    // [v9.41.0] 只排除"仅对照"的设备数据
         getSleepEndDateStr(t) === dateStr
     );
     if (!tx) return null;
@@ -1509,19 +1987,62 @@ function updateSleepCardChart() {
             barLevelClass = 'level-4'; // 大惩罚-深红
         }
 
+        // ===== [v9.41.0] 参考轨：查该夜"不计奖"的那条睡眠记录（记录睡眠 / 实际睡眠二者之一）=====
+        // 该夜只有一条睡眠记录（或开关关闭）→ precise 为 null → 完全走原渲染，零变化
+        const precise = (sleepSettings.preciseSleepEnabled === true && record.date)
+            ? getReferenceSleepForNight(record.date)
+            : null;
+
+        // 缺口避让：条外标签若贴近容器边缘会导致文字溢出被裁，退化为贴边显示
+        const LABEL_PCT = 7;
+        let recStartCls = 'outside anchor-right', recStartPos = startPercent;
+        if (startPercent < LABEL_PCT) { recStartCls = 'outside anchor-left'; recStartPos = 0; }
+        let recEndCls = 'outside anchor-left', recEndPos = endPercent;
+        if (endPercent > 100 - LABEL_PCT) { recEndCls = 'outside anchor-right'; recEndPos = 100; }
+
         html += `<div class="sleep-card-bar-row">`;
         html += `<div class="sleep-card-bar-label">${sleepDateLabel}</div>`;
-        html += `<div class="sleep-card-bar-container">`;
+        // 容器带奖惩等级类 → 参考轨虚线色由它统一驱动（见 main.css）
+        html += `<div class="sleep-card-bar-container ${barLevelClass}">`;
         html += `<div class="sleep-card-bar-marker bedtime" style="left:${bedtimePercent}%"></div>`;
         html += `<div class="sleep-card-bar-marker waketime" style="left:${waketimePercent}%"></div>`;
-        html += `<div class="sleep-card-bar ${barLevelClass}" style="left:${startPercent}%;width:${width}%;">`;
-        html += `<span class="sleep-card-bar-time">${actualBed}</span>`;
-        html += `<span class="sleep-card-bar-text">${durationStr}</span>`;
-        html += `<span class="sleep-card-bar-time">${actualWake}</span>`;
-        html += `</div></div>`;
+
+        if (precise) {
+            const pStart = timeToPercent(precise.startTime, false);
+            const pEnd = timeToPercent(precise.wakeTime, true);
+            const pWidth = Math.max(pEnd - pStart, 8);
+            const pDurMin = precise.durationMinutes || 0;
+            const pH = Math.floor(pDurMin / 60), pM = pDurMin % 60;
+            const pDurStr = pM > 0 ? `${pH}h${pM}m` : `${pH}h`;
+            const pBed = formatTimeHM(precise.startTime);
+            const pWake = formatTimeHM(precise.wakeTime);
+
+            // 精确区间两条竖直虚线（颜色=比条形深一档，由容器 level 类决定）
+            html += `<div class="sleep-card-bar-marker precise" style="left:${pStart}%"></div>`;
+            html += `<div class="sleep-card-bar-marker precise" style="left:${pEnd}%"></div>`;
+            // 记录条：只留时长文字（时间让位给条外/条内两套标注）
+            html += `<div class="sleep-card-bar ${barLevelClass} center-only" style="left:${startPercent}%;width:${width}%;">`;
+            html += `<span class="sleep-card-bar-text">${pDurStr}</span>`;
+            html += `</div>`;
+            // 条外：记录时间（右端贴条形 / 左端贴条形，向条外延伸）
+            html += `<span class="sleep-card-time ${recStartCls}" style="left:${recStartPos}%">${actualBed}</span>`;
+            html += `<span class="sleep-card-time ${recEndCls}" style="left:${recEndPos}%">${actualWake}</span>`;
+            // 条内：精确时间（贴精确竖虚线，向条内延伸）
+            html += `<span class="sleep-card-time inside anchor-left" style="left:${pStart}%">${pBed}</span>`;
+            html += `<span class="sleep-card-time inside anchor-right" style="left:${pEnd}%">${pWake}</span>`;
+        } else {
+            html += `<div class="sleep-card-bar ${barLevelClass}" style="left:${startPercent}%;width:${width}%;">`;
+            html += `<span class="sleep-card-bar-time">${actualBed}</span>`;
+            html += `<span class="sleep-card-bar-text">${durationStr}</span>`;
+            html += `<span class="sleep-card-bar-time">${actualWake}</span>`;
+            html += `</div>`;
+        }
+        html += `</div>`;
         html += `<div class="sleep-card-bar-reward">${rewardText}</div>`;
         html += `</div>`;
-        // 时间轴标签
+
+        // 计划时间轴：始终渲染
+        // [v9.41.0] 曾试过"有精确数据时整行隐藏并回收空间"，已按用户要求回退——计划时间行保持原样显示
         html += `<div class="sleep-card-axis">`;
         html += `<span style="left:calc(28px + (100% - 60px) * ${bedtimePercent / 100})">${sleepSettings.plannedBedtime}</span>`;
         html += `<span style="left:calc(28px + (100% - 60px) * ${waketimePercent / 100})">${sleepSettings.plannedWakeTime}</span>`;
@@ -3254,6 +3775,13 @@ async function doSleepSettlement(startTime, wakeTime, durationMinutes, selectedT
                 if (window.Android?.nativeLog) {
                     window.Android.nativeLog('SleepSettlement', '交易写入失败: ' + err.message);
                 }
+            }
+
+            // [v9.41.0] 写入后按「奖励依据」把该夜两条睡眠记录归位（幂等；另一条转参考轨）
+            try {
+                await settleNightSleepReward(getLocalDateString(new Date(wakeTime)));
+            } catch (e) {
+                console.error('[doSleepSettlement] 睡眠奖惩归位失败:', e);
             }
             
             // [v9.9.0] 余额由 addTransaction 内部更新，此处不再重复

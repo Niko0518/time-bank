@@ -4,6 +4,40 @@
 >
 > 用户-facing 的精简版本请见 `index.html` 关于页。
 
+## v9.41.0 (2026-10-03) — 实际睡眠数据（导入设备实测入睡/醒来）+「实际/记录」术语定稿 + 平级记录与奖励依据
+
+> 背景：睡眠记录一直是「用户点击入睡/醒来」的**动作时刻**，不是真实睡着/醒来的生理时刻。
+> 本版新增"从外部设备导入实际时刻"的能力，并借此把睡眠数据模型里长期含糊的"两种时刻"一次性说清。
+
+### A. 术语定稿（全库统一，已写入 AGENTS.md）
+1. **记录睡眠** = 用户给的时刻（实时点按 / 事后补录）；**实际睡眠** = 设备实测的时刻。**「精准/精确睡眠」废弃**。
+2. 禁用「设备记录的入睡时间」（歧义：会被读成"App 记录的"）。界面文案、`data-dictionary.md`、代码注释全部对齐；**内部标识符（`precise*`）与数据值 `source='device'` 保留不迁移**（不为改名批量动代码）。
+
+### B. 数据模型：两种记录平级 + 用户设「奖励依据」
+3. 一夜最多**两条**睡眠记录（记录睡眠 / 实际睡眠），**平级并存、互为参考**；只有一条计奖，由 `sleepSettings.sleepRewardBasis`（`record` 默认 / `actual`）决定，**依据那条不存在时回退另一条**（覆盖"忘了记录、只导入实际数据"场景）。
+4. **单一归位入口 `settleNightSleepReward(wakeDateStr)`**（配套唯一判定 `isSleepReferenceTx` / 查找 `getReferenceSleepForNight`、`getSleepRecordByEndDate`）：按依据挑出唯一计奖那条 → 应有金额（有 `details.totalReward` 就沿用，缺失才按 `calculateSleepReward` 补算）→ **按差额**修正 `currentBalance` → 另一条清零并标 `sleepData.isReference` → `DAL.updateTransaction`。**幂等**：重复调用不重复加钱（"先导入拿奖、后补录"不出双份的根本保证）。
+5. 触发点全部在写入/删除**之后**：`doSleepSettlement`（原调用点**移到 `addTransaction` 之后** —— 之前会在归位时新记录尚未进内存）/ `submitManualSleep` / `submitPreciseImport` / `removeDeviceSleepRecord`。
+6. 取舍（用户定稿）：改设置**不重算历史**；默认 `record`；`source='device'` 不迁移；**不做 `deviceRole` 历史兼容** —— 新功能不引入"一上来就兼容旧字段"的兜底，该字段已全库清除（代码 + 两份文档 0 匹配）。
+
+### C. 导入通道
+7. `submitPreciseImport()`：仅夜间睡眠；写入 `amount=0` + `isReference=true`（**默认参考轨 = fail-safe**；归位时若它是计奖那条才清标记并补算）。同夜已有实际数据则询问替换（`removeDeviceSleepRecord` 按旧金额**回退余额**并重新归位）。
+8. 宽容粘贴解析 `parsePreciseImportText()`（`23:12 入睡 07:03 醒来` / `23:12~07:03` / 可带设备名与日期，醒来≤入睡自动跨零点 +1 天）；弹窗实时预告"本条即睡眠记录"或"仅作参考"。
+
+### D. 睡眠卡片
+9. 操作行新增「导入」按钮（与「补录」左右对称，仅总开关打开时出现）。
+10. 该夜有参考轨时：**条外**＝计奖那条的入睡/醒来（压暗白），**条内**＝参考轨那条（亮白），两条 `2px dashed` 竖直虚线标出参考轨边界；**两套标注共用同一三列网格**（`.sleep-card-bar-row` 的 `flex:1` 中列）→ 上下百分位严格同 x。
+11. 四个数字**单行互不侵犯**：各自朝"背离锚点"方向延伸（右端贴锚点向左排 / 左端贴锚点向右排）；贴容器边缘时退化为贴边，避免被 `overflow:hidden` 裁掉。
+12. 参考轨虚线色＝**比条形深一档的同色系**（由容器 `level-N` 类输出 `--pc-line`；渐变/纯色用深一档**纯色**，通透用深一档色 + alpha 随 `--g-strength` 联动）。**纯色模式不使用渐变**。
+
+### E. 导出与统计
+13. `resolveTransactionTime` 睡眠分支识别 `sd.source==='device'` → `entryMode='import' / timeSource='device' / timePrecision='exact'`；`data-dictionary.md` 新增 `timeSource=device` 档、`sleepData.isReference`、`sleep_device` 类型（写明"同夜两条**绝不能相加**"）。
+14. 参考轨那条**不进** `getSleepHistory` / `getSleepRecordForDate` / `getSleepRecordByEndDate` / 时间流图 / 每日详情（六处统一走 `isSleepReferenceTx`）。
+
+### 验证
+15. IDE lint 0 错误；全仓 `deviceRole` 0 匹配；逐个从 **APK 解包**核验关键字（`isSleepReferenceTx`=有、`deviceRole`=无、「精确睡眠数据 / 精确区间」=无）。
+16. 真机（AAQLBB6516002388）多次构建安装 + 冷启动 logcat 无 `Uncaught / TypeError / ReferenceError`（仅已知的 ServiceWorker 非问题）。
+17. 待用户真机验证四场景：① 只导实际应计奖 ② 两条并存在依据=记录时应仅参考 ③ 切依据=实际后重导应改按实际结算 ④ 重复导入不累加。
+
 ## v9.40.1 (2026-10-02) — 通透模式收口（彩色元素去渐变）+ 时间概览格子弹窗 + 跨设备对账纳入发布
 
 > 版本号说明：本轮的开发期标记为 `[v9.39.1]`（保留在代码注释里作历史线索），发布时版本号定为 **v9.40.1**；

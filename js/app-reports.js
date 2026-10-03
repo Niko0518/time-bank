@@ -415,6 +415,19 @@ function parseLegacySleepRange(t) {
     return { startMs: startMs, endMs: startMs + span * 60000 };
 }
 
+// ==================== [v9.41.0] 睡眠记录「参考轨」判定（全库唯一实现） ====================
+// 模型：一夜最多两条睡眠记录，二者【平级并存、互为参考】：
+//   记录睡眠（用户给的时刻；sleepData 无 source）
+//   实际睡眠（设备给的时刻；sleepData.source === 'device'）
+// 其中只有一条"计奖"（参与奖惩结算与统计），另一条是"参考轨"。
+// 哪条计奖 = 用户设置 sleepSettings.sleepRewardBasis（'record' 默认 / 'actual'）；
+// 依据那条不存在时回退用另一条。统一由 settleNightSleepReward() 在该夜记录变动后归位（幂等）。
+// 标记：参考轨那条 sleepData.isReference === true 且 amount = 0；计奖那条无此标记（或为 false）。
+// 判定入口只有这一处，其余地方一律调用 isSleepReferenceTx()，禁止各自复制条件。
+function isSleepReferenceTx(t) {
+    return !!(t && t.sleepData && t.sleepData.isReference === true);
+}
+
 // ==================== [v9.38.0] 交易「时间语义」——全库唯一判定实现 ====================
 // 这是**唯一**一处回答「一条记录的时刻可不可信、发生时刻是多少」的地方。
 // 所有消费方都必须调用它，**禁止各自复制规则**：
@@ -458,8 +471,11 @@ function resolveTransactionTime(t, task) {
     }
     if (sd && sd.startTime) {
         dOccurredAt = new Date(Number(sd.startTime)).toISOString();
-        dEntryMode = 'auto';
-        dTimeSource = sd.manualEntry ? 'user' : 'live';
+        // [v9.41.0] 设备实测睡眠数据：来源可信度高于"点击入睡"，单独一档 device（见 data-dictionary 第 4 节）
+        // 注意：写入端仍显式传 timeSource/entryMode（`t.xxx || dXxx` 中前者优先），此处只是缺失时的兜底
+        const _isDeviceSleep = sd.source === 'device';
+        dEntryMode = _isDeviceSleep ? 'import' : 'auto';
+        dTimeSource = _isDeviceSleep ? 'device' : (sd.manualEntry ? 'user' : 'live');
         dTimePrecision = 'exact';
     } else {
         const d = hasTs ? new Date(tsMs) : null;
@@ -588,6 +604,8 @@ function getMultiDayFlowSlots(endDate, days) {
     }).forEach(t => {
         if (processedTransactions.has(t.id)) return;
         processedTransactions.add(t.id);
+        // [v9.41.0] "参考轨"那条睡眠记录不参与时间流图：与同夜计奖那条会重复画块
+        if (isSleepReferenceTx(t)) return;
         
         const task = tasks.find(tsk => tsk.id === t.taskId);
         const isSleepRecord = t.sleepData || t.taskName === '睡眠时间管理' || t.taskName === '😴 睡眠时间管理' || t.taskName === '小睡' || t.taskName === '💤 小睡';
@@ -714,6 +732,8 @@ function getFlowTimeSlots(date) {
     
     transactions.filter(t => !t.undone && getLocalDateString(t.timestamp) === dateStr)
         .forEach(t => {
+            // [v9.41.0] "参考轨"那条睡眠记录不进入"每日详情"时段统计（与同夜计奖那条重复）
+            if (isSleepReferenceTx(t)) return;
             const task = tasks.find(tsk => tsk.id === t.taskId);
             const isSleepRecord = t.sleepData || t.taskName === '睡眠时间管理' || t.taskName === '😴 睡眠时间管理' || t.taskName === '小睡' || t.taskName === '💤 小睡';
             const isSpend = isSleepRecord ? (t.type === 'spend') : (task && ['instant_redeem', 'continuous_redeem'].includes(task.type));
@@ -9712,6 +9732,12 @@ let sleepSettings = {
     nightAlarmMode: 'wakeTime',      // [v7.33.8] 夜间闹钟模式: 'none'关闭 / 'duration'按目标时长 / 'wakeTime'按计划起床时间
     sleepAlarmEnabled: true,         // [v7.19.0] 入睡倒计时闹钟总开关（默认开启）
     autoSyncSystemAlarm: true,       // [v7.19.0] 默认自动同步到系统时钟闹钟（若设备支持）
+    // [v9.41.0] 实际睡眠数据：接收外部设备实测的入睡/醒来时刻。默认关闭 → 关闭时睡眠卡片与弹窗完全保持原状
+    preciseSleepEnabled: false,
+    // [v9.41.0] 睡眠「奖励依据」：同一夜同时有 记录睡眠 与 实际睡眠 时，按哪一条结算奖惩与统计。
+    //   'record'（默认）= 记录睡眠（用户给的时刻）；'actual' = 实际睡眠（设备给的时刻）。
+    //   依据那条不存在时回退用另一条。改动只影响之后的结算，不重算历史。
+    sleepRewardBasis: 'record',
     // [v7.9.3] 分类标签
     earnCategory: null,              // 奖励分类，null 表示"系统"
     spendCategory: null,             // 惩罚分类，null 表示"系统"

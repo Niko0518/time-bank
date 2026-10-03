@@ -1144,6 +1144,7 @@ const TB_EXPORT_FIELDS = {
 const TB_SPECIAL_DATA_TYPES = [
     { kind: 'sleep_night', match: "sleepData.sleepType === 'night'", meaning: '夜间睡眠结算', aiGuidance: 'entryMode=auto（系统结算）；occurredAt=入睡时刻=点击入睡并放下手机的时刻，非真正睡着时刻；夜晚归属：入睡时刻本地小时<12 则该夜归前一天' },
     { kind: 'sleep_nap', match: "sleepData.sleepType === 'nap'", meaning: '日间小睡', aiGuidance: '与夜间睡眠独立结算；不含 plannedBedtime 等字段' },
+    { kind: 'sleep_device', match: "sleepData.source === 'device'", meaning: '实际睡眠数据（设备实测；v9.41.0 术语：记录睡眠＝用户给的时刻，实际睡眠＝设备给的时刻）', aiGuidance: "恒为 entryMode='import' / timeSource='device' / timePrecision='exact'。与同夜 sleep_night 平级并存、互为参考：一夜最多两条睡眠记录，只有一条计奖（sleepData.isReference 不为 true，金额按睡眠规则结算），另一条是参考轨（isReference = true、amount = 0、不参与统计）。哪条计奖由 App 设置「奖励依据」决定：record(默认)=记录睡眠优先 / actual=实际睡眠优先；依据那条不存在时回退另一条（如只导入实际数据、无记录睡眠 → 该条照样计奖）。⚠️ 同一夜两条记录里只有一条有金额，绝不能相加（会重复计夜）" },
     { kind: 'interest', match: "isSystem && systemType === 'interest'", meaning: '余额利息（整日累计）', aiGuidance: '非用户行为，行为分析应排除；occurredAt=null / timePrecision=date（timestamp 为昨日 23:59 占位值）' },
     { kind: 'screen_time', match: "isSystem && systemType === 'screen-time'", meaning: '屏幕时间消耗（整日累计）', aiGuidance: '系统扣减项；occurredAt=null / timePrecision=date（timestamp 为当日 23:00 占位值）' },
     { kind: 'auto_makeup', match: "autoDetectType === 'makeup' 或描述以「自动补录:」开头", meaning: '系统自动补录漏记', aiGuidance: 'entryMode=auto；occurredAt=null；timePrecision=date（timestamp 为当日 23:00 占位值）→ 时刻未知，禁止时间点分析' },
