@@ -545,6 +545,12 @@ public class WebAppInterface {
     // ==================== [v9.35.0-fix3] 自录音通道结束 ====================
 
     // [v5.7.0] 震动反馈接口
+    // [v9.42.0] 前端诊断日志桥：仅供排查使用，输出到 logcat（tag = TimeBankJS）
+    @JavascriptInterface
+    public void log(String message) {
+        android.util.Log.d("TimeBankJS", message == null ? "null" : message);
+    }
+
     @JavascriptInterface
     public void vibrate(int milliseconds) {
         try {

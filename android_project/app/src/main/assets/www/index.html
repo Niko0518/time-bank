@@ -9,7 +9,7 @@
       Do NOT update the version number in <title> or any other place.
       The user designates the version number at the START of an update cycle.
     -->
-    <title>时间银行 - Time Bank v9.41.0</title>
+    <title>时间银行 - Time Bank v9.41.2</title>
 
     <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' fill='%231a2744'/%3E%3Ctext x='16' y='22' text-anchor='middle' font-size='20' fill='white'%3E⏳%3C/text%3E%3C/svg%3E">
     <link rel="manifest" href="manifest.json">
@@ -50,7 +50,8 @@
                 'sky-blue': { bgLight: '#0288d1', bgDark: '#01579b', isFlat: true },
                 'ocean-deep': { bgLight: '#0d3d6b', bgDark: '#051220', isFlat: true },
                 'vibrant-orange': { bgLight: '#e65100', bgDark: '#bf360c', isFlat: true },
-                'warm-earth': { bgLight: '#4e342e', bgDark: '#1a1410', isFlat: true }
+                'warm-earth': { bgLight: '#4e342e', bgDark: '#1a1410', isFlat: true },
+                'liquid-glass': { bgLight: '#1a2744', bgDark: '#0d1b35', isFlat: true }
             };
             var themeBg = accentThemes[accentTheme] || accentThemes['sky-blue'];
             if (themeBg && themeBg.isFlat) {
@@ -255,7 +256,7 @@
         if(pref==='dark')dark=true;
         else if(pref==='system'&&window.matchMedia&&window.matchMedia('(prefers-color-scheme:dark)').matches)dark=true;
         if(dark)document.documentElement.setAttribute('data-theme','dark');
-        var flat={'sky-blue':['#4fc3f7','#0277bd'],'ocean-deep':['#0d3d6b','#051220'],'warm-earth':['#4e342e','#1a1410']};
+        var flat={'sky-blue':['#4fc3f7','#0277bd'],'ocean-deep':['#0d3d6b','#051220'],'warm-earth':['#4e342e','#1a1410'],'liquid-glass':['#1a2744','#0d1b35']};
         var img={'the-starry-night':'../themes/the-starry-night.png','woman-with-a-parasol':'../themes/woman-with-a-parasol.png','almond-blossoms':'../themes/almond-blossoms.png'};
         var custom=localStorage.getItem('customBackground');
         if(localStorage.getItem('bgStyle')==='custom'&&custom){
@@ -276,7 +277,7 @@
         <div class="header">
             <h1>时间银行</h1>
         </div>
-        <div class="version-subtitle">TimeBank v9.41.0 · Time Bot 伙伴 · 气泡对话 · 背景图生图</div>
+        <div class="version-subtitle">TimeBank v9.41.2 · Time Bot 伙伴 · 气泡对话 · 背景图生图</div>
 
         <div class="main-container">
 
@@ -1383,6 +1384,7 @@
                             <button class="accent-option" data-accent="the-starry-night" onclick="setAccentTheme('the-starry-night')" title="星月夜"></button>
                             <button class="accent-option" data-accent="woman-with-a-parasol" onclick="setAccentTheme('woman-with-a-parasol')" title="撑阳伞的女人"></button>
                             <button class="accent-option" data-accent="almond-blossoms" onclick="setAccentTheme('almond-blossoms')" title="杏花盛开"></button>
+                            <button class="accent-option" data-accent="liquid-glass" onclick="setAccentTheme('liquid-glass')" title="液态玻璃"></button>
                         </div>
                     </div>
                 </div>
@@ -1412,6 +1414,7 @@
                             <button class="style-btn" data-style="flat" onclick="setCardVisualMode('flat')">纯色</button>
                             <button class="style-btn active" data-style="gradient" onclick="setCardVisualMode('gradient')">渐变</button>
                             <button class="style-btn" data-style="glass" onclick="setCardVisualMode('glass')">通透</button>
+                            <button class="style-btn" data-style="liquid" onclick="setCardVisualMode('liquid')">液态玻璃</button>
                         </div>
                     </div>
                 </div>
@@ -1943,7 +1946,7 @@
                     <div class="about-container" style="padding: 16px 0 8px; line-height: 1.5;">
                         <div class="about-header" style="text-align: center; margin-bottom: 20px; padding-top: 12px;">
                             <div style="font-size: 1.25rem; font-weight: 600; margin-bottom: 4px;">时间银行</div>
-                            <div style="font-size: 0.85rem; color: var(--text-color-light);">版本 v9.41.0</div>
+                            <div style="font-size: 0.85rem; color: var(--text-color-light);">版本 v9.41.2</div>
                         </div>
 
                         <div class="about-meta" style="font-size: 0.9rem; color: var(--text-color);">
@@ -2002,6 +2005,26 @@
                 <!-- 版本更新日志 -->
                 <details>
 <summary>版本更新日志</summary>
+                    <div class="version-history-item">
+                        <p><strong>版本 v9.41.2 (2026-10-21)</strong> ⏱️ <b>每日详情的时间更清楚 · 直接看出从几点做到几点</b></p>
+                        <ul>
+                            <li><strong>[UX]</strong> ⏱️ <b>持续类任务第三行改为「开始~结束」时间段</b>：例如「09:00~10:30」，不再只显示结束时刻，一眼看出这段时间花在哪。</li>
+                            <li><strong>[UX]</strong> ⏸️ <b>中途暂停超过 10 分钟会分开显示</b>：例如「09:00~09:40、09:50~10:30」；不足 10 分钟的短暂停不单独拆开，与时间流图口径完全一致。</li>
+                            <li><strong>[UX]</strong> 😴 <b>夜间睡眠和小睡第三行改为「入睡~醒来」</b>：第二行只保留时长与倍率，不再重复显示时间段；时刻未知时仍显示「—:—」。</li>
+                            <li><strong>[Fix]</strong> 🧮 <b>暂停过的计时消费记录起止时间更准</b>：从现在起会保存暂停区间，开始时刻按真实起点计算（此前已生成的老记录无法补回暂停信息）。</li>
+                        </ul>
+                    </div>
+                    <div class="version-history-item">
+                        <p><strong>版本 v9.41.1 (2026-10-05)</strong> 😴 <b>睡眠报告 · 直接告诉你「你点的」和「真睡的」差多少</b></p>
+                        <ul>
+                            <li><strong>[UX]</strong> 📊 <b>睡眠报告里并排列出「记录 / 实际」，最后一列直接给差值</b>：同一夜既有你记录的、又有设备实测的，报告会并排显示，并在「差值」列写明例如「比手点晚 10 分钟入睡」「比手点早 20 分钟醒来」「实际少睡 30 分钟」，不用再自己心算。</li>
+                            <li><strong>[UX]</strong> 🏷️ <b>报告抬头会标明这一夜按哪一条结算</b>：显示「按「记录睡眠」结算」或「按「实际睡眠」结算」，两列用颜色的深浅区分主次——颜色深的那条是真正发了奖励的，另一条只作参考。</li>
+                            <li><strong>[UX]</strong> 📈 <b>睡眠卡片不再并排摆两个时刻</b>：条形图外侧仍是你记录的入睡/醒来，设备实测的那一段改成显示<b>差值</b>（例如 <code>+10m</code>），三个数就能读出差多少，也不会再把两个只差几分钟的时刻看错。</li>
+                            <li><strong>[Fix]</strong> 🧮 <b>同一个夜晚，报告里的总收益终于处处一致</b>：从睡眠卡片进去看、和从「近 7 天」点进去看，现在显示的分数完全相同，而且和你账本里的实际入账逐分对得上（以前两个入口用的算法不同，会差一个倍率）。</li>
+                            <li><strong>[Fix]</strong> 🩹 <b>不会再凭空出现不存在的奖励分</b>：只作参考、不发奖励的那条睡眠记录，以前如果被单独打开报告，会按它的时间现算出一份"根本不存在的奖惩"；现在只认真实入账的记录。</li>
+                            <li><strong>[Core]</strong> 🧩 <b>睡眠数据补齐了「来源」与「是否只作参考」两个标记</b>：导出数据与 AI 分析终于能分清哪条是你手点的、哪条是设备实测的，而不是靠猜。</li>
+                        </ul>
+                    </div>
                     <div class="version-history-item">
                         <p><strong>版本 v9.41.0 (2026-10-03)</strong> 🛰️ <b>实际睡眠数据 · 忘了记录睡眠也能补回来</b></p>
                         <ul>
@@ -2675,9 +2698,15 @@
         </div><!-- 关闭 main-container -->
     </div><!-- 关闭 app-scroll-container -->
 
-    <button class="fab" id="fabButton" title="语音指令"></button>
+    <!-- [v9.42.0] 液态玻璃 SVG 位移滤镜容器（defs 由 js/liquid-glass.js 填充） -->
+    <svg id="liquidGlassDefs" width="0" height="0" aria-hidden="true" style="position:fixed;left:-9999px;top:0;pointer-events:none"><defs></defs></svg>
 
-    <div class="bottom-tabs">
+    <!-- [v9.42.0] data-liquid-glass = 真折射挂载点。
+         只挂「固定不滚动」的悬浮元素：底栏胶囊与 FAB。
+         滚动中的卡片不挂（每帧重采样会掉到 15fps 以下，详见 js/liquid-glass.js 顶部） -->
+    <button class="fab" id="fabButton" data-liquid-glass title="语音指令"></button>
+
+    <div class="bottom-tabs" data-liquid-glass>
         <div class="tab-indicator" id="tabIndicator"></div>
         <button class="tab-button active" data-tab="earn" onclick="switchTab('earn', event)"> <div class="tab-icon">⏰</div> <div>获得时间</div> </button>
         <button class="tab-button" data-tab="spend" onclick="switchTab('spend', event)"> <div class="tab-icon">🎯</div> <div>消费时间</div> </button>
@@ -3512,6 +3541,8 @@
 <script src="./js/ai-voice.js"></script>
 <script src="./js/app-1.js"></script>
 <script src="./js/app-2.js"></script>
+<!-- [v9.42.0] 液态玻璃（第四个卡片风格）真折射引擎：须在 app-reports.js 之前定义 -->
+<script src="./js/liquid-glass.js"></script>
 <script src="./js/app-reports.js"></script>
 <script src="./js/app-sleep.js"></script>
 <script src="./js/app-systems.js"></script>

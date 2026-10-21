@@ -4,6 +4,61 @@
 >
 > 用户-facing 的精简版本请见 `index.html` 关于页。
 
+## v9.41.2 (2026-10-21) — 每日详情第三行时间口径统一：持续类任务显示起止分段 + 睡眠显示入睡~醒来
+
+> 背景：每日详情第三行此前只调用 `formatRecordTimeHM()` 取单一 `occurredAt` —— 计时类实际显示的是"结束时刻"，睡眠显示的是"入睡时刻"，与第二行/时间流图口径不一致。
+
+### A. 持续类任务：起止分段
+1. 新增 `SIGNIFICANT_PAUSE_THRESHOLD_MS = 10 分钟`（全库唯一常量），并抽出 `splitBySignificantPauses()`；**时间流图 `getMultiDayFlowSlots` 与每日详情共用同一实现**，删除流图内部重复的阈值/过滤代码，分段行为保持不变。
+2. 新增 `getContinuousTaskSegments(t, task)`：
+   - 锚点语义复用 `getReliableOccurredMs`；`entryMode='backfill' && timeSource='user'` 时 `occurredAt` 是**开始**，结束 = 开始 + 活跃时长；
+   - 其余情况 `occurredAt` 是**结束**，开始 = 结束 − 活跃时长 − **全部暂停时长**（短暂停也加回，保证整体区间真实）；
+   - 活跃时长优先 `quantitySeconds` / `rawSeconds`（不含奖励与倍率），缺失时回退 `extractRealDurationFromTransaction()`；
+   - 时刻不可信（`—:—`）、任务已删除、时长无法解析 → 返回 `null`，沿用原单一时刻展示。
+3. 每日详情第三行按段输出 `HH:MM~HH:MM`，多段用 `、` 连接（A 方案全部平铺）；跨零点不加日期前缀。
+
+### B. 睡眠（夜间睡眠 + 小睡）
+4. 新增 `getSleepRecordTimeRange(t)`：优先 `sleepData.startTime / wakeTime`，老格式（无 `sleepData`）回退 `parseLegacySleepRange()` 解析描述，解析不到返回 `null`。
+5. 第三行改为 `入睡~醒来`；同时移除第二行开头的重复区间（`22:30~06:30 8小时 ×1.5` → `8小时 ×1.5`），第二行保留时长与倍率。参考轨（实际睡眠）按自身起止显示，便于对比。
+
+### C. 数据补全
+6. `continuous_redeem`（计时消费）结束写交易时补存 `pauseHistory`，使新记录的起点可按真实暂停区间还原。
+
+### D. 范围与限制
+7. 仅改每日详情；历史页 / 系统任务历史 / AI 今日清单未动，避免超范围回归。
+8. 不触碰 `timestamp / occurredAt / businessDate` 语义，不影响增量同步、结算与导出。
+9. **已知限制**：本次之前生成的计时消费记录没有 `pauseHistory`，只能按「结束 − 活跃时长」估算（暂停过的老记录起点会偏晚）；时刻未知仍显示 `—:—`。
+
+## v9.41.1 (2026-10-05) — 睡眠报告重构（适配「记录/实际」双轨）+ 卡片条形图改显差值
+
+> 背景：v9.41.0 让一夜可以并存两条平级睡眠记录，但睡眠报告仍按"一夜一条"的旧假设渲染，出现 4 处**真实错误**（不是观感问题）。本版把报告重构到新体系上，并让卡片把"实际时刻"改成"差值"。
+
+### A. 修掉的 4 处真实错误
+1. **参考轨被伪造分数** —— `rebuildSleepResultFromRecord()` 在 `details` 为空时按时间 `calculateSleepReward()` **现算**一份奖惩；而只作参考、不发奖励的那条 `details` 恒为 `null` → 报告会给它显示一个**根本不存在的奖励分**。现改为**只认账本**：`record.isReference === true` 直接返回 `null`，禁止现算。
+2. **两套报告倍率口径不一致** —— 旧式 `showSleepReportModal()`（7 日图点行入口）总分**不乘**倍率，卡片版 `buildSleepCardNightReportHtml()` **乘**倍率 → 同一夜两个入口两个总分。现**收敛为一套渲染**：`showSleepReportModalFromElement()` 改为构造 `_sleepCardReportCtx` 后走 `renderSleepCardReportModal('night')`。
+3. **报告总分 ≠ 账本入账** —— 旧算法"各分项 `Math.round` 后相加 ×倍率"与账本 `details.totalReward`（已含倍率）存在四舍五入顺序差异。现**总分口径单点**：优先直接取 `details.totalReward`，账本缺明细时才回退旧算法。
+4. **取数对象缺轨道身份（D1/D4 的根因）** —— `getSleepRecordByEndDate()` / `getSleepRecordForDate()` / `getSleepHistory()` 返回体均**缺 `source` / `isReference`**，下游无法判断"这条是记录睡眠还是实际睡眠"；7 日图还把它 `JSON.stringify` 进 `data-record` 传给报告。现三者统一补齐（含 `deviceName`；`getSleepHistory` 另补 `amount`/`type`，使 AI 侧可核对 `reward = amount/60` 而不必靠 amount 反推时长）。
+
+### B. 统一入口：按「角色」取一夜两条
+5. 新增 `getSleepTracksByRole(wakeDateStr)` 取代 `getReferenceSleepForNight(wakeDateStr)`：返回 `{ record, device, credited }`，按**角色**（`source === 'device'` = 实际睡眠）而非"计奖 / 参考"拆分。**理由**：当 `sleepRewardBasis === 'actual'` 时计奖那条就是实际睡眠，若仍按"计奖 / 参考"画图，虚线会标在**记录**时刻上、标签却写"实际比记录晚 10 分钟"，**位置与标注错位**；按角色拆分后语义永远成立。
+6. 配套 `formatSleepDelta(diffMin)`：`+10m` / `-20m` / `+1h10m` / `0m`。
+7. `settleNightSleepReward()` / `isSleepReferenceTx()` / `getSleepRecordByEndDate()` 仍是**唯一归位与判定入口**，本次未改其语义。
+
+### C. 首页睡眠卡片条形图
+8. **条内两个"实际时刻"做「值替换」**：`23:10` / `06:15` → `+10m` / `-20m`（差值 = 实际 − 记录，**与奖励依据无关**）。**位置 / 锚点（`inside anchor-left|right`，贴虚线朝条内延伸）/ 字号 / 颜色全部不变**，只换文字 → 视觉骨架零变化。
+9. 顺带修 v9.41.0 的一处不一致：条形跨度画的是记录条、时长文字却写参考轨的 `pDurStr`（对不上）→ 改为与跨度同源。
+10. 无对照记录或开关关闭 → 完全走原渲染分支，**零变化**。
+
+### D. 睡眠报告正文
+11. 该夜两条并存时表格为 `项目 / 记录 / 实际 / 差值`（**删掉「计划」列**、**「结果」列改为「差值」**）；无双轨时保持原 `项目 / 计划 / 实际 / 结果` 表。
+12. **两条轨不加粗**（用户定），只靠 `.sleep-report-lead` / `.sleep-report-ref` 的**颜色深浅**区分；**差值列中性色** `#607D8B`（差值是观测事实、不是奖惩结论，沿用红绿会误导）。三条新类均补 `body.glass-mode` 覆盖 —— 权重必须高于全局 `body.glass-mode th/td` 规则，否则通透模式下会被刷白。
+13. 抬头新增身份胶囊 `.sleep-report-src`（`按「记录睡眠」结算` / `按「实际睡眠」结算`），**仅两条并存时出现**。不加计划小字、不加「结算」标签、不加表格脚注（用户明确要求删除）。
+
+### E. 清理与范围
+14. 删死 CSS `.sleep-report-details` 4 条（JS 已不再产出该类，全库 0 匹配）。
+15. **本期不动**（用户定）：近 7 日视图的条形本身；小睡报告（小睡不参与归位、无参考轨）。
+16. 取舍：不提供"单独打开参考轨报告"的入口 —— 报告永远以该夜**计奖那条**为正文，参考轨只在表格里作对照，避免出现"没有分数的空报告"。
+
 ## v9.41.0 (2026-10-03) — 实际睡眠数据（导入设备实测入睡/醒来）+「实际/记录」术语定稿 + 平级记录与奖励依据
 
 > 背景：睡眠记录一直是「用户点击入睡/醒来」的**动作时刻**，不是真实睡着/醒来的生理时刻。

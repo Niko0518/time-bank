@@ -228,7 +228,14 @@ function getSleepHistory() {
                 details: t.sleepData.details || null,
                 quality: t.sleepData.details ? (t.sleepData.details.quality || t.sleepData.details.score || 0) : 0,
                 timestamp: Number(t.timestamp) || 0,
-                txId: t.id
+                txId: t.id,
+                // [v9.41.1] 补齐轨道身份与金额：AI / 统计侧据此判断"这条是记录睡眠还是设备实测"，
+                // 并可核对 reward（= amount/60）而不是靠 amount 反推时长
+                source: t.sleepData.source || '',
+                deviceName: t.sleepData.deviceName || '',
+                isReference: isSleepReferenceTx(t),
+                amount: Number(t.amount) || 0,
+                type: t.type
             };
         })
         .sort((a, b) => new Date(b.date) - new Date(a.date));
@@ -687,19 +694,72 @@ function togglePreciseSleep() {
     updateSleepCard();   // 卡片上的「导入」按钮随开关显隐
 }
 
-// 查找「某一夜」的参考轨睡眠记录（该夜两条中"不计奖"的那条，可能是记录睡眠也可能是实际睡眠）
-// 用于卡片：主轨（实心条）画计奖那条（getSleepRecordByEndDate），参考轨（虚线）画这一条
-function getReferenceSleepForNight(wakeDateStr) {
-    if (typeof transactions === 'undefined' || !Array.isArray(transactions)) return null;
-    const tx = transactions.find(t => isSleepReferenceTx(t) && getSleepEndDateStr(t) === wakeDateStr);
-    if (!tx) return null;
-    return {
-        startTime: Number(tx.sleepData.startTime),
-        wakeTime: Number(tx.sleepData.wakeTime),
-        durationMinutes: Number(tx.sleepData.durationMinutes) || 0,
-        deviceName: tx.sleepData.deviceName || '',
-        txId: tx.id
-    };
+// [v9.41.1] 按「角色」取「某一夜」的两条睡眠记录（v9.41.0 的 getReferenceSleepForNight 由此取代）
+//   record   = 记录睡眠（用户给的时刻，sleepData.source 非 'device'）
+//   device   = 实际睡眠（设备实测，sleepData.source === 'device'）
+//   credited = 该夜真正计奖的那条（由 isSleepReferenceTx 标记决定，与 sleepRewardBasis 无关）
+// 两条**平级并存、互为参考**；该夜只有一条时另一项为 null，credited 指向那一条。
+// 用途：卡片条形图（实心条=记录睡眠、精确竖虚线=实际睡眠）与睡眠报告的「记录 / 实际 / 差值」三列。
+function getSleepTracksByRole(wakeDateStr) {
+    const out = { record: null, device: null, credited: null };
+    if (typeof transactions === 'undefined' || !Array.isArray(transactions) || !wakeDateStr) return out;
+    transactions.forEach(t => {
+        if (!t || !t.sleepData || t.sleepData.sleepType === 'nap' || !t.sleepData.startTime) return;
+        if (getSleepEndDateStr(t) !== wakeDateStr) return;
+        const startTime = Number(t.sleepData.startTime);
+        const wakeTime = Number(t.sleepData.wakeTime);
+        const item = {
+            startTime: startTime,
+            wakeTime: wakeTime,
+            durationMinutes: Number(t.sleepData.durationMinutes) ||
+                Math.max(0, Math.round((wakeTime - startTime) / 60000)),
+            source: t.sleepData.source || '',
+            deviceName: t.sleepData.deviceName || '',
+            isReference: isSleepReferenceTx(t),
+            amount: Number(t.amount) || 0,
+            type: t.type,
+            details: t.sleepData.details || null,
+            txId: t.id
+        };
+        if (item.source === 'device') { if (!out.device) out.device = item; }
+        else { if (!out.record) out.record = item; }
+    });
+    if (out.record && !out.record.isReference) out.credited = out.record;
+    else if (out.device && !out.device.isReference) out.credited = out.device;
+    else out.credited = out.record || out.device;
+    return out;
+}
+
+// [v9.41.1] 睡眠差值格式化：+10m / -20m / +1h10m / 0m（差值 = 实际 − 记录）
+function formatSleepDelta(diffMin) {
+    const d = Math.round(Number(diffMin) || 0);
+    if (d === 0) return '0m';
+    const a = Math.abs(d), h = Math.floor(a / 60), m = a % 60;
+    const body = h > 0 ? (m > 0 ? h + 'h' + m + 'm' : h + 'h') : (m + 'm');
+    return (d > 0 ? '+' : '-') + body;
+}
+
+// ===== [v9.41.1] 睡眠卡片条形图的坐标轴：由「计划时段 + 边距比例」按比例推出 =====
+//
+// 关键前提：计划虚线**不是装饰**，它就是「计划入睡 / 计划起床在时间刻度上的真实位置」。
+// 条形、条外记录时间、实际虚线及其差值、计划虚线与其时间标注，**全部共用这一条刻度**
+// （各自的 timeToPercent）。因此：
+//   · 想让条形两侧留白变大 → 只能把**轴按比例放宽**（边距 = 轴长 × 边距比例）。
+//     计划时长不变 → 轴变长 → 条形等比变窄、计划虚线自动向心内收，且仍精确指向它标注的时刻。
+//   · 单独去挪虚线的百分比会**破坏比例关系** —— 虚线不再指向它下面写的那个时间。
+//
+// 边距比例 SLEEP_AXIS_EDGE_RATIO 的含义：计划虚线到轴两端的距离 ÷ 整条轴长。
+//   0.10 → 虚线在 10% / 90%（v9.41.0 之前的观感：计划 23:00→07:00 → 轴 22:00→08:00，缓冲 1h）
+//   0.15 → 虚线在 15% / 85% = 到轴心的距离缩短 12.5%（缓冲 1.71h，轴 21:17–08:43）
+//   0.20 → 虚线在 20% / 80% = 到轴心的距离缩短 25%（缓冲 2.67h，轴 20:20–09:40）
+const SLEEP_AXIS_EDGE_RATIO = 0.15;
+
+// 由计划时长与边距比例推出轴两端的单侧外扩小时数
+// 轴总长 = 计划时长 /(1 − 2r)，单侧边距 = 轴总长 × r = 计划时长 × r /(1 − 2r)
+function sleepAxisEdgeHour(plannedSpanHour, edgeRatio) {
+    const span = Math.abs(Number(plannedSpanHour)) || 8;
+    const r = Math.min(0.4, Math.max(0.02, Number(edgeRatio) || 0.1));
+    return (span * r) / (1 - 2 * r);
 }
 
 // 查找「某一夜」的人工睡眠记录（排除全部设备数据，无论角色）
@@ -1645,7 +1705,12 @@ function getSleepRecordForDate(dateStr) {
         type: tx.type,
         timestamp: Number(tx.timestamp) || 0,
         reward: signedReward,
-        details: tx.sleepData.details || null
+        details: tx.sleepData.details || null,
+        // [v9.41.1] 补齐轨道身份：source='device' 即实际睡眠；isReference=true 即"仅对照、不计奖"
+        // 缺这两个字段，下游（报告 / 导出 / AI）分不清"记录睡眠"与"实际睡眠"
+        source: tx.sleepData.source || '',
+        deviceName: tx.sleepData.deviceName || '',
+        isReference: isSleepReferenceTx(tx)
     };
 }
 
@@ -1717,7 +1782,12 @@ function getSleepRecordByEndDate(dateStr) {
         type: tx.type,
         timestamp: Number(tx.timestamp) || 0,
         reward: signedReward,
-        details: tx.sleepData.details || null
+        details: tx.sleepData.details || null,
+        // [v9.41.1] 补齐轨道身份：source='device' 即实际睡眠；isReference=true 即"仅对照、不计奖"
+        // 缺这两个字段，下游（报告 / 导出 / AI）分不清"记录睡眠"与"实际睡眠"
+        source: tx.sleepData.source || '',
+        deviceName: tx.sleepData.deviceName || '',
+        isReference: isSleepReferenceTx(tx)
     };
 }
 
@@ -1818,8 +1888,9 @@ function renderSleepCardNapBars(napRecords) {
     const planStartH = parseTimeToHours(napPlanStartStr);
     const planEndH = parseTimeToHours(napPlanEndStr);
 
-    // 坐标轴范围：计划开始/结束各外扩15min（小睡时段短，用紧凑缓冲让计划虚线贴近两端、与夜间观感一致）
-    const napAxisBufferH = 0.25;
+    // 坐标轴范围：与夜间**同一套比例公式**（SLEEP_AXIS_EDGE_RATIO），
+    // 小睡时段短，边距自然按比例缩到 40min，虚拟线观感与夜间一致
+    const napAxisBufferH = sleepAxisEdgeHour(planEndH - planStartH, SLEEP_AXIS_EDGE_RATIO);
     const axisStartHour = planStartH - napAxisBufferH;
     const axisEndHour = planEndH + napAxisBufferH;
     let axisTotalHours;
@@ -1828,8 +1899,7 @@ function renderSleepCardNapBars(napRecords) {
     } else {
         axisTotalHours = axisEndHour - axisStartHour;
     }
-    // 计划开始 / 结束（虚线）在轴内位置：与夜间完全同款公式，缓冲小时数从 napAxisBufferH 取
-    // （夜间是 (1h/轴时长)，小睡缓冲 0.25h → 0.25/2.5=10%、2.25/2.5=90%，与夜间 9%/91% 观感一致）
+    // 计划开始 / 结束（虚线）在轴内位置 = 计划时刻在刻度上的真实位置（与夜间同一公式）
     const planStartPct = (napAxisBufferH / axisTotalHours) * 100;
     const planEndPct = ((axisTotalHours - napAxisBufferH) / axisTotalHours) * 100;
 
@@ -1860,7 +1930,10 @@ function renderSleepCardNapBars(napRecords) {
     let barLevelClass = 'level-' + napRewardLevel(rewardMin, isPenalty);
 
     // 实际小睡条：按真实钟点映射到计划轴（左边会有未睡空余，右边可略微超出计划结束）
+    // [v9.41.1] 小睡时长普遍较短 → 入睡/醒来时间移到**条形外**（贴条形两端、向条外延伸），
+    // 条形内只留时长。否则两个时间会被挤在窄条里（曾出现 "13:1313:44" 这类粘连）。
     let inner = '';
+    let outside = '';
     napRecords.forEach(tx => {
         const stMs = new Date(tx.sleepData?.startTime || tx.timestamp).getTime();
         const dMin = tx.sleepData?.durationMinutes || 0;
@@ -1868,13 +1941,13 @@ function renderSleepCardNapBars(napRecords) {
         const s = timeToPercent(stMs), e = timeToPercent(wtMs);
         const w = Math.max(e - s, 4);
         const durTxt = dMin >= 60 ? Math.floor(dMin / 60) + 'h' + (dMin % 60 ? dMin % 60 + 'm' : '') : dMin + 'm';
-        // [v9.36.5] 条过窄(实际小睡短)时省略中间时长文本，只留两端时间防拥挤；宽条才显示时长（同夜间）
-        const midSpan = w >= 35 ? `<span class="sleep-card-bar-text">${durTxt}</span>` : '';
-        inner += `<div class="sleep-card-bar ${barLevelClass}" style="left:${s}%;width:${w}%;">
-            <span class="sleep-card-bar-time">${fmt(stMs)}</span>
-            ${midSpan}
-            <span class="sleep-card-bar-time">${fmt(wtMs)}</span>
+        // 条内只留时长（center-only 让它居中）
+        inner += `<div class="sleep-card-bar ${barLevelClass} center-only" style="left:${s}%;width:${w}%;">
+            <span class="sleep-card-bar-text">${durTxt}</span>
         </div>`;
+        // 条外：入睡贴条形左端向左排、醒来贴条形右端向右排（越界由 clampSleepCardTimeLabels 收口）
+        outside += `<span class="sleep-card-time outside anchor-right" style="left:${s}%">${fmt(stMs)}</span>`;
+        outside += `<span class="sleep-card-time outside anchor-left" style="left:${e}%">${fmt(wtMs)}</span>`;
     });
 
     return `<div class="sleep-card-bar-row">
@@ -1883,6 +1956,7 @@ function renderSleepCardNapBars(napRecords) {
             <div class="sleep-card-bar-marker bedtime" style="left:${planStartPct}%"></div>
             <div class="sleep-card-bar-marker waketime" style="left:${planEndPct}%"></div>
             ${inner}
+            ${outside}
         </div>
         <div class="sleep-card-bar-reward">${rewardStr}</div>
     </div>
@@ -1907,6 +1981,9 @@ function updateSleepCardChart() {
     const _sel = getSleepCardSelection();
     if (_sel.mode === 'nap') {
         chartEl.innerHTML = renderSleepCardNapBars(_sel.records);
+        // [v9.41.1] 小睡的入睡/醒来时间现在也在条形外，同样需要防截断收口
+        clampSleepCardTimeLabels(chartEl);
+        requestAnimationFrame(function () { clampSleepCardTimeLabels(chartEl); });
         return;
     }
     const record = _sel.mode === 'night' ? _sel.record : null;
@@ -1919,9 +1996,12 @@ function updateSleepCardChart() {
     const plannedBedHour = parseTimeToHours(sleepSettings.plannedBedtime);
     const plannedWakeHour = parseTimeToHours(sleepSettings.plannedWakeTime);
 
-    // 坐标轴范围：计划入睡前1h ~ 计划起床后1h
-    const axisStartHour = plannedBedHour - 1;
-    const axisEndHour = plannedWakeHour + 1;
+    // 坐标轴范围：计划入睡/起床各外扩一个「按比例算出的边距」（不是固定 1h —— 见 sleepAxisEdgeHour 注释）
+    let plannedSpanHour = plannedWakeHour - plannedBedHour;
+    if (plannedSpanHour <= 0) plannedSpanHour += 24;         // 跨零点
+    const axisEdgeHour = sleepAxisEdgeHour(plannedSpanHour, SLEEP_AXIS_EDGE_RATIO);
+    const axisStartHour = plannedBedHour - axisEdgeHour;
+    const axisEndHour = plannedWakeHour + axisEdgeHour;
     let axisTotalHours;
     if (axisEndHour < axisStartHour || (axisEndHour < 12 && axisStartHour > 12)) {
         axisTotalHours = (24 - axisStartHour) + axisEndHour;
@@ -1929,8 +2009,9 @@ function updateSleepCardChart() {
         axisTotalHours = axisEndHour - axisStartHour;
     }
 
-    const bedtimePercent = (1 / axisTotalHours) * 100;
-    const waketimePercent = ((axisTotalHours - 1) / axisTotalHours) * 100;
+    // 计划虚线（及其下方时间标注）= 计划时刻在这条刻度上的真实位置
+    const bedtimePercent = (axisEdgeHour / axisTotalHours) * 100;
+    const waketimePercent = ((axisTotalHours - axisEdgeHour) / axisTotalHours) * 100;
 
     const timeToPercent = (timestamp, isWakeTime = false) => {
         const d = new Date(timestamp);
@@ -1958,15 +2039,44 @@ function updateSleepCardChart() {
         // [v9.36.5] 标签改为类型「睡眠」，不再显示日期归属
         const sleepDateLabel = '睡眠';
 
-        const startPercent = timeToPercent(record.sleepStartTime, false);
-        const endPercent = timeToPercent(record.wakeTime, true);
+        // ===== [v9.41.1] 按「角色」取该夜的两条睡眠 =====
+        // 实心条 = 记录睡眠（用户给的时刻）；精确竖虚线 = 实际睡眠（设备实测）。
+        // 差值恒为「实际 − 记录」，与「奖励依据」设置无关 —— 否则依据=实际时，
+        // 虚线会标在记录时刻上、标签却写"实际比记录晚 10 分钟"，位置与标注错位。
+        // 未开启开关 / 该夜只有一条 → 全部回退到计奖那条，渲染与本功能上线前完全一致。
+        let barBedMs = record.sleepStartTime, barWakeMs = record.wakeTime;
+        let barDurMin = record.durationMinutes || 0;
+        let precise = null;
+        if (sleepSettings.preciseSleepEnabled === true && record.date) {
+            const tk = getSleepTracksByRole(record.date);
+            const roleRec = tk.record || tk.credited;   // 记录条；该夜没有记录睡眠时回退到计奖那条
+            const roleDev = tk.device;                  // 实际睡眠条
+            if (roleRec) {
+                barBedMs = roleRec.startTime;
+                barWakeMs = roleRec.wakeTime;
+                // [v9.41.1] 时长必须与条的跨度同源：v9.41.0 曾"跨度画记录条、字写参考轨时长"（对不上）
+                barDurMin = roleRec.durationMinutes ||
+                    Math.max(0, Math.round((barWakeMs - barBedMs) / 60000));
+            }
+            if (roleDev && roleRec) {
+                precise = {
+                    startTime: roleDev.startTime,
+                    wakeTime: roleDev.wakeTime,
+                    diffBedMin: Math.round((roleDev.startTime - roleRec.startTime) / 60000),
+                    diffWakeMin: Math.round((roleDev.wakeTime - roleRec.wakeTime) / 60000)
+                };
+            }
+        }
+
+        const startPercent = timeToPercent(barBedMs, false);
+        const endPercent = timeToPercent(barWakeMs, true);
         const width = Math.max(endPercent - startPercent, 10);
-        const durationMin = record.durationMinutes || 0;
+        const durationMin = barDurMin || Math.max(0, Math.round((barWakeMs - barBedMs) / 60000));
         const h = Math.floor(durationMin / 60);
         const m = durationMin % 60;
         const durationStr = m > 0 ? `${h}h${m}m` : `${h}h`;
-        const actualBed = formatTimeHM(record.sleepStartTime);
-        const actualWake = formatTimeHM(record.wakeTime);
+        const actualBed = formatTimeHM(barBedMs);
+        const actualWake = formatTimeHM(barWakeMs);
         const reward = record.reward || 0;
         const rewardSign = reward >= 0 ? '+' : '-';
         const rewardH = (Math.abs(reward) / 60).toFixed(1);
@@ -1987,11 +2097,8 @@ function updateSleepCardChart() {
             barLevelClass = 'level-4'; // 大惩罚-深红
         }
 
-        // ===== [v9.41.0] 参考轨：查该夜"不计奖"的那条睡眠记录（记录睡眠 / 实际睡眠二者之一）=====
+        // [v9.41.1] precise / barBedMs / barWakeMs / barDurMin 已在上面按「角色」算好
         // 该夜只有一条睡眠记录（或开关关闭）→ precise 为 null → 完全走原渲染，零变化
-        const precise = (sleepSettings.preciseSleepEnabled === true && record.date)
-            ? getReferenceSleepForNight(record.date)
-            : null;
 
         // 缺口避让：条外标签若贴近容器边缘会导致文字溢出被裁，退化为贴边显示
         const LABEL_PCT = 7;
@@ -2010,26 +2117,20 @@ function updateSleepCardChart() {
         if (precise) {
             const pStart = timeToPercent(precise.startTime, false);
             const pEnd = timeToPercent(precise.wakeTime, true);
-            const pWidth = Math.max(pEnd - pStart, 8);
-            const pDurMin = precise.durationMinutes || 0;
-            const pH = Math.floor(pDurMin / 60), pM = pDurMin % 60;
-            const pDurStr = pM > 0 ? `${pH}h${pM}m` : `${pH}h`;
-            const pBed = formatTimeHM(precise.startTime);
-            const pWake = formatTimeHM(precise.wakeTime);
 
-            // 精确区间两条竖直虚线（颜色=比条形深一档，由容器 level 类决定）
+            // 实际睡眠区间的两条竖直虚线（颜色=比条形深一档，由容器 level 类决定）
             html += `<div class="sleep-card-bar-marker precise" style="left:${pStart}%"></div>`;
             html += `<div class="sleep-card-bar-marker precise" style="left:${pEnd}%"></div>`;
-            // 记录条：只留时长文字（时间让位给条外/条内两套标注）
+            // 记录条：只留时长文字（时间让位给条外的记录时间与条内的差值）
             html += `<div class="sleep-card-bar ${barLevelClass} center-only" style="left:${startPercent}%;width:${width}%;">`;
-            html += `<span class="sleep-card-bar-text">${pDurStr}</span>`;
+            html += `<span class="sleep-card-bar-text">${durationStr}</span>`;
             html += `</div>`;
             // 条外：记录时间（右端贴条形 / 左端贴条形，向条外延伸）
             html += `<span class="sleep-card-time ${recStartCls}" style="left:${recStartPos}%">${actualBed}</span>`;
             html += `<span class="sleep-card-time ${recEndCls}" style="left:${recEndPos}%">${actualWake}</span>`;
-            // 条内：精确时间（贴精确竖虚线，向条内延伸）
-            html += `<span class="sleep-card-time inside anchor-left" style="left:${pStart}%">${pBed}</span>`;
-            html += `<span class="sleep-card-time inside anchor-right" style="left:${pEnd}%">${pWake}</span>`;
+            // [v9.41.1] 条内：实际时刻「值替换」为它与记录时间的差值（位置/锚点/字号/颜色均不变）
+            html += `<span class="sleep-card-time inside anchor-left" style="left:${pStart}%">${formatSleepDelta(precise.diffBedMin)}</span>`;
+            html += `<span class="sleep-card-time inside anchor-right" style="left:${pEnd}%">${formatSleepDelta(precise.diffWakeMin)}</span>`;
         } else {
             html += `<div class="sleep-card-bar ${barLevelClass}" style="left:${startPercent}%;width:${width}%;">`;
             html += `<span class="sleep-card-bar-time">${actualBed}</span>`;
@@ -2052,8 +2153,47 @@ function updateSleepCardChart() {
     }
 
     chartEl.innerHTML = html;
+    clampSleepCardTimeLabels(chartEl);
+    // 卡片处于隐藏态时量不到容器宽度 → 下一帧再试一次（重复调用是幂等的）
+    requestAnimationFrame(function () { clampSleepCardTimeLabels(chartEl); });
+}
 
-
+// [v9.41.1] 条外时间标签防截断（渲染后按**实际像素**收口）
+// 起因：条外的入睡/醒来时间采用「右端/左端贴合条形端点、向条外延伸」的画法。
+// 当记录入睡早于计划入睡时（条形左端贴近容器左缘），向左延伸的入睡时间会溢出容器被裁掉，
+// 表现为「入睡时间只显示后半截」。原先的 LABEL_PCT 是**固定百分比**阈值，
+// 换算成像素后在窄容器上并不够用（标签宽度是固定的 px），所以仍会漏判。
+// 这里在渲染完成后按真实像素复核：越界就把标签平移回容器内（此时它就"从条形图最左侧开始"，
+// 不再强行右端贴合）；空间足够时一个像素都不动，观感与原来完全一致。
+function clampSleepCardTimeLabels(chartEl) {
+    if (!chartEl || !chartEl.querySelectorAll) return;
+    chartEl.querySelectorAll('.sleep-card-bar-container').forEach(function (box) {
+        const b = box.getBoundingClientRect();
+        if (!b.width) return;
+        const kept = [];
+        box.querySelectorAll('.sleep-card-time').forEach(function (el) {
+            el.style.display = '';
+            el.style.marginLeft = '';
+        });
+        box.querySelectorAll('.sleep-card-time').forEach(function (el) {
+            const r = el.getBoundingClientRect();
+            if (!r.width) return;
+            let dx = 0;
+            if (r.left < b.left - 0.5) {
+                dx = b.left - r.left;                 // 左侧越界 → 整体右推（此时它从容器最左侧开始）
+            } else if (r.right > b.right + 0.5) {
+                dx = b.right - r.right;               // 右侧越界 → 整体左拉
+            }
+            if (dx) el.style.marginLeft = dx + 'px';
+            // [v9.41.1] 同一次小睡存在多次时，条外标签会互相重叠 → 隐去后出现的那个
+            const r2 = el.getBoundingClientRect();
+            for (let i = 0; i < kept.length; i++) {
+                const k = kept[i];
+                if (r2.left < k.right - 0.5 && r2.right > k.left + 0.5) { el.style.display = 'none'; return; }
+            }
+            kept.push(r2);
+        });
+    });
 }
 
 // [v7.4.2] 显示睡眠详细报告
@@ -2063,17 +2203,23 @@ function updateSleepCardChart() {
 // [v7.13.0] 从睡眠记录重构完整的结算结果（强力修复：确保任何记录都能显示完整明细）
 function rebuildSleepResultFromRecord(record) {
     if (!record || !record.sleepStartTime || !record.wakeTime) return null;
-    
-    // 如果记录已有完整的 details，直接使用
+
+    // [v9.41.1] 参考轨（仅对照、不计奖）本来就没有结算明细。
+    // 旧代码在这里"拿时间现算一份奖惩"，会让报告给参考轨显示一个根本不存在的奖励分。
+    if (record.isReference === true) return null;
+
+    // 如果记录已有完整的 details，直接使用（账本口径 = 真实入账）
     if (record.details && record.details.totalReward !== undefined) {
         return record.details;
     }
-    
+
     // 否则，从时间信息重新计算
     return calculateSleepReward(record.sleepStartTime, record.wakeTime);
 }
 
 // [v7.13.0] 从条形图元素中解析记录数据并显示报告（强力修复点击问题）
+// [v9.41.1] 收敛为一套报告渲染：7 日图点行不再走旧版 showSleepReportModal ——
+// 旧版不乘倍率（与现役卡片报告口径不一致），且参考轨会被现算成假分数。
 function showSleepReportModalFromElement(element) {
     try {
         const recordData = element.getAttribute('data-record');
@@ -2082,7 +2228,20 @@ function showSleepReportModalFromElement(element) {
             return;
         }
         const record = JSON.parse(decodeURIComponent(recordData));
-        showSleepReportModal(record);
+        const dateStr = record.date || (record.sleepStartTime ? getSleepCycleDate(record.sleepStartTime) : null);
+        if (!dateStr) { showSleepReportModal(record); return; }   // 兜底：极老数据缺归属日
+        const napList = (Array.isArray(transactions) ? transactions : []).filter(tx =>
+            tx && tx.sleepData && tx.sleepData.sleepType === 'nap' && tx.type === 'earn' &&
+            (Number(tx.amount) || 0) > 0 && getSleepEndDateStr(tx) === dateStr
+        );
+        _sleepCardReportCtx = {
+            // 重新按归属日取一次：data-record 是序列化的快照，字段可能已过期
+            nightRecord: getSleepRecordByEndDate(dateStr) || record,
+            napRecords: napList,
+            hasNight: true,
+            hasNap: napList.length > 0
+        };
+        renderSleepCardReportModal('night');
     } catch (e) {
         console.error('[showSleepReportModalFromElement] 解析记录数据失败:', e);
         showNotification('⚠️ 无法显示睡眠报告', '数据解析错误', 'warning');
@@ -2421,8 +2580,34 @@ function _applySleepCardMult(minutes, mult) {
 }
 
 // [v9.36.5] 夜间报告正文（与旧 showSleepReportModal 生成逻辑完全一致）
+// [v9.41.1] 睡眠报告的「记录 / 实际 / 差值」对照行
+// 不加粗（用户要求）：两条轨只靠颜色深浅区分 —— 计奖那条深、参考轨淡。
+// 差值列中性色：差值是观测事实（"比手点晚 10 分钟入睡"），不是奖惩结论，用红绿会误导。
+function sleepCardDualRowHtml(name, recText, devText, diffMin, devIsLead) {
+    const recCls = devIsLead ? 'sleep-report-ref' : 'sleep-report-lead';
+    const devCls = devIsLead ? 'sleep-report-lead' : 'sleep-report-ref';
+    const td = 'text-align:center;padding:12px 2px;font-size:0.9rem;';
+    return `<tr>
+        <td style="${td}">${name}</td>
+        <td class="${recCls}" style="${td}">${recText}</td>
+        <td class="${devCls}" style="${td}">${devText}</td>
+        <td class="sleep-report-delta" style="${td}">${formatSleepDelta(diffMin)}</td>
+    </tr>`;
+}
+
+// [v9.41.1] 通用表格外壳（表头 + 行），供夜间报告两种形态复用
+function sleepCardTableHtml(headers, rowsHtml) {
+    const th = 'text-align:center;color:var(--text-color-light);padding:8px 2px;border-bottom:1px solid var(--text-color-light);white-space:nowrap;';
+    const ths = headers.map(h => `<th style="${th}">${h}</th>`).join('');
+    return `<table style="width:100%;border-collapse:collapse;font-size:0.85rem;margin-top:4px;">
+        <thead><tr>${ths}</tr></thead>
+        <tbody>${rowsHtml}</tbody>
+    </table>`;
+}
+
 function buildSleepCardNightReportHtml() {
     const record = _sleepCardReportCtx.nightRecord;
+    if (!record) return buildSleepCardEmptyHtml('🌙', '夜间睡眠', 'night');
     const result = rebuildSleepResultFromRecord(record);
     const durationMinutes = record.durationMinutes ||
         Math.floor((record.wakeTime - record.sleepStartTime) / 60000);
@@ -2433,47 +2618,70 @@ function buildSleepCardNightReportHtml() {
     const sleepDate = record.date || getSleepCycleDate(record.sleepStartTime);
     const dateLabel = sleepCardDateLabel(sleepDate, record.sleepStartTime);
 
+    // ===== [v9.41.1] 总分口径单点 =====
+    // 优先取账本 details.totalReward（已含倍率、与真实入账逐分对齐）；
+    // 账本缺明细时才回退旧的"分项 round 相加 ×倍率"，保证报告分 = 余额。
     const r = result || {};
-    const baseTotal = Math.round(r.bedtimeReward || 0) + Math.round(r.wakeReward || 0) + Math.round(r.toleranceBonus || 0) + Math.round(r.durationReward || 0);
-    // [v9.36.6] 统一倍率口径：与结算一致（净奖励×赚取倍率、净惩罚×消费倍率），
-    // 使报告总值 = 真实入账（与卡片条图 record.reward、账本一致），消除"夜间报告不乘倍率"的不一致
-    let total = baseTotal;
-    if (total !== 0) {
-        try {
-            const mult = total > 0 ? getEarnMultiplier() : getSpendMultiplier();
-            if (mult != null && mult !== 1) total = Math.round(total * mult);
-        } catch (e) {}
+    let total;
+    if (record.details && record.details.totalReward !== undefined) {
+        total = Math.round(record.details.totalReward);
+    } else {
+        total = Math.round(r.bedtimeReward || 0) + Math.round(r.wakeReward || 0) +
+            Math.round(r.toleranceBonus || 0) + Math.round(r.durationReward || 0);
+        if (total !== 0) {
+            try {
+                const mult = total > 0 ? getEarnMultiplier() : getSpendMultiplier();
+                if (mult != null && mult !== 1) total = Math.round(total * mult);
+            } catch (e) {}
+        }
     }
     const totalClr = total >= 0 ? '#4CAF50' : '#F44336';
-    // [v9.39.1] 已删除总分行右侧的「×倍率」徽标（乘入数值的逻辑不变）
-
-    const planDur = sleepCardFmtDurCompact(sleepSettings.targetDurationMinutes) || '8h';
-    const planTol = '±' + (sleepSettings.durationTolerance || 0) + 'm';
-    const actualDur = sleepCardFmtDurCompact(durationMinutes) || '0m';
-
-    const rowsHtml =
-        sleepCardRowHtml('入睡', sleepSettings.plannedBedtime, startStr, r.bedtimeReward || 0) +
-        sleepCardRowHtml('起床', sleepSettings.plannedWakeTime, wakeStr, r.wakeReward || 0) +
-        sleepCardRowHtml('时长', planDur, actualDur, (r.toleranceBonus > 0 ? r.toleranceBonus : (r.durationReward || 0)));
-
-    const tableHtml = `
-        <table style="width:100%;border-collapse:collapse;font-size:0.85rem;margin-top:4px;">
-            <thead><tr>
-                <th style="text-align:center;color:var(--text-color-light);padding:8px;border-bottom:1px solid var(--text-color-light);white-space:nowrap;">项目</th>
-                <th style="text-align:center;color:var(--text-color-light);padding:8px;border-bottom:1px solid var(--text-color-light);white-space:nowrap;">计划</th>
-                <th style="text-align:center;color:var(--text-color-light);padding:8px;border-bottom:1px solid var(--text-color-light);white-space:nowrap;">实际</th>
-                <th style="text-align:center;color:var(--text-color-light);padding:8px;border-bottom:1px solid var(--text-color-light);white-space:nowrap;">结果</th>
-            </tr></thead>
-            <tbody>${rowsHtml}</tbody>
-        </table>`;
 
     const totalHtml = `<div style="display:flex;align-items:center;justify-content:center;gap:12px;margin:14px 0 4px;">
         <span style="font-size:2rem;font-weight:700;color:${totalClr};">${sleepCardFmtHzm(total)}</span>
     </div>`;
 
+    // ===== [v9.41.1] 该夜两条并存 → 切成「记录 / 实际 / 差值」对照表；否则保持现状表格 =====
+    const tk = sleepDate ? getSleepTracksByRole(sleepDate) : null;
+    const roleRec = tk && tk.record;
+    const roleDev = tk && tk.device;
+    const hasDual = !!(roleRec && roleDev);
+    // 抬头那行时刻显示的是「计奖那条」；胶囊告诉用户这一条是记录睡眠还是实际睡眠
+    const creditedIsDevice = record.source === 'device';
+
+    let tableHtml;
+    if (hasDual) {
+        const recDurMin = roleRec.durationMinutes || Math.round((roleRec.wakeTime - roleRec.startTime) / 60000);
+        const devDurMin = roleDev.durationMinutes || Math.round((roleDev.wakeTime - roleDev.startTime) / 60000);
+        const rows =
+            sleepCardDualRowHtml('入睡',
+                formatSleepTimeHM(roleRec.startTime), formatSleepTimeHM(roleDev.startTime),
+                (roleDev.startTime - roleRec.startTime) / 60000, creditedIsDevice) +
+            sleepCardDualRowHtml('起床',
+                formatSleepTimeHM(roleRec.wakeTime), formatSleepTimeHM(roleDev.wakeTime),
+                (roleDev.wakeTime - roleRec.wakeTime) / 60000, creditedIsDevice) +
+            sleepCardDualRowHtml('时长',
+                sleepCardFmtDurCompact(recDurMin) || '0m', sleepCardFmtDurCompact(devDurMin) || '0m',
+                devDurMin - recDurMin, creditedIsDevice);
+        tableHtml = sleepCardTableHtml(['项目', '记录', '实际', '差值'], rows);
+    } else {
+        const planDur = sleepCardFmtDurCompact(sleepSettings.targetDurationMinutes) || '8h';
+        const actualDur = sleepCardFmtDurCompact(durationMinutes) || '0m';
+        const rows =
+            sleepCardRowHtml('入睡', sleepSettings.plannedBedtime, startStr, r.bedtimeReward || 0) +
+            sleepCardRowHtml('起床', sleepSettings.plannedWakeTime, wakeStr, r.wakeReward || 0) +
+            sleepCardRowHtml('时长', planDur, actualDur, (r.toleranceBonus > 0 ? r.toleranceBonus : (r.durationReward || 0)));
+        tableHtml = sleepCardTableHtml(['项目', '计划', '实际', '结果'], rows);
+    }
+
+    // 身份胶囊只在"两条并存"时出现 —— 只有一条时没有歧义
+    const srcPill = hasDual
+        ? `<div style="margin-bottom:10px;"><span class="sleep-report-src">按「${creditedIsDevice ? '实际睡眠' : '记录睡眠'}」结算</span></div>`
+        : '';
+
     return sleepReportTitleHtml('😴', `睡眠报告（${dateLabel}）`, 'night') +
-        `<p class="text-muted" style="margin-bottom:10px;">${startStr} ~ ${wakeStr} · ${sleepCardFmtDurCompact(durationMinutes) || '0m'}</p>` +
-        totalHtml + tableHtml;
+        `<p class="text-muted" style="margin-bottom:6px;">${startStr} ~ ${wakeStr} · ${sleepCardFmtDurCompact(durationMinutes) || '0m'}</p>` +
+        srcPill + totalHtml + tableHtml;
 }
 
 // 空态（如切换到的类别无记录）
@@ -4051,7 +4259,11 @@ let sleepWeekChartMode = 'night';
 function switchSleepWeekChart() {
     sleepWeekChartMode = (sleepWeekChartMode === 'nap') ? 'night' : 'nap';
     const c = document.getElementById('sleepWeekChartContainer');
-    if (c) c.innerHTML = sleepWeekChartSection();
+    if (c) {
+        c.innerHTML = sleepWeekChartSection();
+        fitSleepWeekBars(c);
+        requestAnimationFrame(function () { fitSleepWeekBars(c); });
+    }
 }
 
 // [v9.36.5] 构建近7日图表区（夜间 = 原近7天睡眠逻辑；小睡 = 当天小睡，样式与夜间一致）
@@ -4065,30 +4277,37 @@ function sleepWeekChartSection() {
     const parseTimeToHours = (timeStr) => { const [h, m] = timeStr.split(':').map(Number); return h + m / 60; };
     const plannedBedHour = parseTimeToHours(sleepSettings.plannedBedtime);
     const plannedWakeHour = parseTimeToHours(sleepSettings.plannedWakeTime);
-    const axisStartHour = plannedBedHour - 1;
-    const axisEndHour = plannedWakeHour + 1;
+    // [v9.41.1] 与首页睡眠卡片**同一套比例公式**（SLEEP_AXIS_EDGE_RATIO）：
+    // 计划虚线 = 计划时刻在刻度上的真实位置，边距按比例推出而非写死 1h，
+    // 否则同一 App 里"卡片"与"近 7 天"两张图的刻度会不一致。
+    let plannedSpanHour = plannedWakeHour - plannedBedHour;
+    if (plannedSpanHour <= 0) plannedSpanHour += 24;         // 跨零点
+    const axisEdgeHour = sleepAxisEdgeHour(plannedSpanHour, SLEEP_AXIS_EDGE_RATIO);
+    const axisStartHour = plannedBedHour - axisEdgeHour;
+    const axisEndHour = plannedWakeHour + axisEdgeHour;
     let axisTotalHours;
     if (axisEndHour < axisStartHour || (axisEndHour < 12 && axisStartHour > 12)) {
         axisTotalHours = (24 - axisStartHour) + axisEndHour;
     } else {
         axisTotalHours = axisEndHour - axisStartHour;
     }
-    const bedtimePercent = (1 / axisTotalHours) * 100;
-    const waketimePercent = ((axisTotalHours - 1) / axisTotalHours) * 100;
+    const bedtimePercent = (axisEdgeHour / axisTotalHours) * 100;
+    const waketimePercent = ((axisTotalHours - axisEdgeHour) / axisTotalHours) * 100;
 
-    // [v9.36.5] 小睡计划轴（与卡片小睡条形图一致：计划时段 ±15min）
+    // [v9.41.1] 小睡计划轴：与首页小睡卡片同一套比例公式
     const napPlanStartH = parseTimeToHours(sleepSettings.napPlanStart || '12:00');
     const napPlanEndH = parseTimeToHours(sleepSettings.napPlanEnd || '14:00');
-    const napAxisStartHour = napPlanStartH - 0.25;
-    const napAxisEndHour = napPlanEndH + 0.25;
+    const napAxisBufferH = sleepAxisEdgeHour(napPlanEndH - napPlanStartH, SLEEP_AXIS_EDGE_RATIO);
+    const napAxisStartHour = napPlanStartH - napAxisBufferH;
+    const napAxisEndHour = napPlanEndH + napAxisBufferH;
     let napAxisTotalHours;
     if (napAxisEndHour < napAxisStartHour || (napAxisEndHour < 12 && napAxisStartHour > 12)) {
         napAxisTotalHours = (24 - napAxisStartHour) + napAxisEndHour;
     } else {
         napAxisTotalHours = napAxisEndHour - napAxisStartHour;
     }
-    const napStartPct = (0.25 / napAxisTotalHours) * 100;
-    const napEndPct = ((napAxisTotalHours - 0.25) / napAxisTotalHours) * 100;
+    const napStartPct = (napAxisBufferH / napAxisTotalHours) * 100;
+    const napEndPct = ((napAxisTotalHours - napAxisBufferH) / napAxisTotalHours) * 100;
     const napTimeToPercent = (timestamp) => {
         const d = new Date(timestamp);
         let hour = d.getHours() + d.getMinutes() / 60;
@@ -4137,8 +4356,10 @@ function sleepWeekChartSection() {
             const amt = Number.isFinite(raw) ? raw : 0;
             totalReward += amt;
         });
-        return { count: hits.length, totalMin: hits.reduce((s, tx) => s + (tx.sleepData?.durationMinutes || 0), 0), hits };
-    };
+        // [v9.41.1] 修复：totalReward 算出来了却**没放进返回体** → 调用处拿到 undefined，
+        // 于是 formatRewardHours(undefined) = "-NaNh"，且等级判定全部落空（永远 level-2 蓝）。
+        return { count: hits.length, totalMin: hits.reduce((s, tx) => s + (tx.sleepData?.durationMinutes || 0), 0), totalReward: totalReward, hits };
+        };
 
     // [v9.36.5] 对侧7天内是否有记录：无数据则禁用 ⇄ 切换按钮
     const hasNightInWeek = recentRecords.some(r => r.record && r.record.sleepStartTime);
@@ -4177,7 +4398,10 @@ function sleepWeekChartSection() {
             else if (nap.totalReward < 0) napBarLevel = 'level-3';
             const napRewardClass = nap.totalReward >= 0 ? 'positive' : 'negative';
 
+            // [v9.41.1] 小睡时长普遍较短 → 入睡/醒来时间移到**条形外**（与首页小睡卡片同一版式），
+            // 条形内只留时长。条外标签由 fitSleepWeekBars 负责收口（越界平移 / 重叠隐藏）。
             let inner = '';
+            let napOutside = '';
             nap.hits.forEach(tx => {
                 const stMs = new Date(tx.sleepData?.startTime || tx.timestamp).getTime();
                 const dur = tx.sleepData?.durationMinutes || 0;
@@ -4186,13 +4410,13 @@ function sleepWeekChartSection() {
                 const w = Math.max(e - s, 4);
                 const h = Math.floor(dur / 60), m = dur % 60;
                 const durStr = m > 0 ? h + 'h' + m + 'm' : h + 'h';
-                // [v9.36.5] 窄条去中间时长，防拥挤（与卡片小睡条形图一致）
-                const midSpan = w >= 35 ? `<span class="sleep-bar-text">${durStr}</span>` : '';
+                // 条内只留时长
                 inner += `<div class="sleep-bar ${napBarLevel}" style="left: ${s}%; width: ${w}%;">
-                            <span class="sleep-bar-time">${formatTimeHM(stMs)}</span>
-                            ${midSpan}
-                            <span class="sleep-bar-time">${formatTimeHM(wtMs)}</span>
+                            <span class="sleep-bar-text">${durStr}</span>
                         </div>`;
+                // 条外：入睡贴条形左端向左排、醒来贴条形右端向右排
+                napOutside += `<span class="sleep-bar-time outside anchor-right" style="left: ${s}%;">${formatTimeHM(stMs)}</span>`;
+                napOutside += `<span class="sleep-bar-time outside anchor-left" style="left: ${e}%;">${formatTimeHM(wtMs)}</span>`;
             });
             const napRewardText = formatRewardHours(nap.totalReward);
             chartHtml += `
@@ -4202,6 +4426,7 @@ function sleepWeekChartSection() {
                         <div class="sleep-bar-marker bedtime" style="left: ${napStartPct}%;"></div>
                         <div class="sleep-bar-marker waketime" style="left: ${napEndPct}%;"></div>
                         ${inner}
+                        ${napOutside}
                     </div>
                     <div class="sleep-bar-reward ${napRewardClass} ${napBarLevel}">${napRewardText}</div>
                 </div>`;
@@ -4324,6 +4549,59 @@ function showNightSleepDetailModal(initialMode) {
         </div>
     `;
     document.body.appendChild(modal);
+    fitSleepWeekBars(modal);
+    requestAnimationFrame(function () { fitSleepWeekBars(modal); });
+}
+
+// [v9.41.1] 近 7 天条形图的「防溢出 / 防重叠」渲染后处理
+// 背景（均为实测截图里暴露的问题）：
+//   ① `.sleep-bar { min-width: 60px }` 在条形贴到容器右缘时，会把它**撑出容器**，
+//      而 `.sleep-bar-container { overflow: hidden }` 于是把条内右侧的时间裁掉（显示成 "14:0"）。
+//      → 对越界的那一条单独解除 min-width（其余条形观感不变）。
+//   ② 小睡窄条会隐藏中间的时长文字（`.sleep-bar-text`），条内只剩两个 nowrap 时间；
+//      在 min-width 撑出的窄盒子里两个时间会挤成一团（"13:1313:44"）。
+//      → 按真实像素逐级降级：先隐藏时长，再隐藏右侧时间。空间足够时一个字符都不动。
+function fitSleepWeekBars(root) {
+    if (!root || !root.querySelectorAll) return;
+    root.querySelectorAll('.sleep-bar-container').forEach(function (box) {
+        const b = box.getBoundingClientRect();
+        if (!b.width) return;                       // 隐藏态量不到宽度 → 跳过（下一帧会再试）
+        // ① 条内文字：解除 min-width 后若仍越出容器右缘则不设最小宽度；文字塞不下则逐级隐藏
+        box.querySelectorAll('.sleep-bar').forEach(function (bar) {
+            bar.style.minWidth = '';
+            const r = bar.getBoundingClientRect();
+            if (r.right > b.right + 0.5) bar.style.minWidth = '0px';
+
+            const dur = bar.querySelector('.sleep-bar-text');
+            const times = bar.querySelectorAll('.sleep-bar-time');
+            if (dur) dur.style.display = '';
+            times.forEach(function (t) { t.style.display = ''; });
+            if (dur && bar.scrollWidth > bar.clientWidth + 0.5) dur.style.display = 'none';
+            if (times.length && bar.scrollWidth > bar.clientWidth + 0.5) {
+                times[times.length - 1].style.display = 'none';
+            }
+        });
+
+        // ② [v9.41.1] 条外时间标签（锚在条形两端、向条外延伸）：
+        //    越出容器 → 整体平移回容器内；同侧互相重叠 → 隐去后出现的那个（同一天多次小睡会挤在一起）
+        const outs = box.querySelectorAll('.sleep-bar-time.outside');
+        outs.forEach(function (el) { el.style.display = ''; el.style.marginLeft = ''; });
+        const kept = [];
+        outs.forEach(function (el) {
+            const r = el.getBoundingClientRect();
+            if (!r.width) return;
+            let dx = 0;
+            if (r.left < b.left - 0.5) dx = b.left - r.left;
+            else if (r.right > b.right + 0.5) dx = b.right - r.right;
+            if (dx) el.style.marginLeft = dx + 'px';
+            const r2 = el.getBoundingClientRect();
+            for (let i = 0; i < kept.length; i++) {
+                const k = kept[i];
+                if (r2.left < k.right - 0.5 && r2.right > k.left + 0.5) { el.style.display = 'none'; return; }
+            }
+            kept.push(r2);
+        });
+    });
 }
 
 // [v7.16.0] 小睡详情弹窗

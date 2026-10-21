@@ -6320,6 +6320,9 @@ async function stopTask(taskId, fromVoice = false) {
                 // [v9.34.x-fix] 记录原始使用时长：amount 含配额折扣/翻倍效果，
                 // 展示层与配额用量统计必须基于原始时长，而非从 amount 反推
                 rawSeconds: totalSeconds,
+                // [v9.41.2] 持久化暂停历史：每日详情第三行要展示「开始~结束」区间，
+                // 有暂停时必须把暂停时长加回才能还原真实起点（与计时奖励类记录一致）
+                pauseHistory: pauseHistory,
                 negativeBalanceWarning: isNegativeBalance,
                 negativeBalancePenaltyApplied: false,
                 clientId: clientId // [v7.37.5] 添加设备标识

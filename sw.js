@@ -1,4 +1,4 @@
-// Time Bank Service Worker - v9.41.0
+// Time Bank Service Worker - v9.41.2
 // [v7.9.6] 改为"网络优先"策略，解决数据无法更新的问题
 // [v9.0.10] 主动心跳保活 + 8次失败上限 + 顶部4状态指示器 + 诊断面板
 // [v9.12.4] 移除自愈探针：后台恢复改由切回前台触发 __onAndroidForeground 自动重新登录
@@ -11,7 +11,7 @@
 // [v9.3.1] 悬浮窗架构重构：原生 Service 为定时器唯一事实来源
 // [v9.3.2] Bug 1 修复：stopTask 静默期 + 云端权威源（修复 v9.3.1 任务复活回归）
 // [v9.3.3] 原生层云端同步保活：CloudSyncScheduler WorkManager 周期任务（消除 JS 端后台冻结导致的同步丢失）
-const CACHE_NAME = 'timebank-cache-v9.41.0';
+const CACHE_NAME = 'timebank-cache-v9.41.2';
 const ASSETS = [
     './',
     './index.html',
@@ -19,7 +19,8 @@ const ASSETS = [
     './sw.js',
     './icon-192.png',
     './icon-512.png',
-    './data-dictionary.md'   // [导出格式 v2] 导出数据说明书（供导出时读取并嵌入 meta.readme）
+    './data-dictionary.md',  // [导出格式 v2] 导出数据说明书（供导出时读取并嵌入 meta.readme）
+    './js/liquid-glass.js'   // [v9.42.0] 液态玻璃真折射引擎
 ];
 const OFFLINE_FALLBACK = './index.html';
 

@@ -388,6 +388,72 @@ function extractRealDurationFromTransaction(t, task) {
     return Math.abs(t.amount);
 }
 
+// [v9.41.2] 持续类任务「显著暂停」阈值（10 分钟）：时间流图与每日详情第三行共用
+// 小于该阈值的暂停不切段（视为同一段内的小停顿）
+const SIGNIFICANT_PAUSE_THRESHOLD_MS = 10 * 60 * 1000;
+
+// [v9.41.2] 按「显著暂停」把 [startMs, endMs] 切成多段 —— 全库唯一实现
+// 调用方：① 时间流图 getMultiDayFlowSlots ② 每日详情第三行 getContinuousTaskSegments
+// 返回 { segments: [{ startMs, endMs }], pauses: [{ startMs, endMs, raw }] }
+// 规则与原时间流图一致：只认有 pauseEnd 且时长 >= 阈值的暂停；重叠/逆序暂停会被吸收。
+function splitBySignificantPauses(startMs, endMs, pauseHistory, thresholdMs = SIGNIFICANT_PAUSE_THRESHOLD_MS) {
+    const pauses = (Array.isArray(pauseHistory) ? pauseHistory : [])
+        .map(p => ({
+            startMs: new Date(p && p.pauseStart).getTime(),
+            endMs: (p && p.pauseEnd) ? new Date(p.pauseEnd).getTime() : NaN,
+            raw: p
+        }))
+        .filter(p => Number.isFinite(p.startMs) && Number.isFinite(p.endMs)
+            && p.endMs > p.startMs && (p.endMs - p.startMs) >= thresholdMs)
+        .sort((a, b) => a.startMs - b.startMs);
+
+    const segments = [];
+    let cursor = startMs;
+    pauses.forEach(p => {
+        if (p.startMs > cursor) segments.push({ startMs: cursor, endMs: p.startMs });
+        cursor = Math.max(cursor, p.endMs);
+    });
+    if (cursor < endMs) segments.push({ startMs: cursor, endMs: endMs });
+    return { segments, pauses };
+}
+
+// [v9.41.2] 持续类任务的起止分段（每日详情第三行展示用）
+// 返回 [{ startMs, endMs }, ...]；非持续类 / 时刻不可信 / 时长无法确定 → null（调用方沿用原单一时刻展示）
+// 起点推算时把**全部暂停**（含短暂停）加回，保证整体区间真实；随后按显著暂停切段。
+function getContinuousTaskSegments(t, task) {
+    if (!t || !task) return null;
+    if (!['continuous', 'continuous_target', 'continuous_redeem'].includes(task.type)) return null;
+    const anchorMs = getReliableOccurredMs(t, task);
+    if (anchorMs === null) return null;
+
+    // 活跃时长（不含倍率/奖励）：优先写入端持久化的原始量，其次描述里的「时长 × 倍率」
+    let activeSeconds = NaN;
+    if (typeof t.quantitySeconds === 'number' && t.quantitySeconds > 0) activeSeconds = t.quantitySeconds;
+    else if (typeof t.rawSeconds === 'number' && t.rawSeconds > 0) activeSeconds = t.rawSeconds;
+    if (!Number.isFinite(activeSeconds)) activeSeconds = extractRealDurationFromTransaction(t, task);
+    if (!Number.isFinite(activeSeconds) || activeSeconds <= 0) return null;
+
+    // 补录且用户填了时刻 → occurredAt 是**开始**，结束 = 开始 + 活跃时长（补录无暂停）
+    if (t.entryMode === 'backfill' && t.timeSource === 'user') {
+        return [{ startMs: anchorMs, endMs: anchorMs + activeSeconds * 1000 }];
+    }
+
+    // 其余（实时计时 / 补录今天）→ occurredAt 是**结束**，起点 = 结束 − 活跃时长 − 全部暂停时长
+    const endMs = anchorMs;
+    let pauseMs = 0;
+    (Array.isArray(t.pauseHistory) ? t.pauseHistory : []).forEach(p => {
+        const ps = new Date(p && p.pauseStart).getTime();
+        if (!Number.isFinite(ps)) return;
+        // 最后一笔暂停可能尚无 pauseEnd（结束任务时仍在暂停中）→ 以结束时刻收口
+        const pe = (p && p.pauseEnd) ? new Date(p.pauseEnd).getTime() : endMs;
+        if (Number.isFinite(pe) && pe > ps) pauseMs += pe - ps;
+    });
+    const startMs = endMs - activeSeconds * 1000 - pauseMs;
+
+    const { segments } = splitBySignificantPauses(startMs, endMs, t.pauseHistory);
+    return segments.length ? segments : [{ startMs: startMs, endMs: endMs }];
+}
+
 // [v9.38.0] 解析「老格式」睡眠记录描述里的入睡／醒来时刻
 // 背景：2026-01 ~ 2026-07 的睡眠记录没有结构化 sleepData，时刻**只写在 description 里**，例如：
 //   😴 夜间睡眠: 02:05~10:17 8小时12分钟      💤 日间小睡: 13:00~13:40 40分钟
@@ -413,6 +479,18 @@ function parseLegacySleepRange(t) {
     let span = (endMin - startMin + 1440) % 1440;
     if (span <= 0) span += 1440;
     return { startMs: startMs, endMs: startMs + span * 60000 };
+}
+
+// [v9.41.2] 睡眠记录（夜间睡眠 / 小睡）的起止时刻：优先结构化 sleepData，老格式回退描述解析
+function getSleepRecordTimeRange(t) {
+    if (!t) return null;
+    const sd = t.sleepData;
+    if (sd) {
+        const s = Number(sd.startTime);
+        const e = Number(sd.wakeTime);
+        if (Number.isFinite(s) && Number.isFinite(e) && e > s) return { startMs: s, endMs: e };
+    }
+    return parseLegacySleepRange(t);
 }
 
 // ==================== [v9.41.0] 睡眠记录「参考轨」判定（全库唯一实现） ====================
@@ -578,7 +656,6 @@ let multiDayFlowState = {
 // [v5.8.0] 获取多天时间段数据（不截断跨午夜任务）
 function getMultiDayFlowSlots(endDate, days) {
     const slots = [];
-    const SHORT_PAUSE_THRESHOLD = 10 * 60 * 1000;
     const processedTransactions = new Set(); // 防止重复处理
     
     // 计算日期范围
@@ -650,36 +727,25 @@ function getMultiDayFlowSlots(endDate, days) {
         const taskName = isSleepRecord ? (t.taskName || (t.sleepData?.sleepType === 'nap' ? '小睡' : '睡眠时间管理')) : (task?.name || '未知任务');
         const isSpend = isSleepRecord ? (t.type === 'spend') : (task && ['instant_redeem', 'continuous_redeem'].includes(task.type));
         
-        // 处理暂停历史
+        // 处理暂停历史（[v9.41.2] 切段规则与每日详情第三行共用 splitBySignificantPauses）
         if (t.pauseHistory && t.pauseHistory.length > 0) {
-            const significantPauses = t.pauseHistory.filter(p => 
-                p.pauseEnd && (p.pauseEnd - p.pauseStart) >= SHORT_PAUSE_THRESHOLD
-            );
+            const { segments, pauses } = splitBySignificantPauses(taskStartTime.getTime(), endTime.getTime(), t.pauseHistory);
             
-            if (significantPauses.length === 0) {
+            if (pauses.length === 0) {
                 addMultiDaySlot(slots, t, taskStartTime, endTime, taskName, color, isSpend, 'only', null, null, startDate, endDateTime, 0, 1, null, null, isSleepRecord ? realDurationSeconds : undefined);
             } else {
-                let currentStart = taskStartTime;
-                const totalSegments = significantPauses.length + 1;
+                const totalSegments = segments.length;
                 
-                for (let i = 0; i < significantPauses.length; i++) {
-                    const pause = significantPauses[i];
-                    const pauseStart = new Date(pause.pauseStart);
-                    const pauseEnd = new Date(pause.pauseEnd);
-                    const segmentType = i === 0 ? 'first' : 'middle';
+                segments.forEach((seg, i) => {
+                    const isLast = i === segments.length - 1;
+                    const segmentType = segments.length === 1 ? 'only' : (i === 0 ? 'first' : (isLast ? 'last' : 'middle'));
+                    const resumeTime = (i > 0 && pauses[i - 1]) ? formatTimeHM(new Date(pauses[i - 1].endMs)) : null;
+                    const pause = (!isLast && pauses[i]) ? pauses[i] : null;
                     
-                    if (pauseStart > currentStart) {
-                        addMultiDaySlot(slots, t, currentStart, pauseStart, taskName, color, isSpend, segmentType,
-                            null, formatTimeHM(pauseStart), startDate, endDateTime, i, totalSegments, pause.pauseStart, pause.pauseEnd, isSleepRecord ? realDurationSeconds : undefined);
-                    }
-                    currentStart = pauseEnd;
-                }
-                
-                if (currentStart < endTime) {
-                    const lastPause = significantPauses[significantPauses.length - 1];
-                    addMultiDaySlot(slots, t, currentStart, endTime, taskName, color, isSpend, 'last',
-                        formatTimeHM(new Date(lastPause.pauseEnd)), null, startDate, endDateTime, significantPauses.length, totalSegments, null, null, isSleepRecord ? realDurationSeconds : undefined);
-                }
+                    addMultiDaySlot(slots, t, new Date(seg.startMs), new Date(seg.endMs), taskName, color, isSpend, segmentType,
+                        resumeTime, pause ? formatTimeHM(new Date(pause.startMs)) : null, startDate, endDateTime, i, totalSegments,
+                        pause ? pause.raw.pauseStart : null, pause ? pause.raw.pauseEnd : null, isSleepRecord ? realDurationSeconds : undefined);
+                });
             }
         } else {
             addMultiDaySlot(slots, t, taskStartTime, endTime, taskName, color, isSpend, 'only', null, null, startDate, endDateTime, 0, 1, null, null, isSleepRecord ? realDurationSeconds : undefined);
@@ -2172,8 +2238,23 @@ function showDayDetails(localDateStr) {
         }
         if (iconPrefix) iconPrefix += ' ';
         descLine1 = iconPrefix + descLine1;
-        // [v9.38.0] 展示用真实发生时刻；时刻未知则显示 —:—
-        const timeStr = formatRecordTimeHM(transaction);
+        // [v9.41.2] 第三行统一为「时间段」：
+        //   · 持续类任务 → 起止分段（显著暂停 ≥10 分钟切段，短暂停不切）
+        //   · 夜间睡眠 / 小睡 → 入睡~醒来（第二行只留时长与倍率，避免重复）
+        //   · 其余 / 时刻未知 → 沿用原逻辑（—:— 或单一时刻）
+        const isSleepTx = parsed.icon === '😴' || parsed.icon === '💤';
+        const sleepRange = isSleepTx ? getSleepRecordTimeRange(transaction) : null;
+        if (sleepRange && descLine2) {
+            // 去掉第二行开头的重复区间（如「22:30~06:30 8小时」→「8小时」）
+            descLine2 = descLine2.replace(/^\s*\d{1,2}:\d{2}\s*[~～]\s*\d{1,2}:\d{2}\s*/, '').trim();
+        }
+        const txTaskForRange = transaction.taskId ? tasks.find(x => x.id === transaction.taskId) : null;
+        const continuousSegments = getContinuousTaskSegments(transaction, txTaskForRange);
+        const timeStr = sleepRange
+            ? `${formatSleepTimeHM(sleepRange.startMs)}~${formatSleepTimeHM(sleepRange.endMs)}`
+            : ((continuousSegments && continuousSegments.length)
+                ? continuousSegments.map(s => `${formatTimeHM(new Date(s.startMs))}~${formatTimeHM(new Date(s.endMs))}`).join('、')
+                : formatRecordTimeHM(transaction));
         return `<div class="history-item">
                     <div class="history-info" title="${transaction.description}">
                         <div class="history-description">
@@ -6260,6 +6341,11 @@ function _applyGlassTokens(scale) {
     const root = document.documentElement;
     const isDark = (document.documentElement.getAttribute('data-theme') || document.body.getAttribute('data-theme')) === 'dark';
     const factor = isDark ? GLASS_DARK_ALPHA_FACTOR : 1;
+    // [v9.42.0 重做] 删除液态玻璃专属的材质改写（原 isLiquid / liquidAlpha）：
+    //   旧实现认为「液态玻璃不做模糊」，把 blur 全局钉死 0.5px、alpha 固定为 1，
+    //   与 js/liquid-glass.js 里 `url(#disp) blur(Npx)` 的写法直接矛盾（两处同时存在）。
+    //   现已把折射移到独立图层 .lg-refract（只写 url()），两者不再抢同一合成通道，
+    //   玻璃体回归与其他三态一致的 token 曲线，通透度仍由「通透强度」滑块控制。
     const t = scale / 1.2;
     // [v9.39.0-fix] 无保底的强度因子（0 ~ 1），供「彩色 / 装饰元素」使用：
     //   按钮底、睡眠色条、类目标签、时间流条块、负余额红底等，在 0% 档位应彻底归零，
@@ -6272,7 +6358,14 @@ function _applyGlassTokens(scale) {
             const v = range[0] + (range[1] - range[0]) * t;
             // bgFrom → --g1-bg-from
             const cssName = '--' + layer + '-' + name.replace(/[A-Z]/g, c => '-' + c.toLowerCase());
-            root.style.setProperty(cssName, name === 'blur' ? v.toFixed(1) + 'px' : (v * factor).toFixed(4));
+            /* [v9.42.0 重做] 液态玻璃不再把 blur 全局钉死成 0.5px。
+               旧写法与 js/liquid-glass.js 的 `url(#disp) blur(Npx)` 直接冲突：
+               CSS 说「不做模糊」，引擎却在同一个 backdrop-filter 里叠 blur，
+               两处互相矛盾，且叠上去的 blur 恰恰会把折射抹平（真机实测）。
+               现在折射已移到独立图层 .lg-refract（只写 url()），
+               玻璃体本身保留一层克制的模糊 —— 只为压住背景细节、保证文字可读，
+               不再与折射抢同一个合成通道。 */
+            root.style.setProperty(cssName, (v * factor * liquidAlpha).toFixed(4));
         }
     }
 }
@@ -6306,6 +6399,10 @@ function applyGlassStrength(percent = 100, persist = true) {
         // （.task-card 基础样式 + 两处普通 tooltip）；透明度变量已全量迁移到分层 token，
         //  死变量 --glass-strength 已一并删除）
         document.documentElement.style.setProperty('--glass-blur-scale', scale);
+        // [v9.42.0] 液态玻璃真折射强度跟随「通透强度」档位；0% 档自动卸载滤镜回退纯毛玻璃
+        if (typeof LiquidGlass !== 'undefined' && LiquidGlass.isEnabled()) {
+            LiquidGlass.setStrength(scale);
+        }
 if (persist) saveScreenTimeSettings();
 glassStrengthRaf = null;
     });
@@ -6323,6 +6420,10 @@ btn.classList.toggle('active', btn.dataset.style === mode);
 
 // [v7.20.2] 获取当前卡片视觉模式
 function getCurrentCardVisualMode() {
+    // [v9.42.0] 第四态优先判定：body 的 liquid-glass 标记比 cardStyle 更可靠
+    if (document.body.classList.contains('liquid-glass')) {
+return 'liquid';
+    }
     if (screenTimeSettings.cardStyle === 'glass' || document.body.classList.contains('glass-mode')) {
 return 'glass';
     }
@@ -6365,49 +6466,66 @@ message,
 
 // [v6.0.0] 统一卡片样式切换（时间余额卡片 + 屏幕时间卡片 + 任务卡片 + 底部导航栏 + 全局通透模式）
 function setCardStyle(style) {
+    // [v9.42.0] 诊断：确认风格切换是否真的走到「液态玻璃」分支、引擎是否存在
+    try {
+        var _lgMsg = '[LG] setCardStyle(' + style + ') LiquidGlass=' + (typeof LiquidGlass) +
+            (typeof LiquidGlass !== 'undefined' ? ' support=' + LiquidGlass.isSupported() : '');
+        if (window.Android && window.Android.log) window.Android.log(_lgMsg);
+    } catch (e) { }
+    // [v9.42.0] 第四态「液态玻璃」：结构上完全复用「通透」——
+    //   元素 class 仍用 glass（命中全部现有毛玻璃材质规则），
+    //   额外给 body 打 liquid-glass 标记：CSS 据此叠加饱和度提升 / 双瓣边缘高光 / 更深投影，
+    //   js/liquid-glass.js 据此给 [data-liquid-glass]（底栏胶囊、FAB）挂真折射位移滤镜。
+    const elStyle = (style === 'liquid') ? 'glass' : style;
+    const isGlassLike = (elStyle === 'glass');
     // [v6.0.0] 应用全局通透模式到 body
-    if (style === 'glass') {
+    if (isGlassLike) {
 document.body.classList.add('glass-mode');
     } else {
 document.body.classList.remove('glass-mode');
     }
+    document.body.classList.toggle('liquid-glass', style === 'liquid');
     // [v9.22.S] 仅应用到时间余额卡片（新版金融版）：经典版已删除
     const balanceCardFinance = document.getElementById('balanceCardFinance');
     if (balanceCardFinance) {
         balanceCardFinance.classList.remove('classic', 'glass');
-        balanceCardFinance.classList.add(style);
+        balanceCardFinance.classList.add(elStyle);
     }
     // 应用到屏幕时间卡片
     const screenTimeWrapper = document.getElementById('screenTimeWrapper');
     if (screenTimeWrapper) {
 screenTimeWrapper.classList.remove('classic', 'glass');
-screenTimeWrapper.classList.add(style);
+screenTimeWrapper.classList.add(elStyle);
     }
     // 应用到所有任务卡片
     document.querySelectorAll('.task-card').forEach(card => {
 card.classList.remove('classic', 'glass');
-card.classList.add(style);
+card.classList.add(elStyle);
     });
     // 应用到底部导航栏
     const bottomTabs = document.querySelector('.bottom-tabs');
     if (bottomTabs) {
 bottomTabs.classList.remove('classic', 'glass');
-bottomTabs.classList.add(style);
+bottomTabs.classList.add(elStyle);
     }
-    // 通透强度控制条显隐
+    // 通透强度控制条显隐（液态玻璃同样需要强度滑块）
     const glassStrengthSetting = document.getElementById('glassStrengthSetting');
     if (glassStrengthSetting) {
-glassStrengthSetting.style.display = style === 'glass' ? 'flex' : 'none';
+glassStrengthSetting.style.display = isGlassLike ? 'flex' : 'none';
     }
     // [v9.39.0] 删除 #glassAffectList 死引用（index.html 中已无此元素）
-    // 切换到通透时，应用当前强度
-    if (style === 'glass') {
+    // 切换到通透 / 液态玻璃时，应用当前强度
+    if (isGlassLike) {
 applyGlassStrength(screenTimeSettings.glassStrength || 90, false);
     }
-    // [v7.20.2] 同步三态开关状态
+    // [v9.42.0 重做] 真折射引擎联动：仅液态玻璃风格启用（其它风格必须卸载，避免空耗合成层）
+    if (typeof LiquidGlass !== 'undefined') {
+        LiquidGlass.setEnabled(style === 'liquid');
+    }
+    // [v7.20.2] 同步开关状态
     syncCardVisualModeSwitcher(getCurrentCardVisualMode());
-    // 保存设置到screenTimeSettings（兼容旧的保存机制）
-    screenTimeSettings.cardStyle = style;
+    // 保存设置到screenTimeSettings（兼容旧的保存机制；cardStyle 只存 classic/glass）
+    screenTimeSettings.cardStyle = elStyle;
     saveScreenTimeSettings();
     // 刷新屏幕时间卡片颜色
     updateScreenTimeCard();
@@ -6443,7 +6561,11 @@ document.body.classList.remove('flat-style');
 
 // [v7.20.2] 统一三态卡片风格入口：纯色 / 渐变 / 通透
 function setCardVisualMode(mode, triggeredByUser = true) {
-    if (mode === 'glass') {
+    if (mode === 'liquid') {
+        // [v9.42.0] 第四态：液态玻璃（复用通透材质 + liquid-glass 标记 + 真折射引擎）
+setGradientStyle('gradient');
+setCardStyle('liquid');
+    } else if (mode === 'glass') {
 setGradientStyle('gradient');
 setCardStyle('glass');
     } else if (mode === 'flat') {
@@ -6456,7 +6578,7 @@ setGradientStyle('gradient');
     localStorage.setItem('cardVisualMode', mode);
     syncCardVisualModeSwitcher(mode);
 
-    if (mode === 'glass') {
+    if (mode === 'glass' || mode === 'liquid') {
 maybeShowGlassOilThemePrompt(triggeredByUser);
     }
 }

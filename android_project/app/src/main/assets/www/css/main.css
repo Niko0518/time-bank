@@ -42,6 +42,14 @@
                它们不属于分层体系（经典模式下也要生效）。透明度变量 --glass-opacity-scale
                已 0 残留，死变量 --glass-strength 已删除。新代码一律使用下方分层 token。 */
             --glass-blur-scale: 1;
+            /* [v9.42.0] 已删除 --lg-fx / --g3-fx / --lg-sat 三个滤镜后缀变量。
+               它们原本用于给 backdrop-filter 追加 saturate() / brightness()，
+               也就是「提亮 / 增艳」这类【会改变颜色】的处理 —— 按需求已全部移除：
+               液态玻璃现在只做「折射 + 边缘环高光」，不碰任何颜色，
+               背景透出什么颜色就是什么颜色。
+               （历史教训：这类变量用 none 当默认值是危险的 ——
+                 none 只能作为 backdrop-filter 的整值，写成 blur(18px) none
+                 会让整条声明失效，曾导致三态玻璃集体失去模糊。） */
 
             /* ============================================================
                [v9.39.0] 通透强度分层体系 · 5 层 token（按「离用户的远近」分层）
@@ -1711,6 +1719,32 @@
 
         /* 有参考轨时，条形内只剩时长文字 → 居中 */
         .sleep-card-chart .sleep-card-bar.center-only { justify-content: center; }
+
+        /* [v9.41.1] 睡眠报告：两条轨（记录睡眠 / 实际睡眠）的呈现
+           设计约束（用户定）：不加粗任何字体，两条轨只靠**颜色深浅**区分；
+           差值列用中性色 —— 差值是观测事实，不是奖惩结论，用红绿会误导。 */
+        .sleep-report-src {
+            display: inline-block;
+            font-size: 0.68rem;
+            font-weight: 600;
+            line-height: 1.5;
+            padding: 2px 9px;
+            border-radius: 999px;
+            background: var(--bg-secondary);
+            color: var(--text-color-light);
+            border: 1px solid rgba(127, 127, 127, 0.28);
+        }
+        .sleep-report-lead  { color: var(--text-color); }
+        .sleep-report-ref   { color: var(--text-color-light); opacity: 0.78; }
+        .sleep-report-delta { color: #607D8B; }
+        body.glass-mode .sleep-report-src {
+            background: rgba(255, 255, 255, 0.14);
+            border-color: rgba(255, 255, 255, 0.3);
+            color: #fff;
+        }
+        body.glass-mode .sleep-report-lead   { color: #fff; }
+        body.glass-mode .sleep-report-ref    { color: rgba(255, 255, 255, 0.78); }
+        body.glass-mode .sleep-report-delta  { color: rgba(255, 255, 255, 0.92); text-shadow: 0 1px 2px rgba(0, 0, 0, 0.4); }
 
         /* [v9.41.0] 导入设备睡眠数据弹窗的底部说明 */
         .precise-import-hint {
@@ -3530,8 +3564,8 @@
             /* [v9.39.0] 归 L3 浮层（常驻悬浮胶囊标签栏） */
             border: 1px solid rgba(255, 255, 255, var(--g3-border));
             background: linear-gradient(180deg, rgba(255,255,255, var(--g3-bg-from)) 0%, rgba(255,255,255, calc(var(--g3-bg-from) * 0.5)) 100%);
-            backdrop-filter: blur(var(--g3-blur)) saturate(1.4);
-            -webkit-backdrop-filter: blur(var(--g3-blur)) saturate(1.4);
+            backdrop-filter: blur(var(--g3-blur));
+            -webkit-backdrop-filter: blur(var(--g3-blur));
             box-shadow:
                 0 8px 32px rgba(0, 0, 0, 0.25),
                 0 2px 8px rgba(0, 0, 0, 0.15);
@@ -3549,8 +3583,8 @@
         body.glass-mode[data-accent] .fab {
             /* [v9.39.0] 归 L3 浮层；本规则为实际生效的一条（旧规则见上，v9.39.0 已删除） */
             background: linear-gradient(180deg, rgba(255,255,255, var(--g3-bg-from)) 0%, rgba(255,255,255, calc(var(--g3-bg-from) * 0.5)) 100%) !important;
-            backdrop-filter: blur(var(--g3-blur)) saturate(1.4);
-            -webkit-backdrop-filter: blur(var(--g3-blur)) saturate(1.4);
+            backdrop-filter: blur(var(--g3-blur));
+            -webkit-backdrop-filter: blur(var(--g3-blur));
             border: 1px solid rgba(255, 255, 255, var(--g3-border)) !important;
             box-shadow:
                 0 8px 32px rgba(0, 0, 0, 0.25),
@@ -3646,18 +3680,6 @@
             color: white;
             text-shadow: 0 1px 2px rgba(0, 0, 0, 0.4);
         }
-        /* [v7.9.8] 睡眠报告明细区域通透模式样式 */
-        body.glass-mode .modal-content .sleep-report-details {
-            color: rgba(255, 255, 255, 0.95);
-            text-shadow: 0 1px 2px rgba(0, 0, 0, 0.4);
-            background: rgba(0, 0, 0, 0.2);
-            border: 1px solid rgba(255, 255, 255, 0.15);
-            border-radius: 10px;
-            padding: 10px 12px;
-        }
-        body.glass-mode .modal-content .sleep-report-details span {
-            color: rgba(255, 255, 255, 0.95);
-        }
         /* [v7.9.11] 睡眠报告通透模式可读性增强 */
         body.glass-mode #sleepReportModal .text-muted {
             color: rgba(255, 255, 255, 0.9) !important;
@@ -3669,13 +3691,6 @@
         body.glass-mode #sleepReportModal p {
             color: rgba(255, 255, 255, 0.95) !important;
             text-shadow: 0 1px 2px rgba(0, 0, 0, 0.45);
-        }
-        body.glass-mode #sleepReportModal .sleep-report-details {
-            background: rgba(0, 0, 0, 0.3);
-            border-color: rgba(255, 255, 255, 0.2);
-        }
-        body.glass-mode #sleepReportModal .sleep-report-details .text-muted {
-            color: rgba(255, 255, 255, 0.85) !important;
         }
         /* [v9.39.1] 睡眠报告弹窗表格：通透模式下不再给单元格铺白底。
            根因：全局 `body.glass-mode th/td` 规则（报告卡内表格的内衬规范）会一并给睡眠报告的
@@ -5887,6 +5902,17 @@
             white-space: nowrap;
             text-shadow: 0 1px 2px rgba(0,0,0,0.4);
         }
+        /* [v9.41.1] 小睡：入睡/醒来时间移到条形外（贴条形两端、向条外延伸），条内只留时长。
+           与首页卡片小睡条形图（.sleep-card-time.outside）同一套语言，仅字号略小。 */
+        .sleep-bar-time.outside {
+            position: absolute;
+            top: 50%;
+            z-index: 3;
+            color: var(--text-color-light);
+        }
+        .sleep-bar-time.outside.anchor-right { transform: translate(-100%, -50%); }
+        .sleep-bar-time.outside.anchor-left  { transform: translateY(-50%); }
+        body.glass-mode .sleep-bar-time.outside { color: rgba(255,255,255,0.9); }
         .sleep-bar-text {
             font-size: 0.6rem;
             color: white;
@@ -6861,6 +6887,46 @@
         .accent-option[data-accent="the-starry-night"] { background: url('../themes/background_the-starry-night.png') center/cover no-repeat !important; }
         .accent-option[data-accent="woman-with-a-parasol"] { background: url('../themes/background_woman-with-a-parasol.png') center/cover no-repeat !important; }
         .accent-option[data-accent="almond-blossoms"] { background: url('../themes/background_almond-blossoms.png') center/cover no-repeat !important; }
+        /* ═══════════════════════════════════════════════════════════════════════
+   [v9.42.0 重做] 折射图层（.lg-refract）
+   ───────────────────────────────────────────────────────────────────────
+   js/liquid-glass.js 把真折射挂在这一层上，而不是写在元素本体的
+   backdrop-filter 里。原因是真机实测得到的两条硬结论：
+
+     ① `backdrop-filter: url(#disp)` 与 `blur()` 串联 → 位移被 blur 彻底抹平，
+        边缘完全看不出弯折，只剩一团「脏糊」。这是此前「效果极差」的根因。
+     ② `url()` 会整条替换 backdrop-filter，把元素原有的玻璃模糊一并清掉。
+
+   于是改为分层：**外层弯折、内层通透**，两者互不干扰。
+     · .lg-refract       → 只承载 url() 折射，贴在玻璃体之上
+     · .lg-refract-host  → 定位上下文 + 内容层级，保证折射层不遮挡卡片内容
+   ═══════════════════════════════════════════════════════════════════════ */
+.lg-refract-host {
+    position: relative;
+    isolation: isolate;
+}
+.lg-refract-host > .lg-refract {
+    position: absolute;
+    inset: 0;
+    z-index: 0;                    /* 与内容同层，靠 host 的 isolation 隔离 */
+    border-radius: inherit;
+    pointer-events: none;          /* 绝不拦截点击 */
+    /* 只写 backdrop-filter: url(#x)，**绝不**在此叠加 blur() —— 见上方实测 */
+}
+.lg-refract-host > *:not(.lg-refract) {
+    position: relative;
+    z-index: 1;                    /* 内容压在折射层之上 */
+}
+
+/* [v9.42.0] 液态玻璃主题缩略图：彩色光斑 + 线段（与预览稿同款背景） */
+        .accent-option[data-accent="liquid-glass"] {
+            background:
+                repeating-linear-gradient(62deg, rgba(255,255,255,.42) 0 1px, transparent 1px 5px),
+                radial-gradient(22px 16px at 24% 22%, rgba(88,140,255,.95), transparent 72%),
+                radial-gradient(20px 16px at 84% 48%, rgba(255,120,190,.85), transparent 72%),
+                radial-gradient(24px 18px at 45% 92%, rgba(60,220,196,.80), transparent 72%),
+                linear-gradient(160deg, #1a2744 0%, #0d1b35 100%) !important;
+        }
         
         /* [v7.20.0] 背景选择器 - 跟随主题/自定义 */
         .bg-selector { display: flex; gap: 8px; align-items: center; }
@@ -9044,6 +9110,229 @@ body:not(.data-ready) .voice-fab {
     border-radius: 10px;
     background: var(--bg-secondary, #f5f5f5);
     margin-bottom: 6px;
+}
+
+/* ============================================================================
+   [v9.42.0] 液态玻璃 Liquid Glass · 第四个卡片风格
+   ----------------------------------------------------------------------------
+   与前三态（纯色 flat / 渐变 gradient / 通透 glass）并列的第四态。
+   结构上复用「通透」的全部材质规则（元素 class 仍为 .glass、body 同时带 .glass-mode）。
+
+   ★ 本版设计准则（按需求修订）：液态玻璃【只做光学，不做调色】。
+     已删除、且不再以任何形式回来的效果：
+       ✗ 动态光照角度（陀螺仪 / 滚动驱动的 --spec-angle 环形高光、内部柔光落点）
+       ✗ 一切改变颜色的滤镜（saturate 增艳、brightness 提亮/压暗、自适应色调）
+       ✗ 白色膜渐变、mix-blend-mode: screen 叠加、彩色折射色散
+     理由：任何提亮/增艳/染色都会让玻璃「颜色偏怪」，且在不同壁纸上表现不一致。
+     玻璃该有的样子由两项纯几何/纯光学的量决定：
+       ① 边缘折射 —— 背后的画面在玻璃边缘被压缩折弯（js/liquid-glass.js 的 SVG 位移滤镜）
+       ② 边缘环高光 —— 一圈明确的亮边 + 顶亮底暗，勾出玻璃的轮廓与厚度
+     二者都与背景颜色无关，因此在任何壁纸上表现一致。
+   ============================================================================ */
+body.liquid-glass {
+    /* ── iOS 液态玻璃的边缘是怎么做的 ──────────────────────────────────
+       真实 Liquid Glass **没有一圈均匀的白描边**。它的边缘是三样东西：
+         ① 透镜折射 —— 背后内容在边缘被压缩弯折（由 SVG 位移滤镜负责）
+         ② 镜面高光 —— **只出现在朝向光源的那一侧**，且快速衰减，是柔光不是硬线
+         ③ 全内反射 —— **背光那一侧反而略微变暗**，形成厚度感
+       差异全在「方向性」：iOS 是 顶部受光 / 底部发暗 / 侧边近乎无；
+       我们之前做成了「四边均匀亮线」，那正是它看着像白框卡片而不是玻璃的原因。
+
+       [v9.42.0 修订] 已删除 `inset 0 0 0 1px rgba(255,255,255,.30)`：
+       它与通透模式自带的 `border: 1px solid rgba(255,255,255,var(--g1-border))`
+       以及 ::after 的描边环**三重叠加**，等于一圈 3.5px 的白边。
+       现在边框透明化（见下方 border-color 规则），只由光学层表达边界。 */
+    --lg-rim:
+        /* 顶部受光：宽而柔（26px 扩散、-16px 收缩），不是一条压在边上的线 */
+        inset 0 12px 26px -16px rgba(255, 255, 255, .34),
+        /* 底部内壁暗：全内反射造成的厚度 */
+        inset 0 -6px 14px -8px rgba(0, 0, 0, .32);
+    --lg-drop: 0 12px 32px -10px rgba(0, 0, 0, .42);
+}
+[data-theme="dark"] body.liquid-glass {
+    --lg-rim:
+        inset 0 12px 26px -16px rgba(255, 255, 255, .26),
+        inset 0 -6px 14px -8px rgba(0, 0, 0, .44);
+    --lg-drop: 0 12px 32px -10px rgba(0, 0, 0, .56);
+}
+/* [v9.42.0] 通透模式给每张卡都加了 `border: 1px solid rgba(255,255,255,var(--g1-border))`。
+   在液态玻璃下这条边框必须去掉 —— 玻璃的边界应该由「折射 + 受光 + 厚度」表达，
+   而不是一圈 CSS 描边；否则与 --lg-rim / ::after 叠加成三道白线。 */
+body.liquid-glass .balance-card-wrapper-finance,
+body.liquid-glass .screen-time-wrapper,
+body.liquid-glass .sleep-card-wrapper,
+body.liquid-glass .balance-card.glass,
+body.liquid-glass .task-card.glass,
+body.liquid-glass .task-card-mini.glass,
+body.liquid-glass .bottom-tabs.glass,
+/* [v9.42.0] 设置页 10 张卡 + 报告页 6 张卡，此前完全没有液态玻璃光学层 */
+body.liquid-glass .settings-section,
+body.liquid-glass .report-section {
+    border-color: transparent !important;
+}
+/* ② + ③ 作用于视觉焦点元素（主卡片 / 底栏胶囊 / FAB / 迷你卡） */
+body.liquid-glass .bottom-tabs.glass,
+body.liquid-glass .fab,
+body.liquid-glass .balance-card-wrapper-finance,
+body.liquid-glass .screen-time-wrapper,
+body.liquid-glass .sleep-card-wrapper,
+body.liquid-glass .task-card.glass,
+body.liquid-glass .task-card-mini.glass,
+body.liquid-glass .balance-card.glass {
+    box-shadow: var(--lg-rim), var(--lg-drop) !important;
+    /* [v9.42.0] 已删除玻璃本体的白色膜渐变（background-image）——
+       它会给整块玻璃叠一层白，等于在改颜色，正是「颜色偏怪」的来源之一。
+       现在玻璃内部完全透明，颜色 100% 来自背后被折射的画面。 */
+}
+/* [v9.42.0] 设置页卡片（.settings-section，10 张）与报告页卡片（.report-section，6 张）。
+   这两类此前只继承通透模式的普通毛玻璃：白描边仍在、没有方向性 rim、没有真折射。
+   ⚠️ 它们的基础规则里**没有 position:relative**，而下面的 ::after 边缘环依赖定位上下文，
+      故这里必须自带，否则环会跑到最近的定位祖先上、整张卡片的边缘全错位。
+   ⚠️ 这两类的通透规则用了 `background: ... !important`（main.css:3727 / 3956），
+      选择器特异性与本段相同，靠**源码顺序**取胜 —— 本段在 9000 行之后，必然覆盖成功。 */
+body.liquid-glass .settings-section,
+body.liquid-glass .report-section {
+    position: relative;
+    box-shadow: var(--lg-rim), var(--lg-drop) !important;
+}
+
+/* ═══════════════════════════════════════════════════════════════════════
+   [v9.42.0] 边缘环高光（specular rim）· 静态版
+   ───────────────────────────────────────────────────────────────────────
+   [v9.42.0 修订] 本段原本用 conic-gradient + --spec-angle 做「随陀螺仪转动的
+   环形镜面高光」，并叠一层 mix-blend-mode:screen 的内部柔光。按需求已全部删除：
+     · 动态光照角度 → 删（陀螺仪/滚动驱动的光源方位，视觉上像"转灯"，很怪）
+     · screen 混合柔光 → 删（它是纯提亮，属于改颜色）
+   改为一条**方向性柔光**：
+     · 纯折射在静止画面下几乎不可见，仍需要一点光来把玻璃轮廓"勾"出来；
+     · 但勾轮廓不等于描边。iOS 的镜面高光只出现在**朝向光源的那一侧**，
+       且亮度沿边缘快速衰减 —— 所以这里用「顶部亮 → 迅速衰减 → 下缘近乎无」，
+       两侧与底边自然几乎不发光，不再是一圈均匀白线。
+     · 强度也随之下调（.55 → .03），因为边框已透明化，这一层是唯一的光了。
+   ═══════════════════════════════════════════════════════════════════════ */
+body.liquid-glass .bottom-tabs.glass::after,
+body.liquid-glass .fab::after,
+body.liquid-glass .balance-card-wrapper-finance::after,
+body.liquid-glass .screen-time-wrapper::after,
+body.liquid-glass .sleep-card-wrapper::after,
+body.liquid-glass .task-card.glass::after,
+body.liquid-glass .task-card-mini.glass::after,
+body.liquid-glass .balance-card.glass::after,
+/* [v9.42.0] 设置页 / 报告页卡片接入同一套边缘环（两者 border-radius 均为 12px，
+   且都没有 overflow:hidden，因此环不会被裁切） */
+body.liquid-glass .settings-section::after,
+body.liquid-glass .report-section::after {
+    content: '';
+    position: absolute;
+    inset: 0;
+    border-radius: inherit;
+    padding: 2px;
+    pointer-events: none;
+    z-index: 3;
+    /* 方向性柔光：顶部受光最强，45% 高度后基本消失，下缘近乎无。
+       两侧因取到各自高度处的渐变值而自动变暗 —— 这正是 iOS 的样子。 */
+    background: linear-gradient(180deg,
+        rgba(255, 255, 255, .55)   0%,
+        rgba(255, 255, 255, .30)  16%,
+        rgba(255, 255, 255, .12)  34%,
+        rgba(255, 255, 255, .05)  60%,
+        rgba(255, 255, 255, .03) 100%);
+    /* 挖空中间，只保留一圈环 */
+    -webkit-mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
+    mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
+    -webkit-mask-composite: xor;
+    mask-composite: exclude;
+}
+/* [v9.42.0] 已删除内部柔光层（原 body.liquid-glass .xxx::before：
+   radial-gradient + mix-blend-mode:screen + --lg-hx/--lg-hy 光源落点）。
+   它只做提亮、且落点会随陀螺仪乱跑，是「颜色偏怪」与「像转灯」的直接来源。 */
+/* 浮层：边缘高光收敛、投影更深（浮层压在最上层，景深要拉开） */
+body.liquid-glass .modal-content,
+body.liquid-glass .bottom-sheet-content,
+body.liquid-glass .global-task-menu {
+    box-shadow: var(--lg-rim), 0 20px 50px -14px rgba(0, 0, 0, .55) !important;
+}
+/* ── 首页三卡（时间余额 / 屏幕时间 / 睡眠时间）样式统一 ──────────────────
+  [v9.42.0 修订] 已删除针对堆叠卡片的全部特殊处理：
+    · 旧的 `--lg-rim-flat`（顶部亮边被换成内投影）
+    · 旧的 `.stacked-cards-container .screen-time-wrapper::after { content: none }`
+      以及对 `.sleep-card-wrapper::after` 同样禁用描边环的规则
+  这两条正是「首页三卡片样式不统一」的根因：
+    · 屏幕时间卡、睡眠时间卡  → **完全没有描边环**
+    · 时间余额卡（未被禁用）  → **有描边环**
+  三张卡因此长得不一样。现在三卡与任务卡、底栏共用同一套规则：
+  同一份 --lg-rim + 同一圈 1.5px 均匀细环 + 同一份底部内壁暗。
+  顶边不再有特殊加亮，交界处也不会再出现「双白线」。 */
+/* 注：堆叠间距（.stacked-cards-container 的负 margin）保持项目原样，不做改动。 */
+/* ── 选中胶囊的流体形变（Liquid Glass 最标志性的动画）──────────────────
+   iOS 26 切换 tab 时，选中玻璃块会被"拉长"再回弹，像一滴液体被牵引。
+   实现要点：动画作用在伪元素上（缩放/圆角），**绝不能动 .tab-indicator 本身**——
+   它的 transform 被 JS 用来做 translateX 定位，动了就会跳位。 */
+@keyframes lg-tab-morph {
+    0%   { transform: scaleX(1)    scaleY(1);    border-radius: 20px; }
+    30%  { transform: scaleX(1.16) scaleY(1.1);  border-radius: 26px; }
+    55%  { transform: scaleX(0.96) scaleY(0.96); border-radius: 18px; }
+    100% { transform: scaleX(1)    scaleY(1);    border-radius: 20px; }
+}
+body.liquid-glass .bottom-tabs.glass .tab-indicator.lg-morph::after,
+body.liquid-glass .bottom-tabs.glass .tab-indicator.lg-morph::before {
+    animation: lg-tab-morph 460ms cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+/* ── 按下反馈（Liquid Glass 的"可按压"质感）──────────────────────────
+   iOS 的玻璃被按下时会被「压下去」：轻微缩小。这是它看起来"有弹性、能按"的
+   关键，也是与静态毛玻璃最容易区分的动态特征之一。 */
+body.liquid-glass .task-card.glass:active,
+body.liquid-glass .task-card-mini.glass:active,
+body.liquid-glass .balance-card-wrapper-finance:active,
+body.liquid-glass .screen-time-wrapper:active,
+body.liquid-glass .sleep-card-wrapper:active {
+    transform: scale(.985);
+    transition: transform 160ms cubic-bezier(0.34, 1.4, 0.64, 1);
+}
+body.liquid-glass .bottom-tabs.glass .tab-button:active {
+    transform: scale(.95);
+}
+/* 底栏选中胶囊：iOS 的选中态是「一块浮起的、更亮的玻璃」，
+   而不是一个实色蓝块。给它独立的玻璃底 + 环形高光 + 上浮投影，
+   并保留自身的 backdrop-filter 以继续折射胶囊下方的内容。 */
+body.liquid-glass .bottom-tabs.glass .tab-indicator {
+    overflow: visible;
+}
+body.liquid-glass .bottom-tabs.glass .tab-indicator::after {
+    content: '';
+    position: absolute;
+    inset: 0 4px;
+    border-radius: 20px;
+    pointer-events: none;
+    /* [v9.42.0] 已删除白色膜渐变与 saturate(180%) —— 两者都在改颜色。
+       选中块现在完全靠【折射 + 亮环 + 上浮投影】成立，颜色来自胶囊下方内容。 */
+    backdrop-filter: blur(6px);
+    -webkit-backdrop-filter: blur(6px);
+    box-shadow:
+        /* [v9.42.0 修订] 与所有卡片同一套：顶部柔光 + 底部内壁暗，无硬描边 */
+        inset 0 8px 18px -12px rgba(255, 255, 255, .40),
+        inset 0 -3px 7px -3px rgba(0, 0, 0, .26),
+        /* 外部：让它明显"浮"在胶囊之上 */
+        0 5px 16px rgba(0, 0, 0, .30);
+}
+/* 选中块的边缘柔光（与主视觉同一套语言：顶部受光、向下衰减） */
+body.liquid-glass .bottom-tabs.glass .tab-indicator::before {
+    content: '';
+    position: absolute;
+    inset: 0 4px;
+    border-radius: 20px;
+    padding: 2px;
+    pointer-events: none;
+    z-index: 2;
+    background: linear-gradient(180deg,
+        rgba(255, 255, 255, .62)   0%,
+        rgba(255, 255, 255, .30)  22%,
+        rgba(255, 255, 255, .10)  55%,
+        rgba(255, 255, 255, .04) 100%);
+    -webkit-mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
+    mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
+    -webkit-mask-composite: xor;
+    mask-composite: exclude;
 }
 .brain-item-text { font-size: .85rem; line-height: 1.5; color: var(--text-color); }
 .brain-item-date { margin-left: 6px; font-size: .72rem; color: var(--text-color-light, #999); }

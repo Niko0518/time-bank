@@ -5328,6 +5328,20 @@ const accentThemes = {
         label: '暖木原色',
         isFlat: true
     },
+    // [v9.42.0] 液态玻璃演示背景 —— 彩色光斑 + 线段纹理。
+    //   液态玻璃的折射必须有「线条」可被弯折才看得出来：纯色看不出、复杂照片背景只会显得杂乱，
+    //   故单独提供这套与预览稿完全一致的背景，专门用来展示液态玻璃。
+    //   多层顺序要点：斜纹在最上层 → 彩色光斑 → 深蓝底色。
+    'liquid-glass': {
+        primary: '#29b6f6',
+        start: '#1a2744',
+        mid: '#2a4a7f',
+        end: '#5ec8c0',
+        gradient: 'linear-gradient(160deg, #1a2744 0%, #0d1b35 100%)',
+        bgImage: null,
+        bgGradient: 'repeating-linear-gradient(62deg, rgba(255,255,255,.16) 0 1.5px, transparent 1.5px 22px), repeating-linear-gradient(-28deg, rgba(255,255,255,.10) 0 1.5px, transparent 1.5px 30px), radial-gradient(560px 380px at 12% 8%, rgba(88,140,255,.55), transparent 62%), radial-gradient(520px 420px at 92% 26%, rgba(255,120,190,.42), transparent 60%), radial-gradient(640px 520px at 40% 96%, rgba(60,220,196,.34), transparent 62%), linear-gradient(160deg, #1a2744 0%, #0d1b35 100%)',
+        label: '液态玻璃'
+    },
 
     // [v6.2.0] 梵高《星月夜》主题 - 普鲁士蓝/钴蓝/铬黄
     'the-starry-night': {
@@ -5360,6 +5374,10 @@ const accentThemes = {
         label: '杏花盛开'
     }
 };
+
+// [v9.42.0] 原 ACCENT_LUMINANCE（各主题壁纸平均亮度表）已删除。
+//   它唯一的作用是给液态玻璃的「自适应色调」判断该提亮还是压暗；
+//   调色能力整体移除后已无引用，故一并删除。
 
 // [v6.0.0] 更新主题背景色
 // [v7.20.0] 纯色主题直接使用纯色背景，油画主题使用渐变
@@ -5521,6 +5539,16 @@ function setAccentTheme(accentName) {
         }
     }
     
+    // [v9.42.0] 「液态玻璃」主题：使用「彩色光斑 + 线段纹理」多层渐变作为背景。
+    //   它没有 bgImage、也不走 bgLight/bgDark 分支，故单独设置。
+    if (accent.bgGradient) {
+        root.style.setProperty('--bg-gradient-themed', accent.bgGradient);
+        document.body.style.background = '';
+    }
+
+    // [v9.42.0] 原先此处会按壁纸明暗给液态玻璃套一层「提亮 / 压暗」的自适应色调。
+    //   调色能力已整体删除（玻璃颜色 100% 来自背后被折射的画面），故此处不再需要任何处理。
+
     // [v6.2.0] 如果是画作主题且没有自定义背景，自动应用画作背景
     const customBg = localStorage.getItem('customBackground');
     const currentBgMode = localStorage.getItem('bgStyle') || 'theme';
@@ -5557,7 +5585,7 @@ function initAccentTheme() {
 // [v7.20.2] 初始化三态卡片风格（兼容旧版 cardStyle + gradientStyle）
 function initCardVisualMode() {
     const savedMode = localStorage.getItem('cardVisualMode');
-    if (savedMode === 'flat' || savedMode === 'gradient' || savedMode === 'glass') {
+    if (savedMode === 'flat' || savedMode === 'gradient' || savedMode === 'glass' || savedMode === 'liquid') {
         setCardVisualMode(savedMode, false);
         return;
     }
