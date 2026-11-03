@@ -221,6 +221,7 @@ public class FloatingTimerService extends Service {
         rearrangeTimers();
         // [v9.3.1] 立即刷盘，避免被杀时丢失本次启动的 preservedElapsed
         persistTimersToDisk();
+        updateForegroundNotification(); // [批次5] 新任务开始后立即刷新常驻通知
 
         return START_STICKY;
     }
@@ -239,6 +240,7 @@ public class FloatingTimerService extends Service {
         rearrangeTimers();
         // [v9.3.1] 移除后立即刷盘
         persistTimersToDisk();
+        updateForegroundNotification(); // [批次5] 任务移除后刷新常驻通知
     }
     
     /**
@@ -267,6 +269,7 @@ public class FloatingTimerService extends Service {
         updatePausedDisplay(info);
         // [v9.3.1] 暂停后刷盘
         persistTimersToDisk();
+        updateForegroundNotification(); // [批次5] 暂停后刷新常驻通知（显示"已暂停"）
     }
     
     /**
@@ -293,6 +296,7 @@ public class FloatingTimerService extends Service {
         startTimerForInfo(info);
         // [v9.3.1] 恢复后刷盘
         persistTimersToDisk();
+        updateForegroundNotification(); // [批次5] 恢复后刷新常驻通知
     }
     
     /**
@@ -1207,7 +1211,28 @@ public class FloatingTimerService extends Service {
         } else {
             builder = new Notification.Builder(this);
         }
-        return builder.setContentTitle("TimeBank").setContentText("Timer Running").setSmallIcon(R.mipmap.ic_launcher).build();
+        // [批次5] 常驻通知中文化：标题固定，正文=任务名+已计时长（拿不到任务信息就只显示"计时运行中"）
+        String body = "计时运行中";
+        try {
+            if (!timerOrder.isEmpty()) {
+                String name = timerOrder.get(timerOrder.size() - 1);
+                TimerInfo info = timerMap.get(name);
+                if (info != null) {
+                    long elapsed = getCurrentElapsedTime(info);
+                    String suffix = timerOrder.size() > 1 ? " 等 " + timerOrder.size() + " 个任务" : "";
+                    body = name + suffix + " · 已计时 " + formatDuration(elapsed) + (info.isPaused ? "（已暂停）" : "");
+                }
+            }
+        } catch (Exception ignored) {}
+        return builder.setContentTitle("TimeBank · 计时运行中").setContentText(body).setSmallIcon(R.mipmap.ic_launcher).build();
+    }
+
+    // [批次5] 状态变更后刷新常驻通知（任务名/时长即时反映）
+    private void updateForegroundNotification() {
+        try {
+            NotificationManager nm = (NotificationManager) getSystemService(Context.NOTIFICATION_SERVICE);
+            if (nm != null) nm.notify(1, createNotification());
+        } catch (Exception ignored) {}
     }
 
     // ========== [v9.3.1] 拉模型接口：让 WebView 主动查询，取代不可靠的 push ==========

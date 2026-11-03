@@ -139,6 +139,7 @@ $diffPairs = @(
     @( (Join-Path $www 'js\app-auth.js'),      (Join-Path $root 'js\app-auth.js') ),
     @( (Join-Path $www 'js\app-reports.js'),   (Join-Path $root 'js\app-reports.js') ),
     @( (Join-Path $www 'js\app-systems.js'),   (Join-Path $root 'js\app-systems.js') ),
+    @( (Join-Path $www 'js\app-sleep.js'),      (Join-Path $root 'js\app-sleep.js') ),
     @( (Join-Path $www 'js\ai-brain.js'),      (Join-Path $root 'js\ai-brain.js') ),
     @( (Join-Path $www 'js\ai-service.js'),    (Join-Path $root 'js\ai-service.js') ),
     @( (Join-Path $www 'css\main.css'),        (Join-Path $root 'css\main.css') )

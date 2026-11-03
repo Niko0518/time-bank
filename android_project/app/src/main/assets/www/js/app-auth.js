@@ -208,7 +208,7 @@ function copyDeviceId() {
 // [v7.35.2] 修复：增加全局写锁通知机制和写入失败检测
 async function trustThisDeviceAsAuthoritative() {
     if (!isLoggedIn()) {
-        showNotification('⚠️ 未登录', '请先登录账号', 'warning');
+        showToast('⚠️ 未登录：请先登录账号');
         return;
     }
     // [v7.26.2] 使用应用内 showConfirm 替代 window.confirm（WebView 中 confirm() 无效）
@@ -231,7 +231,6 @@ async function trustThisDeviceAsAuthoritative() {
         if (DAL && DAL.unsubscribeAll) await DAL.unsubscribeAll();
 
         // 2. 清空云端旧数据
-        showNotification('🔄 清空云端旧数据...', '请稍候', 'info');
         await DAL.clearAllData();
 
         const currentUid = await DAL.getCurrentUid();
@@ -257,7 +256,6 @@ async function trustThisDeviceAsAuthoritative() {
         };
 
         // 4. 上传 Profile
-        showNotification('📝 上传配置...', '请稍候', 'info');
         const sleepSettingsToUpload = { ...sleepSettings };
         delete sleepSettingsToUpload.settledDates;
         await db.collection(TABLES.PROFILE).add({
@@ -275,7 +273,6 @@ async function trustThisDeviceAsAuthoritative() {
         });
 
         // 5. 上传任务（受控并发）
-        showNotification('📋 上传任务...', '0/' + tasks.length, 'info');
         for (let i = 0; i < tasks.length; i += BATCH) {
             const slice = tasks.slice(i, i + BATCH);
             await Promise.all(slice.map(task => writeWithRetry(TABLES.TASK, {
@@ -296,12 +293,10 @@ async function trustThisDeviceAsAuthoritative() {
                 data: task,
                 _openid: currentUid
             })));
-            showNotification('📋 上传任务...', Math.min(i + BATCH, tasks.length) + '/' + tasks.length, 'info');
             if (i + BATCH < tasks.length) await new Promise(r => setTimeout(r, DELAY));
         }
 
         // 6. 上传交易记录（受控并发 + 重试 + 统计）
-        showNotification('💰 上传交易记录...', '0/' + transactions.length, 'info');
         for (let i = 0; i < transactions.length; i += BATCH) {
             const slice = transactions.slice(i, i + BATCH);
             const results = await Promise.all(slice.map(tx => writeWithRetry(TABLES.TRANSACTION, {
@@ -322,21 +317,18 @@ async function trustThisDeviceAsAuthoritative() {
             totalTxWritten += results.filter(r => r === true).length;
             totalTxFailed += results.filter(r => r === false).length;
             
-            showNotification('💰 上传交易记录...', `${Math.min(i + BATCH, transactions.length)}/${transactions.length} (失败:${totalTxFailed})`, 'info');
             if (i + BATCH < transactions.length) await new Promise(r => setTimeout(r, DELAY));
         }
 
         // 7. 上传运行中任务
         const runningArray = Array.from(runningTasks.entries());
         if (runningArray.length > 0) {
-            showNotification('⏱️ 上传运行中任务...', '请稍候', 'info');
             for (const [taskId, runningData] of runningArray) {
                 await writeWithRetry(TABLES.RUNNING, { taskId, data: runningData, _openid: currentUid });
             }
         }
 
         // 8. 上传每日统计（受控并发）
-        showNotification('📊 上传每日统计...', '请稍候', 'info');
         const dailyEntries = Object.entries(dailyChanges);
         for (let i = 0; i < dailyEntries.length; i += BATCH) {
             const slice = dailyEntries.slice(i, i + BATCH);
@@ -359,24 +351,16 @@ async function trustThisDeviceAsAuthoritative() {
         
         // [v7.35.2] 根据写入结果显示不同的提示
         if (totalTxFailed > 0) {
-            showNotification(
-                `⚠️ 同步完成（部分失败）`,
-                `成功:${totalTxWritten} 失败:${totalTxFailed}，请检查网络连接后重试`,
-                'warning'
-            );
+            showToast(`⚠️ 同步完成（部分失败）：成功:${totalTxWritten} 失败:${totalTxFailed}，请检查网络连接后重试`);
         } else {
-            showNotification(
-                '✅ 同步完成',
-                `本设备数据已覆盖云端（${transactions.length}条交易），其他设备将自动追平`,
-                'success'
-            );
+            showToast(`✅ 同步完成：本设备数据已覆盖云端（${transactions.length}条交易），其他设备将自动追平`);
         }
 
     } catch (e) {
         console.error('[trustThisDevice] 失败:', e);
         
         if (authStatus) { authStatus.innerHTML = originalText; authStatus.className = 'status-offline'; }
-        showNotification('❌ 同步失败', e.message, 'error');
+        showToast(`❌ 同步失败：${e.message}`);
     }
 }
 
@@ -501,7 +485,7 @@ async function handleEmailLogin() {
             console.error('[Auth] Error checking CloudBase login state:', e);
         }
         
-        showNotification('✅ 登录成功', '正在同步云端数据...', 'achievement');
+        showNotification('✅ 登录成功', '正在同步云端数据...', 'system');
         
         // [v7.9.4] 保存登录凭据用于自动重新登录（设备重启后自动登录）
         // 读取"记住登录"复选框状态
@@ -654,7 +638,7 @@ async function handleEmailRegister() {
             }
             updateAuthUI(cachedLoginState);
             
-            showNotification('✅ 注册成功', '您的账号已创建，数据将自动同步', 'achievement');
+            showNotification('✅ 注册成功', '您的账号已创建，数据将自动同步', 'system');
             
             // 加载并初始化数据
             await handlePostLoginDataInit('emailRegister');
@@ -704,7 +688,7 @@ async function handleEmailRegister() {
             verificationCodeGroup.style.display = 'block';
             registerBtn.textContent = '验证';
             
-            showNotification('📧 验证码已发送', '请查收邮箱并输入验证码', 'achievement');
+            showNotification('📧 验证码已发送', '请查收邮箱并输入验证码', 'system');
             
         } else if (result && result.error) {
             throw result.error;
@@ -712,7 +696,7 @@ async function handleEmailRegister() {
             // 如果直接成功（用户已存在等情况）
             await refreshLoginState();
             updateAuthUI(cachedLoginState);
-            showNotification('✅ 注册成功', '您的账号已创建', 'achievement');
+            showNotification('✅ 注册成功', '您的账号已创建', 'system');
         }
         
     } catch (error) {
@@ -763,7 +747,7 @@ async function resendVerificationCode() {
         if (result && result.data && typeof result.data.verifyOtp === 'function') {
             pendingVerifyOtp = result.data.verifyOtp;
             pendingEmail = email;
-            showNotification('📧 验证码已重新发送', '请查收邮箱', 'achievement');
+            showNotification('📧 验证码已重新发送', '请查收邮箱', 'system');
         }
     } catch (error) {
         console.error('Resend code error:', error);
@@ -841,7 +825,7 @@ async function handleAnonymousLogin() {
         console.log('[Auth] Login successful, UID:', loginState?.user?.uid);
         
         updateAuthUI(loginState);
-        showNotification('🚀 快速开始成功', '数据将保存在当前浏览器', 'achievement');
+        showNotification('🚀 快速开始成功', '数据将保存在当前浏览器', 'system');
         
         // 加载并初始化数据
         await handlePostLoginDataInit('anonymousLogin');
@@ -925,7 +909,7 @@ async function handleLogout() {
         // Reset app state to local defaults
         resetLocalData();
         await loadData(true); // Force reload from localStorage
-        showNotification('➡️ 已退出', '已切换到本地模式。', 'achievement');
+        showNotification('➡️ 已退出', '已切换到本地模式。', 'system');
     } catch (error) {
         console.error('Logout Error:', error);
         showAlert('退出时发生错误: ' + error.message, '错误');
@@ -1463,7 +1447,7 @@ async function exportData(options) {
         Android.saveFileDirectly(jsonStr, fileName);
         showNotification('📁 数据已导出',
             __isRange ? `分析片段已保存：${fileName}` : `已保存到 Download：${fileName}`,
-            'achievement');
+            'system');
     } else {
         // Web 浏览器使用传统方式
         const b = new Blob([jsonStr], { type: 'application/json' }); 
@@ -1472,7 +1456,7 @@ async function exportData(options) {
         a.download = fileName; 
         a.click(); 
         URL.revokeObjectURL(a.href); 
-        showNotification('📁 数据已导出', '数据（含内置说明书）已下载。', 'achievement');
+        showNotification('📁 数据已导出', '数据（含内置说明书）已下载。', 'system');
     }
 }
 
@@ -2211,12 +2195,12 @@ async function clearAllData() {
             setAuthStatus('清除中...', 'status-syncing');
             await DAL.clearAllData();
             await handleLogout();
-            showNotification('🗑️ 数据已清除', '云端和本地数据已清空。', 'achievement');
+            showNotification('🗑️ 数据已清除', '云端和本地数据已清空。', 'system');
         } catch (e) {
             console.error('Clear cloud data failed:', e);
         }
     } else {
-        showNotification('🗑️ 数据已清除', '本地数据已清空。', 'achievement');
+        showNotification('🗑️ 数据已清除', '本地数据已清空。', 'system');
     }
     location.reload();
 }
@@ -3135,16 +3119,8 @@ function setupAutoSync() {
         
         // 如果有冲突，显示提示
         if (hasConflict && conflicts.length > 0) {
-            const taskNames = conflicts.map(c => `「${c.taskName}」`).join('、');
-            const totalMinutes = Math.round(conflicts.reduce((sum, c) => sum + c.localElapsedTime, 0) / 60);
-            
-            setTimeout(() => {
-                showNotification(
-                    'ℹ️ 任务状态已同步',
-                    `${taskNames} 在其他设备已关闭，本地计时已停止。`,
-                    'info'
-                );
-            }, 1000);
+            // [通知治理] 原「任务状态已同步」提示为死调用（type=info 从未生效），已删除；保留日志
+            console.log(`[Conflict] ${conflicts.length} 个任务在其他设备已关闭，本地计时已停止`);
         }
     }
     

@@ -873,7 +873,31 @@ public class WebAppInterface {
     @JavascriptInterface
     public boolean isKeepAliveServiceEnabled() {
         android.content.SharedPreferences prefs = mContext.getSharedPreferences("app_settings", Context.MODE_PRIVATE);
-        return prefs.getBoolean("keep_alive_enabled", true); // 默认启用
+        return prefs.getBoolean("keep_alive_enabled", false); // [批次5] 默认关闭（与 KeepAliveService 保持一致）
+    }
+
+    // [批次5] 勿扰访问权限（Notification Policy Access）：闹钟穿透勿扰依赖，查询是否已授权
+    @JavascriptInterface
+    public boolean isNotificationPolicyAccessGranted() {
+        try {
+            android.app.NotificationManager nm = (android.app.NotificationManager) mContext.getSystemService(Context.NOTIFICATION_SERVICE);
+            return nm != null && nm.isNotificationPolicyAccessGranted();
+        } catch (Exception e) {
+            android.util.Log.e("TimeBank", "isNotificationPolicyAccessGranted failed", e);
+            return false;
+        }
+    }
+
+    // [批次5] 跳转「勿扰访问」设置页
+    @JavascriptInterface
+    public void openNotificationPolicySettings() {
+        try {
+            Intent intent = new Intent(Settings.ACTION_NOTIFICATION_POLICY_ACCESS_SETTINGS);
+            intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+            mContext.startActivity(intent);
+        } catch (Exception e) {
+            android.util.Log.e("TimeBank", "openNotificationPolicySettings failed", e);
+        }
     }
 
     // 精准闹钟授权跳转 (Android 12+)

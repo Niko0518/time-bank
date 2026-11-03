@@ -302,7 +302,7 @@ function saveDeviceSpecificDataDebounced() {
 async function setDeviceName(newName) {
     const trimmedName = (newName || '').trim();
     if (!trimmedName) {
-        showNotification('设备名称不能为空', '', 'warning');
+        showToast('设备名称不能为空');
         return false;
     }
     
@@ -324,13 +324,12 @@ async function setDeviceName(newName) {
             if (choice === 'clone') {
                 // 克隆旧设备数据到当前设备
                 await cloneDeviceData(existingDeviceId);
-                showNotification('已克隆设备配置', `已从旧设备同步配置到当前设备`, 'success');
+                showToast('已克隆设备配置：已从旧设备同步配置到当前设备');
             } else if (choice === 'independent') {
                 // 作为独立设备，自动添加序号
                 const newNameWithIndex = await generateUniqueDeviceName(trimmedName);
                 localStorage.setItem('tb_device_name', newNameWithIndex);
                 saveDeviceSpecificDataDebounced();
-                showNotification('设备名称已设置', `新名称: ${newNameWithIndex}`, 'success');
                 return true;
             } else {
                 // 取消操作
@@ -674,7 +673,6 @@ async function updateHistoricalScreenTimeCategories(updateEarn, updateSpend) {
     
     if (screenTimeTransactions.length === 0) {
         console.log('[updateHistoricalScreenTimeCategories] 没有屏幕时间交易记录需要更新');
-        showNotification('ℹ️ 无需更新', '没有找到历史屏幕时间记录', 'info');
         return;
     }
     
@@ -761,13 +759,11 @@ async function updateHistoricalScreenTimeCategories(updateEarn, updateSpend) {
     
     if (updatedCount > 0) {
         console.log(`[updateHistoricalScreenTimeCategories] 已更新 ${updatedCount} 条屏幕时间交易记录的分类 (云端: ${cloudUpdatedCount})`);
-        showNotification('✅ 分类已更新', `已更新 ${updatedCount} 条历史屏幕时间记录`, 'success');
+        showToast(`✅ 分类已更新：已更新 ${updatedCount} 条历史屏幕时间记录`);
         // 刷新报告页面（如果在报告页）
         if (document.querySelector('.report-page.active')) {
             updateReportPage();
         }
-    } else {
-        showNotification('ℹ️ 无需更新', '所有记录分类已是最新', 'info');
     }
 }
 
@@ -954,7 +950,7 @@ function updateSleepCategories() {
         if (document.querySelector('.report-page.active')) {
             updateReportPage();
         }
-        showNotification('✅ 分类已更新', '睡眠记录分类已更改', 'success');
+        showToast('✅ 分类已更新：睡眠记录分类已更改');
     }
 }
 
@@ -982,7 +978,6 @@ async function updateHistoricalSleepCategories(updateEarn, updateSpend) {
     
     if (sleepTransactions.length === 0) {
         console.log('[updateHistoricalSleepCategories] 没有睡眠交易记录需要更新');
-        showNotification('ℹ️ 无需更新', '没有找到历史睡眠记录', 'info');
         return;
     }
     
@@ -1074,13 +1069,11 @@ async function updateHistoricalSleepCategories(updateEarn, updateSpend) {
     
     if (updatedCount > 0) {
         console.log(`[updateHistoricalSleepCategories] 已更新 ${updatedCount} 条睡眠交易记录的分类`);
-        showNotification('✅ 分类已更新', `已更新 ${updatedCount} 条历史睡眠记录`, 'success');
+        showToast(`✅ 分类已更新：已更新 ${updatedCount} 条历史睡眠记录`);
         // 刷新报告页面（如果在报告页）
         if (document.querySelector('.report-page.active')) {
             updateReportPage();
         }
-    } else {
-        showNotification('ℹ️ 无需更新', '所有记录分类已是最新', 'info');
     }
     
     console.log('[updateHistoricalSleepCategories] 完成');
@@ -1193,7 +1186,7 @@ async function toggleBalanceMode() {
             balanceMode.enabledAt = new Date().toISOString();
             saveBalanceMode();  // 保存到本地+云端
             updateBalanceModeUI();
-            showNotification('⚖️ 均衡模式已开启', '获取效率将按余额调整', 'achievement');
+            showNotification('⚖️ 均衡模式已开启', '获取效率将按余额调整', 'system');
         } else {
             toggle.checked = false;
         }
@@ -1203,7 +1196,7 @@ async function toggleBalanceMode() {
         balanceMode.enabledAt = null;
         saveBalanceMode();  // 保存到本地+云端
         updateBalanceModeUI();
-        showNotification('⚖️ 均衡模式已关闭', '获取效率恢复正常', 'reminder');
+        showNotification('⚖️ 均衡模式已关闭', '获取效率恢复正常', 'system');
     }
 }
 
@@ -1323,7 +1316,7 @@ async function toggleTurboMode() {
             saveTurboMode();
             updateTurboModeUI();
             updateBalanceModeUI(); // 同步刷新均衡模式状态（可能被自动关闭）
-            showNotification('🚀 Turbo 模式已开启', '获取×1.5 · 消费×1.5', 'achievement');
+            showNotification('🚀 Turbo 模式已开启', '获取×1.5 · 消费×1.5', 'system');
         } else {
             toggle.checked = false;
         }
@@ -1333,7 +1326,7 @@ async function toggleTurboMode() {
         turboMode.enabledAt = null;
         saveTurboMode();
         updateTurboModeUI();
-        showNotification('🚀 Turbo 模式已关闭', '获取/消费恢复正常', 'reminder');
+        showNotification('🚀 Turbo 模式已关闭', '获取/消费恢复正常', 'system');
     }
 }
 
@@ -1374,9 +1367,6 @@ function saveTurboModeLocal() {
                 setTimeout(() => trySave(attempt + 1), 2000 * attempt);
             } else {
                 console.error('[saveTurboModeLocal] 云端同步彻底失败，已存 localStorage 兜底');
-                if (typeof showNotification === 'function') {
-                    showNotification('⚠️ Turbo 模式云端同步失败', '已保存本地，下次联网将自动重试', 'error');
-                }
             }
         });
     };
@@ -1929,12 +1919,12 @@ async function settleDailyInterest(forDate = null) {
         }
         financeStats.interestDays++;
         
-        // 通知
-        showNotification(
-            isDeposit ? '💰 获得存款利息' : '💸 扣除贷款利息',
-            `${isDeposit ? '+' : '-'}${formatTime(Math.abs(interestAmount))}`,
-            isDeposit ? 'achievement' : 'warning'
-        );
+        // 通知（[通知治理] 存/贷利息成对处理：存款→系统通知；贷款扣息→应用内 toast，保证可见）
+        if (isDeposit) {
+            showNotification('💰 获得存款利息', `+${formatTime(Math.abs(interestAmount))}`, 'system');
+        } else {
+            showToast(`💸 扣除贷款利息 -${formatTime(Math.abs(interestAmount))}`);
+        }
     }
     
     // [v7.29.2] 初始化今日账本（仅结算真实昨日时才更新，追溯历史日期时不覆盖今日起始余额）
@@ -2030,7 +2020,7 @@ async function toggleFinanceSystem() {
             updateFinanceSystemUI();
             
             // [v9.36.4] 利率随倍率模式变化（常态 0.5% / 均衡 0.25% / Turbo 1%），负余额惩罚已全面取消，不再涉及惩罚配置
-            showNotification('💰 时间金融系统已开启', '每日将自动结算利息（利率随倍率模式变化）', 'achievement');
+            showNotification('💰 时间金融系统已开启', '每日将自动结算利息（利率随倍率模式变化）', 'system');
             
             // 立即更新余额卡片
             updateBalance();
@@ -2046,7 +2036,7 @@ async function toggleFinanceSystem() {
         document.getElementById('financeSystemStatus').textContent = '未启用';
         updateFinanceSystemUI();
         
-        showNotification('💰 时间金融系统已关闭', '利息计算已停止', 'reminder');
+        showNotification('💰 时间金融系统已关闭', '利息计算已停止', 'system');
         updateBalance();
     }
 }
@@ -5677,7 +5667,7 @@ function handleCustomBgUpload(event) {
             const clearBtn = document.getElementById('bgClearBtn');
             if (clearBtn) clearBtn.classList.remove('hidden');
             
-            showNotification('✅ 背景已设置', '自定义背景已应用', 'success');
+            showToast('✅ 背景已设置：自定义背景已应用');
         } catch (err) {
             // localStorage 可能已满
             console.error('[BG] 保存自定义背景失败:', err);
@@ -5751,10 +5741,14 @@ function checkReminders() {
                 
                 if (shouldNotify) {
                     // [v7.8.0] 收集提醒而非直接显示通知
+                    // [通知治理] 补 title/body，供调用方真正发出系统通知（此前返回值被丢弃，任务提醒从未弹出）
                     triggeredReminders.push({
                         type: 'reminder',
                         taskName: task.name,
-                        taskId: task.id
+                        taskId: task.id,
+                        remindTime: time,
+                        title: '⏰ 任务提醒',
+                        body: `任务「${task.name}」的提醒时间到了`
                     });
                 }
                 

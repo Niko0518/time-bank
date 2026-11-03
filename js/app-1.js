@@ -12,7 +12,7 @@
 // [v9.3.1] 架构重构：悬浮窗定时器状态以原生 Service 为唯一事实来源。修复 30+ 分钟后"任务消失/计时被吞"根因
 // [v9.3.2] Bug 1 修复：stopTask/cancelTask 静默期追踪 + __onFloatingTimerAction 恢复逻辑改为"云端权威源"（修复 v9.3.1 的"任务复活"回归）
 // [v9.3.3 final] 原生层云端同步保活：CloudSyncScheduler（WorkManager 周期任务） + __onNativeCloudDelta + visibilitychange always-reconcile + JS 心跳失败上报
-const APP_VERSION = 'v9.41.2';
+const APP_VERSION = 'v9.42.1';
 
 // [v9.3.3 final] App 启动时间戳（用于"初始化中"状态窗口判定）
 // 注：声明为 const 而非 let，避免被覆盖
@@ -783,8 +783,11 @@ async function checkLoginStateOnResume() {
             // 自动填充邮箱并提示用户
             if (savedEmail) {
                 autoFillSavedEmail();
-                // 显示提示
-                showNotification('🔐 请重新登录', `登录状态已过期，请输入密码重新登录 (${savedEmail})`, 'warning');
+                // 显示提示（[通知治理] 登录过期改为应用内弹窗——唯一可见渠道；会话级去重防止每次回前台重复弹）
+                if (!window.__loginExpiryAlertShown) {
+                    window.__loginExpiryAlertShown = true;
+                    showAlert(`登录状态已过期，请输入密码重新登录 (${savedEmail})`, '🔐 请重新登录');
+                }
                 // 跳转到设置页面（登录区域）
                 showPage('settings');
                 // 滚动到登录区域
@@ -795,7 +798,10 @@ async function checkLoginStateOnResume() {
                     }
                 }, 300);
             } else {
-                showNotification('🔐 登录已过期', '请重新登录以恢复云端同步', 'warning');
+                if (!window.__loginExpiryAlertShown) {
+                    window.__loginExpiryAlertShown = true;
+                    showAlert('请重新登录以恢复云端同步', '🔐 登录已过期');
+                }
                 showPage('settings');
             }
             
@@ -1045,12 +1051,12 @@ function scheduleWebLoginRestore(source = 'initApp') {
                 // [v7.18.4] 网页端禁用本地数据兜底，强制使用云端
             if (!syncState) {
                 console.warn('[Auth] Web login state not found, skip local data (web-only mode)');
-                showNotification('⚠️ 未登录', '网页端仅支持云端模式，请先登录', 'warning');
+                showToast('⚠️ 未登录：网页端仅支持云端模式，请先登录');
             } else {
                 console.warn('[Auth] Web login restore timeout, force refresh cloud');
                 const refreshed = await forceWebCloudRefresh('web-login-restore-timeout');
                 if (!refreshed) {
-                    showNotification('⚠️ 登录恢复失败', '登录状态未能恢复，请重新登录', 'warning');
+                    showToast('⚠️ 登录恢复失败：登录状态未能恢复，请重新登录');
                 }
             }
             }
@@ -2605,6 +2611,41 @@ function __scheduleUpdateAllUIFromWatch() {
         __watchUiUpdateTimer = null;
         if (typeof updateAllUI === 'function') updateAllUI();
     }, WATCH_UI_UPDATE_DEBOUNCE_MS);
+}
+
+// ========== [v9.41.2] 跨设备「另一端完成任务」通知 ==========
+// 背景：其他设备完成/结束任务时，本机 Watch 只静默同步交易与余额，用户零感知。
+// 挂钩位置：Transaction watch onChange 的 add 分支（本机乐观更新已被 __getTxById 拦截，
+//   能走到该分支的必然是远端交易；此处再叠加过滤，条件全部满足才弹）：
+//   1. 真实任务交易：有 taskId、非系统交易（睡眠/屏幕时间等不弹）、非习惯连胜推进
+//   2. clientId ≠ 本机（双保险，防同账号多窗口重复弹）
+//   3. 入账时刻（timestamp）距今 ≤ 60 秒：冷启动拉历史、远端补录（timestamp=12:00 占位）不补弹
+//   4. 会话级去重键 = 交易 id：防 watch 重连/重复回推连弹（超 500 条清空，仅内存、不持久化）
+// 回退方式：删除 add 分支的 try{notifyRemoteTaskCompletion...} 一行即完全恢复原状。
+const __remoteNotifyTxIds = new Set();
+const REMOTE_NOTIFY_FRESH_MS = 60000;
+function notifyRemoteTaskCompletion(tx, doc) {
+    try {
+        if (!tx || !tx.id || !tx.taskId || tx.isSystem || tx.isStreakAdvancement) return;
+        const __cid = (doc && doc.data && doc.data.clientId) || (doc && doc.clientId) || tx.clientId;
+        if (__cid && typeof clientId !== 'undefined' && __cid === clientId) return;
+        const __tsMs = (typeof tx.timestamp === 'number') ? tx.timestamp : new Date(tx.timestamp).getTime();
+        if (!Number.isFinite(__tsMs)) return;
+        const __age = Date.now() - __tsMs;
+        if (__age > REMOTE_NOTIFY_FRESH_MS || __age < -REMOTE_NOTIFY_FRESH_MS) return; // 含远端时钟超前容差
+        if (__remoteNotifyTxIds.has(tx.id)) return;
+        __remoteNotifyTxIds.add(tx.id);
+        if (__remoteNotifyTxIds.size > 500) __remoteNotifyTxIds.clear();
+        const __sign = tx.type === 'spend' ? '-' : '+';
+        const __amt = __sign + formatTime(Math.abs(Math.round(tx.amount || 0)));
+        const __nameSeg = tx.taskName ? ` · ${tx.taskName}` : '';
+        const __timeStr = (typeof formatRecordTimeHM === 'function') ? formatRecordTimeHM(tx) : '—:—';
+        if (typeof showNotification === 'function') {
+            showNotification(`✅ 另一端完成${__nameSeg}`, `${__timeStr} · ${__amt}`, 'system');
+        }
+    } catch (e) {
+        console.warn('[跨设备通知] 失败（不影响同步）:', e);
+    }
 }
 
 // ========== [v9.38.3] tb_running 云端对账（跨设备"结束任务"删除传播兜底） ==========
@@ -5196,6 +5237,8 @@ const DAL = {
                                 __meaningful = true; // [v9.34.2]
                                 const balanceDelta = tx.type === 'earn' ? tx.amount : -tx.amount;
                                 currentBalance += balanceDelta;
+                                // [v9.41.2] 跨设备完成通知（内部过滤系统交易/60秒新鲜度/会话去重；异常不影响同步）
+                                try { notifyRemoteTaskCompletion(tx, doc); } catch (e) { console.warn('[跨设备通知] 异常（不影响同步）:', e); }
                                 // [v9.1.0] dailyChanges 完全由云端 tb_daily 推送，客户端禁止本地写入
                                 // 否则会与 Daily watch 的 add 事件竞态覆盖云端权威值
                                 if (tx.taskId && typeof rebuildHabitStreak === 'function') {
@@ -5930,10 +5973,7 @@ const DAL = {
                         finalTasks = localData.tasks || [];
                         finalTransactions = localData.transactions || [];
                         
-                        // 显示恢复提示
-                        setTimeout(() => {
-                            showNotification('📦 数据恢复', '已从本地缓存恢复数据，将自动同步到云端', 'info');
-                        }, 1000);
+                        // [通知治理] 原「数据恢复」提示为死调用（type=info 从未生效），已删除
                     }
                 }
             } catch (e) {
@@ -5957,7 +5997,7 @@ const DAL = {
             console.error('❌ [DAL.loadAll] UID:', await this.getCurrentUid());
             // 显示错误提示
             setTimeout(() => {
-                showNotification('❌ 数据加载失败', '无法从云端或本地加载数据，请检查网络连接后刷新页面', 'error');
+                showToast('❌ 数据加载失败：无法从云端或本地加载数据，请检查网络连接后刷新页面');
             }, 1000);
         }
 
@@ -6060,10 +6100,8 @@ const DAL = {
                         window.__tbImportSilentMode = __prevSilentMode;
                     }
                     console.log('✅ [DAL.loadAll] 本地数据已成功同步到云端');
-                    showNotification('✅ 同步完成', '本地数据已同步到云端', 'success');
                 } catch (e) {
                     console.error('❌ [DAL.loadAll] 同步到云端失败:', e);
-                    showNotification('⚠️ 同步延迟', '将在网络恢复后自动同步', 'info');
                 }
             }, 2000); // 延迟2秒，确保UI已更新
         }
@@ -6385,32 +6423,17 @@ const DAL = {
             if (res.code === 0) {
                 console.log(`[v9.1.0] dailyChanges 迁移成功: ${res.migrated} 条`);
                 localStorage.setItem('tb_daily_migrated_v910', '1');
-                showNotification(
-                    '📅 日数据已迁移',
-                    `已迁移 ${res.migrated} 天日数据到云端，多设备将自动同步`,
-                    'success'
-                );
             } else if (res.code === 1007) {
                 // [v9.1.0] 部分失败：不设标志位，下次刷新会重试（云端已有日期会被自动跳过）
                 // 强制用户感知：弹错误通知，禁止本地降级路径
                 console.error('[v9.1.0] dailyChanges 部分迁移失败:', res.message);
-                showNotification(
-                    '⚠️ 日数据部分迁移失败',
-                    `成功 ${res.migrated} 条，失败 ${res.failed} 条。请在网络恢复后刷新页面重试。`,
-                    'error',
-                    8000
-                );
+                showToast(`⚠️ 日数据部分迁移失败：成功 ${res.migrated} 条，失败 ${res.failed} 条。请在网络恢复后刷新页面重试。`);
             } else {
                 throw new Error(res.message || '迁移失败');
             }
         } catch (e) {
             console.error('[v9.1.0] dailyChanges 迁移失败:', e);
-            showNotification(
-                '❌ 日数据迁移失败',
-                '云端同步失败，请检查网络后刷新页面重试。已迁移的数据可能不完整。',
-                'error',
-                8000
-            );
+            showToast('❌ 日数据迁移失败：云端同步失败，请检查网络后刷新页面重试。已迁移的数据可能不完整。');
         }
     }
 };
@@ -7183,7 +7206,9 @@ const REPORT_STATE_KEY = 'reportState';
 	// [v4.6.1] Added floatingTimer setting
 // [v7.1.7] 通知设置改为纯本地存储，不再同步到云端
 let notificationSettings = {
-    achievement: true,
+    // [通知治理] 旧「常规通知」(achievement) 拆分为任务通知 / 系统通知两个开关（纯本地存储，仅本机生效）
+    taskNotifyEnabled: true,
+    systemNotifyEnabled: true,
     habitNudgeEnabled: false,
     habitNudgeTime: '21:00',
     lastNudgeDate: null,
@@ -7238,9 +7263,6 @@ function saveBalanceModeLocal() {
                 setTimeout(() => trySave(attempt + 1), 2000 * attempt);
             } else {
                 console.error('[saveBalanceModeLocal] 云端同步彻底失败，已存 localStorage 兜底');
-                if (typeof showNotification === 'function') {
-                    showNotification('⚠️ 均衡模式云端同步失败', '已保存本地，下次联网将自动重试', 'error');
-                }
             }
         });
     };
@@ -7283,7 +7305,18 @@ function loadNotificationSettings() {
         const saved = localStorage.getItem(NOTIFICATION_SETTINGS_KEY);
         if (saved) {
             const parsed = JSON.parse(saved);
+            // [通知治理] 旧「常规通知」键的一次性迁移：新键缺失且旧 achievement 为 boolean →
+            // 任务/系统两个新开关继承旧开关状态，删除旧键并回写，保证老用户开关状态不丢
+            let __migratedAchievement = false;
+            if (typeof parsed.achievement === 'boolean' &&
+                parsed.taskNotifyEnabled === undefined && parsed.systemNotifyEnabled === undefined) {
+                parsed.taskNotifyEnabled = parsed.achievement;
+                parsed.systemNotifyEnabled = parsed.achievement;
+                delete parsed.achievement;
+                __migratedAchievement = true;
+            }
             notificationSettings = { ...notificationSettings, ...parsed };
+            if (__migratedAchievement) saveNotificationSettings();
         }
     } catch (e) {
         console.error('[loadNotificationSettings] 加载失败:', e);
@@ -7795,7 +7828,7 @@ async function initApp() {
         } catch (uiErr) {
             console.warn('[initApp] UI 偏好恢复失败:', uiErr);
         }
-        showNotification('⚠️ 请先登录', '未登录状态下不会显示业务数据', 'warning');
+        showToast('⚠️ 请先登录：未登录状态下不会显示业务数据');
     }
 
     populateAppSuggestions();
@@ -7885,11 +7918,11 @@ async function initApp() {
     }, 1500); // 延迟1.5秒，确保所有初始化完成
     
     // [v4.8.1] Immediately check reminders on init
-    try { checkReminders(); } catch (e) { console.error('checkReminders failed on init', e); }
+    try { dispatchTaskReminders(checkReminders()); } catch (e) { console.error('checkReminders failed on init', e); }
     // [v7.1.0] Check for expired abstinence plans
     try { checkAbstinencePlanExpiry(); } catch (e) { console.error('checkAbstinencePlanExpiry failed on init', e); }
     
-    if ('Notification' in window && notificationSettings.achievement && Notification.permission === 'default') { 
+    if ('Notification' in window && (notificationSettings.taskNotifyEnabled || notificationSettings.systemNotifyEnabled) && Notification.permission === 'default') { 
         requestNotificationPermission(); 
     } 
     __safeSetup('setupReportEventListeners', setupReportEventListeners);
@@ -8027,11 +8060,25 @@ function handleRestartApp() {
     }
 }
 
+// [通知治理·批次3] 任务提醒真正落地：此前 checkReminders() 的返回值被丢弃，提醒从未弹出
+// 会话级去重：同一 taskId + remindTime 只发一次（循环提醒的 remindTime 会滚动到下一周期，不受影响）
+const __dispatchedReminderKeys = new Set();
+function dispatchTaskReminders(triggered) {
+    if (!Array.isArray(triggered) || triggered.length === 0) return;
+    triggered.forEach(r => {
+        if (!r || !r.taskId) return;
+        const key = r.taskId + '|' + (r.remindTime || '');
+        if (__dispatchedReminderKeys.has(key)) return;
+        __dispatchedReminderKeys.add(key);
+        showNotification(r.title || '⏰ 任务提醒', r.body || `任务「${r.taskName}」的提醒时间到了`, 'reminder');
+    });
+}
+
 function startGlobalTimer() { 
     if (timerInterval) clearInterval(timerInterval); 
     timerInterval = setInterval(() => { 
         updateRunningTimers(); 
-        checkReminders(); 
+        dispatchTaskReminders(checkReminders()); 
         // [v7.4.0] 睡眠中时更新时长显示
         if (sleepState && sleepState.isSleeping) {
             updateSleepDurationDisplay();
@@ -8357,18 +8404,15 @@ async function handlePostLoginDataInit(source = 'login', useIncremental = false)
         if (created) {
             if (IS_WEB_ONLY) {
                 // [v7.18.4] 网页端：强制使用云端唯一真相
-                showNotification('📦 欢迎使用', '您可以导入之前的备份数据，或开始全新体验', 'achievement');
+                showNotification('📦 欢迎使用', '您可以导入之前的备份数据，或开始全新体验', 'system');
             } else {
                 // 安卓端：检测本地是否有旧数据，提示用户手动导入
                 const localData = USE_LOCAL_CACHE ? getLocalData() : null;
                 if (localData && (localData.transactions?.length > 0 || localData.tasks?.length > 0)) {
-                    showNotification(
-                        '📦 检测到本地旧数据',
-                        '如需导入到云端，请使用设置页"导入数据"功能',
-                        'info'
-                    );
+                    // [通知治理] 原「检测到本地旧数据」提示为死调用（type=info 从未生效），已删除；导入入口仍在设置页
+                    console.log('[handlePostLoginDataInit] 检测到本地旧数据，可在设置页使用"导入数据"');
                 } else {
-                    showNotification('📦 欢迎使用', '您可以导入之前的备份数据，或开始全新体验', 'achievement');
+                    showNotification('📦 欢迎使用', '您可以导入之前的备份数据，或开始全新体验', 'system');
                 }
             }
         }
@@ -12398,7 +12442,7 @@ async function toggleCategoryOrderLocalOnly(checkbox) {
         DAL.saveProfile({ categoryOrderLocalOnly: true }).catch(e => {
             console.warn('[categorySort] 开关保存失败:', e.message);
         });
-        showNotification('✅ 已切换到本设备独立排序', '分类顺序将只在本设备生效，不会上传到云端');
+        // [通知治理] 原「已切换到本设备独立排序」提示为死调用（无 type），已删除
     } else {
         // 开→关：直接用云端覆盖本地
         profileData.categoryOrderLocal = { earn: [], spend: [] };
@@ -12407,7 +12451,7 @@ async function toggleCategoryOrderLocalOnly(checkbox) {
         DAL.saveProfile({ categoryOrderLocalOnly: false }).catch(e => {
             console.warn('[categorySort] 开关保存失败:', e.message);
         });
-        showNotification('✅ 已切换到云端统一排序', '分类顺序将以云端为准，并在所有设备同步');
+        // [通知治理] 原「已切换到云端统一排序」提示为死调用（无 type），已删除
     }
 
     // 立即重新渲染抽屉与分类列表

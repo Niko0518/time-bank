@@ -899,7 +899,7 @@ function applyPreciseImportPaste() {
     const el = document.getElementById('preciseImportPaste');
     const parsed = parsePreciseImportText(el ? el.value : '');
     if (!parsed) {
-        showNotification('未能识别', '至少需要两个时刻，例如：23:12 入睡 07:03 醒来', 'warning');
+        showToast('未能识别：至少需要两个时刻，例如：23:12 入睡 07:03 醒来');
         return;
     }
     const bedTimeEl = document.getElementById('preciseImportBedTime');
@@ -924,7 +924,6 @@ function applyPreciseImportPaste() {
         if (!devEl.value) devEl.value = parsed.device;
     }
     calcPreciseImportPreview();
-    showNotification('已填入', `${parsed.bed} ~ ${parsed.wake}`, 'success');
 }
 
 // 删除一条设备睡眠数据
@@ -942,7 +941,7 @@ async function removeDeviceSleepRecord(txId) {
             await DAL.deleteTransaction(txId);
         } catch (e) {
             console.error('[removeDeviceSleepRecord] 云端删除失败:', e.message);
-            showNotification('删除旧设备数据失败', e.message || '', 'error');
+            showToast('删除旧设备数据失败：' + (e.message || ''));
             return false;
         }
     }
@@ -1051,22 +1050,22 @@ async function submitPreciseImport() {
     const deviceName = (document.getElementById('preciseImportDevice').value || '').trim();
 
     if (!bd || !bt || !wd || !wt) {
-        showNotification('⚠️ 请填写完整的入睡与醒来时间', '', 'warning');
+        showToast('⚠️ 请填写完整的入睡与醒来时间');
         return;
     }
     const startMs = new Date(`${bd}T${bt}:00`).getTime();
     const wakeMs = new Date(`${wd}T${wt}:00`).getTime();
     if (!Number.isFinite(startMs) || !Number.isFinite(wakeMs)) {
-        showNotification('⚠️ 时间格式有误', '', 'warning');
+        showToast('⚠️ 时间格式有误');
         return;
     }
     if (wakeMs <= startMs) {
-        showNotification('⚠️ 醒来时间必须晚于入睡时间', '', 'warning');
+        showToast('⚠️ 醒来时间必须晚于入睡时间');
         return;
     }
     const durationMinutes = Math.floor((wakeMs - startMs) / 60000);
     if (durationMinutes > 24 * 60) {
-        showNotification('⚠️ 睡眠时长超过 24 小时，请检查', '', 'warning');
+        showToast('⚠️ 睡眠时长超过 24 小时，请检查');
         return;
     }
 
@@ -1115,7 +1114,7 @@ async function submitPreciseImport() {
         await addTransaction(transaction);
     } catch (err) {
         console.error('[submitPreciseImport] ❌ 写入失败:', err);
-        showNotification('⚠️ 保存失败', err.message || '', 'error');
+        showToast('⚠️ 保存失败：' + (err.message || ''));
         return;
     }
 
@@ -1132,12 +1131,7 @@ async function submitPreciseImport() {
     updateAllUI();
     updateSleepCard();
     closePreciseImportModal();
-    const isRecordNow = transaction.sleepData.isReference !== true;
-    showNotification(
-        isRecordNow ? '已导入并结算实际睡眠数据' : '已导入实际睡眠数据',
-        isRecordNow ? `${txNote} · 本条即该夜睡眠记录，已按规则结算` : `${txNote} · 该夜已有记录睡眠，本条仅作参考`,
-        'success'
-    );
+    // [通知治理] 原「已导入实际睡眠数据」提示为死调用（type=success 从未生效），已删除
 }
 
 // [v7.16.0] 小睡设置弹窗
@@ -1174,7 +1168,7 @@ function saveNapSettings() {
     updateSleepSettingsSummary();
     updateSleepCard();
     closeNapSettingsModal();
-    showNotification('✅ 已保存', '小睡设置已更新', 'info');
+    // [通知治理] 原「小睡设置已更新」提示为死调用（type=info 从未生效），已删除
 }
 
 // [v7.9.7] 手动添加睡眠记录弹窗
@@ -1321,7 +1315,7 @@ async function submitManualSleep() {
     const wakeTime = document.getElementById('manualWakeTime').value;
     
     if (!sleepDate || !sleepTime || !wakeDate || !wakeTime) {
-        showNotification('⚠️ 请填写完整时间', '', 'warning');
+        showToast('⚠️ 请填写完整时间');
         if (window.Android?.nativeLog) {
             window.Android.nativeLog('ManualSleep', '时间填写不完整');
         }
@@ -1332,7 +1326,7 @@ async function submitManualSleep() {
     const wakeTimeMs = new Date(`${wakeDate}T${wakeTime}`).getTime();
     
     if (wakeTimeMs <= sleepStartTime) {
-        showNotification('⚠️ 起床时间必须晚于入睡时间', '', 'warning');
+        showToast('⚠️ 起床时间必须晚于入睡时间');
         return;
     }
     
@@ -1489,7 +1483,21 @@ async function submitManualSleep() {
     // 刷新系统任务历史
     showSystemTaskHistory('睡眠时间管理');
     
-    showNotification('✅ 已添加', `睡眠记录: ${isPositive ? '+' : ''}${result.totalReward}分钟`, 'achievement');
+    // [v9.41.2 通知格式改造] 持续类规格：起~止 · 用时 · ±入账量。
+    // 时刻均为用户给（记录睡眠/记录小睡），遵守睡眠术语表；归位后若本条成为参考轨（isReference、amount=0）不单独弹。
+    let __sleepIsRef = false;
+    try {
+        const __createdTx = (typeof __getTxById === 'function') ? __getTxById(transaction.id) : null;
+        __sleepIsRef = !!(__createdTx && typeof isSleepReferenceTx === 'function' && isSleepReferenceTx(__createdTx));
+    } catch (e) { /* 判定失败不阻断，保守照常弹 */ }
+    if (!__sleepIsRef) {
+        const __range = `${formatNotifyClock(sleepStartTime)}~${formatNotifyClock(wakeTimeMs)} · 用时 ${formatTime(Math.round(durationMinutes * 60))}`;
+        if (useNap) {
+            showNotification('💤 已记录小睡', `${__range} · ${result.totalReward > 0 ? `+${result.totalReward}分` : '未达标'}`, 'task');
+        } else {
+            showNotification('😴 已记录睡眠', `${__range} · ${isPositive ? '+' : '-'}${Math.abs(result.totalReward)}分`, 'task');
+        }
+    }
 }
 
 // [v7.9.7] 系统任务撤回（包装 undoTransaction 并刷新列表）
@@ -2244,7 +2252,7 @@ function showSleepReportModalFromElement(element) {
         renderSleepCardReportModal('night');
     } catch (e) {
         console.error('[showSleepReportModalFromElement] 解析记录数据失败:', e);
-        showNotification('⚠️ 无法显示睡眠报告', '数据解析错误', 'warning');
+        showToast('⚠️ 无法显示睡眠报告：数据解析错误');
     }
 }
 
@@ -2834,7 +2842,7 @@ function startSleepCountdown() {
 // 所有睡眠统一进入倒计时 → 记录 → 结束时智能判定类型
 function startUnifiedSleep() {
     if (sleepState.isSleeping) {
-        showNotification('⚠️ 已在睡眠中', '', 'warning');
+        showToast('⚠️ 已在睡眠中');
         return;
     }
     // [v7.11.3] 防止倒计时配置异常导致直接进入睡眠
@@ -3521,7 +3529,8 @@ function startSleepRecording() {
     saveSleepState();
     updateSleepCard();
     
-    showNotification('😴 睡眠开始', '晚安！睡眠记录已开始', 'success');
+    // [v9.41.2 通知格式改造] 时间点=入睡时刻（倒计时结束或当下），与记录睡眠同一来源
+    showNotification('😴 开始睡眠', `${formatNotifyClock(sleepState.sleepStartTime)} 开始`, 'task');
     
     // [v9.36.4] 行为工坊：用户自定义「开始睡眠」时触发剧本（默认无动作，不打扰现有逻辑）
     if (window.TimeBot && typeof window.TimeBot.fireScene === 'function') {
@@ -3679,7 +3688,7 @@ function cancelSleep() {
     // [v7.26.2] 取消睡眠时：尝试自动撤销系统闹钟，若创建过则提示用户手动确认关闭
     if (sleepCountdownSystemSyncState?.ok && sleepCountdownSystemSyncState?.triggerAt) {
         tryCancelSystemAlarmFromCountdown('cancel-sleep-card');
-        showNotification('⏰ 请手动关闭系统闹钟', '本次睡眠已同步系统闹钟，若仍响起，请到系统时钟应用手动关闭', 'info');
+        showToast('⏰ 请手动关闭系统闹钟：本次睡眠已同步系统闹钟，若仍响起，请到系统时钟应用手动关闭');
     }
     
     // 停止 Android 原生监控
@@ -3688,7 +3697,7 @@ function cancelSleep() {
     }
     
     updateSleepCard();
-    showNotification('❌ 睡眠已取消', '可随时重新开始', 'info');
+    showNotification('❌ 睡眠已取消', '可随时重新开始', 'task');
 }
 
 // [v7.7.0] 切换小睡功能开关
@@ -4068,12 +4077,15 @@ async function doSleepSettlement(startTime, wakeTime, durationMinutes, selectedT
             }
             // [v9.9.0] 余额由 addTransaction 内部更新，此处不再重复
             // [v9.1.0] dailyChanges 由云端 tb_daily 推送，删除本地写入
-            showNotification('✨ 小睡完成', `小睡 ${durationMinutes} 分钟，获得 ${reward} 分钟奖励`, 'success');
+            // [v9.41.2 通知格式改造] 持续类规格：起~止 · 用时 · ±入账量（startTime/wakeTime 为记录小睡的用户时刻）
+            showNotification('✨ 小睡完成', `${formatNotifyClock(startTime)}~${formatNotifyClock(wakeTime)} · 用时 ${formatTime(Math.round(durationMinutes * 60))} · +${reward}分`, 'task');
         } else {
+            // [v9.41.2 通知格式改造] 未达标无金额，以「未达标」结尾
+            const __napRange = `${formatNotifyClock(startTime)}~${formatNotifyClock(wakeTime)} · 用时 ${formatTime(Math.round(durationMinutes * 60))}`;
             const msg = durationMinutes < sleepSettings.napDurationMinutes 
-                ? `小睡 ${durationMinutes} 分钟，未达到 ${sleepSettings.napDurationMinutes} 分钟目标`
-                : `小睡 ${durationMinutes} 分钟`;
-            showNotification('😴 小睡结束', msg, 'info');
+                ? `${__napRange} · 未达标`
+                : __napRange;
+            showNotification('😴 小睡结束', msg, 'task');
         }
         
         // [v7.32.0-fix] 强制保存数据
@@ -4094,21 +4106,17 @@ function calculateSleepReward(sleepStartTime, wakeTime) {
     const [plannedBedHour, plannedBedMin] = sleepSettings.plannedBedtime.split(':').map(Number);
     const [plannedWakeHour, plannedWakeMin] = sleepSettings.plannedWakeTime.split(':').map(Number);
     
-    // 构建计划入睡时间（基于实际入睡日期）
-    const plannedBedtime = new Date(sleepStart);
+    // 构建计划入睡时间（[v9.41.2] 算法C：锚点=「醒来日 − 1 天」的计划就寝时刻，对齐术语表铁律
+    // 「这一夜 = businessDate − 1 天」。旧逻辑以"入睡日"为锚、仅 00:00-05:59 回退一天，
+    // 导致熬夜后 06:00 起入睡被误判为"早睡奖励"（如 09:11 入睡被判早睡 888 分钟））
+    const plannedBedtime = new Date(wake);
+    plannedBedtime.setDate(plannedBedtime.getDate() - 1);
     plannedBedtime.setHours(plannedBedHour, plannedBedMin, 0, 0);
-    // 如果计划时间在晚上而实际入睡是凌晨，调整日期
-    if (sleepStart.getHours() < 6 && plannedBedHour >= 18) {
-        plannedBedtime.setDate(plannedBedtime.getDate() - 1);
-    }
-    
-    // 构建计划起床时间（基于实际起床日期）
+
+    // 构建计划起床时间（[v9.41.2] 锚点=醒来日当天的计划起床时刻。旧逻辑把 18 点后醒来推到
+    // 次日、误判为"早起奖励"，与就寝分支同源错误，一并移除）
     const plannedWakeTime = new Date(wake);
     plannedWakeTime.setHours(plannedWakeHour, plannedWakeMin, 0, 0);
-    // 如果计划起床是早上而实际起床是晚上/深夜，调整日期
-    if (plannedWakeHour < 12 && wake.getHours() >= 18) {
-        plannedWakeTime.setDate(plannedWakeTime.getDate() + 1);
-    }
     
     // 计算入睡偏差（分钟，负数=早睡，正数=晚睡）
     const bedtimeDiffMinutes = Math.floor((sleepStart - plannedBedtime) / 60000);
@@ -4844,7 +4852,7 @@ function saveSleepSettingsFromModal() {
     // 更新首页卡片
     updateSleepCard();
     
-    showNotification('✅ 已保存', '睡眠设置已更新并同步到云端', 'info');
+    // [通知治理] 原「睡眠设置已更新并同步到云端」提示为死调用（type=info 从未生效），已删除
 }
 
 // 显示睡眠时间管理说明弹窗

@@ -72,7 +72,8 @@ public class AlarmReceiver extends BroadcastReceiver {
         NotificationManager notificationManager = (NotificationManager) context.getSystemService(Context.NOTIFICATION_SERVICE);
         
         // [v7.19.0] 闹钟触发统一走高强度闹钟通道
-        String channelId = highPriority ? "tb_max_alarm_channel" : "task_channel";
+        // [批次5] 高优渠道换 ID v2：渠道建好后再授权勿扰不会追溯生效，必须换 ID 重建（旧渠道在下方删除）
+        String channelId = highPriority ? "tb_max_alarm_channel_v2" : "task_channel";
         String channelName = highPriority ? "Time Bank 强提醒闹钟" : "任务通知";
 
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
@@ -96,10 +97,16 @@ public class AlarmReceiver extends BroadcastReceiver {
             }
             
             notificationManager.createNotificationChannel(channel);
+
+            // [批次5] 旧渠道 tb_max_alarm_channel 废弃：其勿扰豁免无法追溯生效，删除避免残留重复渠道
+            if (highPriority) {
+                try { notificationManager.deleteNotificationChannel("tb_max_alarm_channel"); } catch (Exception ignored) {}
+            }
         }
 
         Intent appIntent = new Intent(context, MainActivity.class);
-        appIntent.setFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_CLEAR_TASK);
+        // [批次5] 通知点击不再冷启动：CLEAR_TASK 会销毁整个任务栈，改 SINGLE_TOP 复用现有实例
+        appIntent.setFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_SINGLE_TOP);
 
         int flags = PendingIntent.FLAG_UPDATE_CURRENT;
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {

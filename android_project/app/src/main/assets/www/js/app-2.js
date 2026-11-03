@@ -1962,7 +1962,8 @@ function updateRunningTimers() {
                 runningTask.achieved = true; 
                 runningTask.achievedTime = Date.now();
                 saveLocalCache();
-                showNotification('🎯 达标提醒', `任务"${task.name}"已达到目标时间！`, 'achievement');
+                // [v9.41.2 通知格式改造] 标题带任务名 + 正文时间点，消除长句
+                showNotification(`🎯 已达标 · ${task.name}`, `${formatNotifyClock(Date.now())} · 完成今日目标`, 'task');
             }
             
             // [v4.7.0] 10分钟超时提醒
@@ -2005,8 +2006,19 @@ function updateRunningTimers() {
     if (notificationSettings.lastNudgeDate === todayStr) return; // 已检查过
     
     const [nudgeHours, nudgeMinutes] = notificationSettings.habitNudgeTime.split(':').map(Number);
-    if (now.getHours() < nudgeHours || (now.getHours() === nudgeHours && now.getMinutes() < nudgeMinutes)) {
-        return; // 没到时间
+    // [批次4] 跨设备错峰（仅本地错峰，非真去重）：阈值 = habitNudgeTime + hash(deviceId)%10 分钟
+    let __nudgeOffsetMin = 0;
+    try {
+        const __devId = (typeof initDeviceId === 'function' && initDeviceId()) || (typeof currentDeviceId === 'string' && currentDeviceId) || '';
+        let __h = 0;
+        for (let __i = 0; __i < __devId.length; __i++) { __h = (__h * 31 + __devId.charCodeAt(__i)) >>> 0; }
+        __nudgeOffsetMin = __h % 10;
+    } catch (e) { /* 错峰计算失败则退回原时间 */ }
+    let __nudgeTotalMin = nudgeHours * 60 + nudgeMinutes + __nudgeOffsetMin;
+    if (__nudgeTotalMin >= 1440) __nudgeTotalMin = 1439; // 临近午夜封顶 23:59，避免当天永不触发
+    const __nowMin = now.getHours() * 60 + now.getMinutes();
+    if (__nowMin < __nudgeTotalMin) {
+        return; // 没到时间（含跨设备错峰偏移）
     }
 
     // [v4.3.8] 关键修复：使用锁防止异步 saveData 循环
@@ -3253,10 +3265,11 @@ async function deleteTask() {
         saveLocalCache();
         updateAllUI();
 
+        // [v9.41.2 通知格式改造] 标题补回任务名；时间点=操作当下
         if (shouldDeleteTransactions) {
-            showNotification('🗑️ 删除完成', `已删除任务及 ${__deletedTxTotal} 条历史记录`, 'achievement');
+            showNotification(`🗑️ 已删除 · ${taskName}`, `${formatNotifyClock(Date.now())} · 清除 ${__deletedTxTotal} 条记录`, 'task');
         } else {
-            showNotification('🗑️ 删除完成', '已删除任务，历史记录将按原分类保留', 'info');
+            showNotification(`🗑️ 已删除 · ${taskName}`, `${formatNotifyClock(Date.now())} · 记录按原分类保留`, 'task');
         }
         
         hideTaskModal();
@@ -4879,12 +4892,14 @@ async function checkAbstinencePlanExpiry() {
             if (result) {
                 // 继续：重置开始日期
                 task.habitDetails.planStartDate = todayStr;
-                showNotification('🔄 计划已重置', `"${task.name}" 开始新的 ${planDuration}${periodUnit} 周期`, 'achievement');
+                // [v9.41.2 通知格式改造] 标题带任务名 + 正文时间点
+                showNotification(`🔄 新周期 · ${task.name}`, `${formatNotifyClock(Date.now())} · 开始 ${planDuration}${periodUnit} 计划`, 'task');
             } else {
                 // 结束：清除计划周期设置
                 task.habitDetails.planDuration = null;
                 task.habitDetails.planStartDate = null;
-                showNotification('✅ 计划已结束', `"${task.name}" 已转为永久习惯`, 'success');
+                // [v9.41.2 通知格式改造] 标题带任务名 + 正文时间点
+                showNotification(`✅ 计划完成 · ${task.name}`, `${formatNotifyClock(Date.now())} · 转为永久习惯`, 'task');
             }
             
             // [v7.1.1] 同步任务更改到云端
@@ -4975,6 +4990,28 @@ async function completeTask(taskId, fromVoice = false) {
     saveLocalCache();
 }
 
+// [通知格式改造] 任务结束类通知统一文案工具：时间点(24h HH:MM) + 持续时长 + ±入账量，
+// 不展示倍率/均衡/Turbo 等杂项说明；只改展示，不动 addTransaction 金额计算。
+function formatNotifyClock(ms) {
+    if (typeof ms !== 'number' || !isFinite(ms) || ms <= 0) return '—:—';
+    const d = new Date(ms);
+    return String(d.getHours()).padStart(2, '0') + ':' + String(d.getMinutes()).padStart(2, '0');
+}
+// 持续类计时信息：由结束时刻 + 实际计时秒数 + 暂停历史反推墙钟起始时刻（start~end 含暂停区间）
+function buildRunTiming(endMs, rawSeconds, pauseHistory) {
+    let pausedMs = 0;
+    (pauseHistory || []).forEach(p => {
+        if (p && typeof p.pauseStart === 'number') pausedMs += (p.pauseEnd || endMs) - p.pauseStart;
+    });
+    return { startMs: endMs - Math.max(0, rawSeconds) * 1000 - Math.max(0, pausedMs), endMs: endMs, rawSeconds: Math.max(0, rawSeconds) };
+}
+// 持续类通知正文：HH:MM~HH:MM · 用时 X · ±Y（金额=入账量，与结算徽章同一口径）
+function buildContinuousNotifyBody(timing, amountSec, isSpend) {
+    const amt = (isSpend ? '-' : '+') + formatTime(Math.abs(Math.round(amountSec || 0)));
+    return formatNotifyClock(timing.startMs) + '~' + formatNotifyClock(timing.endMs)
+        + ' · 用时 ' + formatTime(Math.round(timing.rawSeconds || 0)) + ' · ' + amt;
+}
+
 async function processNormalCompletion(task, earnedTime = task.fixedTime, descriptionDetails = '', referenceDate = new Date(), pauseHistory = [], options = {}) {
     const isBackdate = descriptionDetails.includes('补录');
     const isTargetNotMet = options.isTargetNotMet || false;
@@ -5020,18 +5057,14 @@ async function processNormalCompletion(task, earnedTime = task.fixedTime, descri
     });
 
     if (getLocalDateString(referenceDate) === getLocalDateString(new Date())) {
-        let notifyTitle = isTargetNotMet ? '⏱️ 任务未达标' : '🎉 任务完成';
-        let notifyMsg = `获得 ${formatTime(adjustedTime)} 时间奖励！`;
-        if (hasBalanceAdjust) {
-            notifyMsg = `获得 ${formatTime(earnedTime)} ×${multiplier} = ${formatTime(adjustedTime)} (均衡调整)`;
-        } else if (hasTurboAdjust) {
-            // [v9.34.2] Turbo 通知对齐均衡模式格式（原只字未提倍率）
-            notifyMsg = `获得 ${formatTime(earnedTime)} ×${multiplier} = ${formatTime(adjustedTime)} (Turbo)`;
-        }
-        if (isTargetNotMet) {
-            notifyMsg = `未达到目标时长，仅获得基础时间 ${formatTime(adjustedTime)}`;
-        }
-        showNotification(notifyTitle, notifyMsg, 'achievement');
+        // [通知格式改造] 持续类（options.timing 由 stopTask 传入）：起止时刻 · 用时 · ±入账量；
+        // 按次类无计时信息：完成时刻 · +入账量。不再展示倍率/均衡/Turbo 说明。
+        const __timing = options.timing;
+        const notifyTitle = (isTargetNotMet ? '⏱️ 任务未达标 · ' : '🎉 任务完成 · ') + task.name;
+        const notifyMsg = __timing
+            ? buildContinuousNotifyBody(__timing, adjustedTime, false)
+            : `${formatNotifyClock(referenceDate.getTime())} 完成 · +${formatTime(adjustedTime)}`;
+        showNotification(notifyTitle, notifyMsg, 'task');
     }
 }
 
@@ -5221,15 +5254,19 @@ async function processHabitCompletion(task, baseReward, referenceDate, descripti
         console.error('[processHabitCompletion] rebuildHabitStreak 返回 null，任务不是 habit');
         return;
     }
-    return finishHabitCompletionForResult(task, transaction, result, multiplier, willReachTarget, currentCount, targetCount, baseReward, adjustedReward, isBackdate, descriptionDetails, balanceModeSuffix, referenceDate);
+    // [通知格式改造] 持续类习惯（stopTask 传入 rawSeconds）可反推起止时刻；按次类习惯无计时信息
+    const __habitTiming = (typeof extra.rawSeconds === 'number' && extra.rawSeconds > 0)
+        ? buildRunTiming(referenceDate.getTime(), Math.floor(extra.rawSeconds), pauseHistory)
+        : null;
+    return finishHabitCompletionForResult(task, transaction, result, multiplier, willReachTarget, currentCount, targetCount, baseReward, adjustedReward, isBackdate, descriptionDetails, balanceModeSuffix, referenceDate, __habitTiming);
 }
 
 // [v9.34.2] 统一出口：包装 finishHabitCompletionReward
-function finishHabitCompletionForResult(task, transaction, result, multiplier, willReachTarget, currentCount, targetCount, baseReward, adjustedReward, isBackdate, descriptionDetails, balanceModeSuffix, referenceDate) {
+function finishHabitCompletionForResult(task, transaction, result, multiplier, willReachTarget, currentCount, targetCount, baseReward, adjustedReward, isBackdate, descriptionDetails, balanceModeSuffix, referenceDate, timing) {
     finishHabitCompletionReward(task, transaction, result, {
         multiplier, willReachTarget, currentCount, targetCount,
         baseReward, adjustedReward, isBackdate, descriptionDetails,
-        balanceModeSuffix, referenceDate
+        balanceModeSuffix, referenceDate, timing
     });
 }
 
@@ -5240,7 +5277,7 @@ function finishHabitCompletionReward(task, transaction, result, ctx) {
     const { prevStreak: oldStreak, newStreak, lastCompletionDate } = result;
     const { multiplier, willReachTarget, currentCount, targetCount,
         baseReward, adjustedReward, isBackdate, descriptionDetails,
-        balanceModeSuffix, referenceDate } = ctx;
+        balanceModeSuffix, referenceDate, timing } = ctx;
 
     // 4. [v9.34.x-fix] 发放条件与补录路径（triggerHabitRewardCheck）统一为单条件：
     // streak 只在"新周期达标"时增长，同周期内重复完成不会增长 → 不会重复发放；
@@ -5252,6 +5289,10 @@ function finishHabitCompletionReward(task, transaction, result, ctx) {
     const _unitMap = { daily: '天', weekly: '周', monthly: '月' };
     const _periodText = _unitMap[task.habitDetails.period] || '次';
     const _rewardText = formatTime(adjustedReward); // 本次基础奖励（含均衡调整）
+    // [通知格式改造] 时间段前缀：持续类=起止时刻·用时；按次类=完成时刻。不展示倍率说明。
+    const __timeSeg = timing
+        ? `${formatNotifyClock(timing.startMs)}~${formatNotifyClock(timing.endMs)} · 用时 ${formatTime(Math.round(timing.rawSeconds || 0))} · `
+        : `${formatNotifyClock(referenceDate.getTime())} 完成 · `;
     let notificationTitle = '';
     let notificationBody = '';
     if (shouldAwardBonus) {
@@ -5299,20 +5340,20 @@ function finishHabitCompletionReward(task, transaction, result, ctx) {
 
             notificationTitle = `⭐ ${task.name} 已达标`;
             // [v9.34.x-fix] 通知显示实际入账金额（transaction.amount 已含倍率）
-            notificationBody = `连续${newStreak}${_periodText}，获得 ${formatTime(transaction.amount)}`;
+            notificationBody = `${__timeSeg}+${formatTime(transaction.amount)} · 连续${newStreak}${_periodText}`;
         } else {
             // 没有配置奖励规则的情况
             notificationTitle = newStreak === 1 ? `🌟 ${task.name}` : `🔥 ${task.name}`;
-            notificationBody = `已连续${newStreak}${_periodText}，+${_rewardText}`;
+            notificationBody = `${__timeSeg}+${_rewardText} · 连续${newStreak}${_periodText}`;
         }
     } else if (!willReachTarget) {
         // 未达标：显示周期进度 + 本次结果
         notificationTitle = `✅ ${task.name}`;
-        notificationBody = `周期进度 ${currentCount + 1}/${targetCount}，+${_rewardText}`;
+        notificationBody = `${__timeSeg}+${_rewardText} · 周期进度 ${currentCount + 1}/${targetCount}`;
     } else {
         // 周期内重复完成（streak 未增加）：精简显示当前连胜与本次结果，不再用占位文案
         notificationTitle = `✅ ${task.name}`;
-        notificationBody = `已连续${newStreak}${_periodText}，+${_rewardText}`;
+        notificationBody = `${__timeSeg}+${_rewardText} · 连续${newStreak}${_periodText}`;
     }
 
     // 6. 记录事件
@@ -5331,7 +5372,7 @@ function finishHabitCompletionReward(task, transaction, result, ctx) {
 
     // 7. 只在当天显示通知（避免补录时重复通知）
     if (getLocalDateString(referenceDate) === getLocalDateString(new Date())) {
-        showNotification(notificationTitle, notificationBody, 'achievement');
+        showNotification(notificationTitle, notificationBody, 'task');
     }
 }
 // [v7.39.5] 已移除 checkHabitStreak 函数：isBroken 状态已移除，streak=0 直接表示断签，无需额外状态同步
@@ -5449,10 +5490,11 @@ function startTask(event, taskId) {
         
     saveLocalCache();
     updateAllUI();
+    // [v9.41.2 通知格式改造] 标题「动作 · 任务名」，正文时间点=操作当下；恢复态带已计时时长
     if (recoveredFromNative) {
-        showNotification('🔄 任务恢复', `已恢复"${task.name}"的未完成计时：${formatDuration(recoveredFromNative.elapsed)}`, 'achievement'); 
+        showNotification(`🔄 已恢复 · ${task.name}`, `${formatNotifyClock(Date.now())} · 已计时 ${formatDuration(recoveredFromNative.elapsed)}`, 'task'); 
     } else {
-        showNotification('▶️ 任务开始', `开始执行任务: ${task.name}`, 'achievement'); 
+        showNotification(`▶️ 已开始 · ${task.name}`, `${formatNotifyClock(Date.now())} 开始计时`, 'task'); 
     }
 
     // [v9.36.0] Time Bot 开始反馈：书写场景播一遍（铅笔写字 overlay，自动回归待机）；任务完成/结束后由反馈动作接管
@@ -6268,7 +6310,11 @@ async function stopTask(taskId, fromVoice = false) {
                 }
             } else {
                 const isTargetNotMet = task.type === 'continuous_target' && !targetMet;
-                await processNormalCompletion(task, baseEarnedTime, earnedTimeDescription, stopEventTime, pauseHistory, { isTargetNotMet });
+                // [通知格式改造] 透传计时信息，通知展示 起止时刻 · 用时 · ±入账量
+                await processNormalCompletion(task, baseEarnedTime, earnedTimeDescription, stopEventTime, pauseHistory, {
+                    isTargetNotMet,
+                    timing: buildRunTiming(stopEventTime.getTime(), totalSeconds, pauseHistory)
+                });
             }
         } else if (task.type === 'continuous_redeem') {
             const isNegativeBalance = currentBalance < 0;
@@ -6332,7 +6378,8 @@ async function stopTask(taskId, fromVoice = false) {
             if (isLoggedIn() && typeof DAL?.saveTask === 'function') {
                 DAL.saveTask(task).catch(err => console.error('[stopTask.continuous_redeem] 任务同步失败:', err));
             }
-            showNotification('⏹️ 已结束', `连续消费: ${task.name}，扣除 ${formatTime(finalCost)}`, 'achievement');
+            // [通知格式改造] 起止时刻 · 用时 · -消费入账量（额度/倍率说明不再进通知，仍保留在交易描述里）
+            showNotification(`⏹️ 已结束 · ${task.name}`, buildContinuousNotifyBody(buildRunTiming(stopEventTime.getTime(), totalSeconds, pauseHistory), finalCost, true), 'task');
         }
     } else {
         logEvent(EVENT_TYPES.TASK_STOPPED, {
@@ -6484,7 +6531,8 @@ async function redeemTask(taskId) {
         }
 
         updateAllUI();
-        showNotification('🎁 兑换成功', `成功兑换: ${task.name}，消费 ${formatTime(finalCost)}${quotaDesc}${penaltyDesc}`, 'achievement');
+        // [通知格式改造] 按次类：完成时刻 · -消费入账量（额度/预警说明不再进通知，仍保留在交易描述里）
+        showNotification(`🎁 兑换成功 · ${task.name}`, `${formatNotifyClock(Date.now())} 兑换 · -${formatTime(finalCost)}`, 'task');
     } catch (e) {
         console.error('[redeemTask] error:', e);
     }
@@ -6846,7 +6894,8 @@ if (currentHistoryView === 'list') {
 }
     }
     
-    showNotification('↩️ 操作已撤回', `成功撤回记录: ${transaction.taskName}`, 'achievement'); 
+    // [v9.41.2 通知格式改造] 补回金额；时间点取该记录可信发生时刻（formatRecordTimeHM，时刻不可信显示 —:—，不回退占位值）
+    showNotification(`↩️ 已撤回 · ${transaction.taskName}`, `${formatRecordTimeHM(transaction)} · ${transaction.type === 'earn' ? '退回' : '返还'} ${formatTime(transaction.amount)}`, 'task'); 
 }
 
 // [v5.9.0] 传统撤回逻辑提取为独立函数
@@ -6867,7 +6916,8 @@ async function performLegacyUndo(transaction, transactionIndex, task) {
         } catch (err) {
             console.error('[undoTransaction] ❌ 云端删除失败:', err.code, err.message);
             // [v7.37.5] 云端删除失败时，不执行本地回滚，保持数据一致
-            showNotification('⚠️ 撤回失败', `云端删除失败: ${err.message}，本地未撤回`, 'error');
+            // [通知治理] 撤回失败是"唯一提示渠道"场景（删了用户会误以为撤回成功），转应用内弹窗
+            showAlert(`云端删除失败: ${err.message}，本地未撤回`, '⚠️ 撤回失败');
             return; // 不继续执行本地删除
         }
     }
@@ -6974,7 +7024,9 @@ function triggerHabitRewardCheck(task, referenceDate, isBackdate = false, prevSt
                 if (refDateStr === todayStr) {
                     // [v9.34.2] 修复：显示实际入账金额 bonusAdjusted（原显示未乘倍率的 habitBonusReward 原值，与入账不符）
                     const bonusAdjustedNotify = Math.round(habitBonusReward * multiplier);
-                    showNotification('⭐ 习惯已达标!', `连续${newStreak}天! 获得 +${formatTime(bonusAdjustedNotify)}`, 'achievement');
+                    // [通知格式改造] 补录触发无精确时刻：日期口径 + 习惯奖励入账量
+                    const __streakUnit = { daily: '天', weekly: '周', monthly: '月' }[task.habitDetails?.period] || '天';
+                    showNotification(`⭐ 习惯已达标 · ${task.name}`, `${isBackdate ? '补录达标' : formatNotifyClock(Date.now()) + ' 达标'} · +${formatTime(bonusAdjustedNotify)} · 连续${newStreak}${__streakUnit}`, 'task');
                 }
             }
         }
@@ -7139,6 +7191,9 @@ async function saveBackdate(event) {
     const filledTimeStr = (currentBackdateMode === 'range')
         ? ((document.getElementById('backdateStartTime').value || '').trim())
         : ((document.getElementById('backdateOccurredTime').value || '').trim()); // 计时类该输入框已隐藏 → 恒为空
+    // [通知格式改造] 区间补录需要结束时刻才能在通知里展示 起~止
+    const __bdEndTimeStr = (currentBackdateMode === 'range')
+        ? ((document.getElementById('backdateEndTime').value || '').trim()) : '';
     if (filledTimeStr) {
         const filledMoment = new Date(`${dateStr}T${filledTimeStr}`);
         if (!isNaN(filledMoment.getTime())) {
@@ -7433,12 +7488,24 @@ async function saveBackdate(event) {
         DAL.saveTask(task).catch(err => console.error('[saveBackdate] 任务同步失败:', err));
     }
 
-    let notifyMsg = `成功为 ${dateStr}
-                    补录 ${task.name}`;
-    if (completionCount > 1) notifyMsg += ` ${completionCount} 次`;
-    if (totalAmountEarned > 0) notifyMsg += ` (获得 ${formatTime(totalAmountEarned)})`;
-    if (totalAmountSpent > 0) notifyMsg += ` (消费 ${formatTime(totalAmountSpent)})`;
-    showNotification('📆 补录成功', notifyMsg, 'achievement');
+    // [通知格式改造] 区间模式展示 起~止 · 用时；时刻可信（填了时刻/补今天）展示 HH:MM；
+    // 历史日期未填时刻 → 只写日期（不臆造时刻）。原模板串内嵌换行导致的折叠错乱一并修掉。
+    let notifyMsg;
+    if (currentBackdateMode === 'range' && filledTimeStr && __bdEndTimeStr) {
+        const __sMs = new Date(`${dateStr}T${filledTimeStr}`).getTime();
+        const __eMs = new Date(`${dateStr}T${__bdEndTimeStr}`).getTime();
+        notifyMsg = `${formatNotifyClock(__sMs)}~${formatNotifyClock(__eMs)} · 用时 ${formatTime(Math.round(totalSeconds))}`;
+    } else if (txOccurredAt) {
+        notifyMsg = `${formatNotifyClock(new Date(txOccurredAt).getTime())} 补录`;
+        if (currentBackdateMode === 'duration' && totalSeconds > 0) notifyMsg += ` · 用时 ${formatTime(Math.round(totalSeconds))}`;
+    } else {
+        notifyMsg = `${dateStr} 补录`;
+        if (currentBackdateMode === 'duration' && totalSeconds > 0) notifyMsg += ` · 用时 ${formatTime(Math.round(totalSeconds))}`;
+    }
+    if (completionCount > 1) notifyMsg += ` · ${completionCount} 次`;
+    if (totalAmountEarned > 0) notifyMsg += ` · +${formatTime(totalAmountEarned)}`;
+    if (totalAmountSpent > 0) notifyMsg += ` · -${formatTime(totalAmountSpent)}`;
+    showNotification(`📆 补录成功 · ${task.name}`, notifyMsg, 'task');
     } catch (e) {
         // [v9.17.3] 外层 catch：捕获循环、addTransaction、rebuildHabitStreak 等同步逻辑的异常
         console.error('[saveBackdate] 循环处理异常（弹窗仍会关闭）:', e);

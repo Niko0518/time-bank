@@ -9,7 +9,7 @@
       Do NOT update the version number in <title> or any other place.
       The user designates the version number at the START of an update cycle.
     -->
-    <title>时间银行 - Time Bank v9.41.2</title>
+    <title>时间银行 - Time Bank v9.42.1</title>
 
     <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' fill='%231a2744'/%3E%3Ctext x='16' y='22' text-anchor='middle' font-size='20' fill='white'%3E⏳%3C/text%3E%3C/svg%3E">
     <link rel="manifest" href="manifest.json">
@@ -277,7 +277,7 @@
         <div class="header">
             <h1>时间银行</h1>
         </div>
-        <div class="version-subtitle">TimeBank v9.41.2 · Time Bot 伙伴 · 气泡对话 · 背景图生图</div>
+        <div class="version-subtitle">TimeBank v9.42.1 · Time Bot 伙伴 · 气泡对话 · 背景图生图</div>
 
         <div class="main-container">
 
@@ -1536,12 +1536,24 @@
                 <div class="settings-title">通知设置</div>
                 <div class="setting-item">
                     <div class="setting-info">
-                        <div class="setting-name">常规通知</div>
-                        <div class="setting-desc">开始、完成任务或达成目标时通知</div>
+                        <div class="setting-name">任务通知</div>
+                        <div class="setting-desc">开始、结束、达标、习惯连胜、睡眠记录产生时通知（仅本机生效）</div>
                     </div>
                     <div class="setting-controls">
                         <label class="switch">
-                            <input type="checkbox" id="achievementNotificationToggle" onchange="toggleAchievementNotifications()">
+                            <input type="checkbox" id="taskNotifyToggle" onchange="toggleTaskNotifications()">
+                            <span class="slider"></span>
+                        </label>
+                    </div>
+                </div>
+                <div class="setting-item">
+                    <div class="setting-info">
+                        <div class="setting-name">系统通知</div>
+                        <div class="setting-desc">登录、数据导出、利息结算、模式开关等账号与数据操作时通知（仅本机生效）</div>
+                    </div>
+                    <div class="setting-controls">
+                        <label class="switch">
+                            <input type="checkbox" id="systemNotifyToggle" onchange="toggleSystemNotifications()">
                             <span class="slider"></span>
                         </label>
                     </div>
@@ -1606,6 +1618,16 @@
                         <button class="btn btn-secondary" style="padding: 8px 12px; font-size: 0.9rem;" onclick="requestExactAlarmPermission()">去授权</button>
                     </div>
                 </div>
+                <!-- [批次5] 勿扰访问权限：闹钟穿透勿扰依赖 -->
+                <div class="setting-item" data-permission-item data-permission-key="dnd">
+                    <div class="setting-info">
+                        <div class="setting-name">勿扰访问</div>
+                        <div class="setting-desc">闹钟穿透勿扰 <span id="dndAccessStatus">(未知)</span></div>
+                    </div>
+                    <div class="setting-controls">
+                        <button class="btn btn-secondary" style="padding: 8px 12px; font-size: 0.9rem;" onclick="requestDndAccessPermission()">去授权</button>
+                    </div>
+                </div>
                 <div class="setting-item" data-permission-item data-permission-key="battery">
                     <div class="setting-info">
                         <div class="setting-name">电池优化</div>
@@ -1638,11 +1660,11 @@
                         </label>
                     </div>
                 </div>
-                <!-- [v9.17.6] 应用保活服务从设置页迁移到权限管理 -->
-                <div class="setting-item" data-permission-item data-permission-key="keep-alive">
+                <!-- [v9.17.6] 应用保活服务从设置页迁移到权限管理；[批次5] 常驻通知默认关：归入「启动与后台」组内固定行（去掉 data-permission 属性，不再被移入已授予折叠区），控件 id 保持不变 -->
+                <div class="setting-item">
                     <div class="setting-info">
                         <div class="setting-name">应用保活</div>
-                        <div class="setting-desc">后台同步与功能运行 <span id="keepAliveStatus">(未知)</span></div>
+                        <div class="setting-desc">关闭后后台存活率下降，同步依赖 WorkManager 兜底（默认关闭） <span id="keepAliveStatus">(未知)</span></div>
                     </div>
                     <div class="setting-controls">
                         <label class="switch">
@@ -1946,7 +1968,7 @@
                     <div class="about-container" style="padding: 16px 0 8px; line-height: 1.5;">
                         <div class="about-header" style="text-align: center; margin-bottom: 20px; padding-top: 12px;">
                             <div style="font-size: 1.25rem; font-weight: 600; margin-bottom: 4px;">时间银行</div>
-                            <div style="font-size: 0.85rem; color: var(--text-color-light);">版本 v9.41.2</div>
+                            <div style="font-size: 0.85rem; color: var(--text-color-light);">版本 v9.42.1</div>
                         </div>
 
                         <div class="about-meta" style="font-size: 0.9rem; color: var(--text-color);">
@@ -2005,6 +2027,20 @@
                 <!-- 版本更新日志 -->
                 <details>
 <summary>版本更新日志</summary>
+                    <div class="version-history-item">
+                        <p><strong>版本 v9.42.1 (2026-11-03)</strong> 🔔 <b>通知全面整理：该响的更响，该静的更静</b></p>
+                        <ul>
+                            <li><strong>[Feat]</strong> 🔔 <b>通知设置拆成两个开关</b>：「任务通知」（开始、结束、达标、习惯连胜等）与「系统通知」（登录、导出、利息结算等）可分开控制，不想被打扰的类别可以直接关掉。</li>
+                            <li><strong>[UX]</strong> ⏱️ <b>任务完成通知信息更全</b>：现在会展示从几点做到几点、共多久、奖励或消费了多少，不用打开 App 也能看清这笔时间账。</li>
+                            <li><strong>[UX]</strong> 😴 <b>各类通知文案统一</b>：睡眠、小睡、撤回、删除、开始恢复、达标等通知的说法和格式全部对齐，读起来更一致。</li>
+                            <li><strong>[Feat]</strong> 📱 <b>跨设备完成会提醒你</b>：在另一台设备上完成任务，本机也会弹出提示，不再静默同步。</li>
+                            <li><strong>[Fix]</strong> 🌙 <b>修复熬夜后补觉被误判为早睡奖励</b>：上午才入睡不再错误地拿到"早睡"奖励，奖惩判定以你设定的计划时间为准。</li>
+                            <li><strong>[Fix]</strong> 🛡️ <b>修复关闭"应用保活"后打不开应用的问题</b>：现在关闭保活后冷启动一切正常。</li>
+                            <li><strong>[UX]</strong> 🪟 <b>悬浮窗计时通知中文化</b>：通知直接显示任务名和已计时长。</li>
+                            <li><strong>[Feat]</strong> ⏰ <b>闹钟支持勿扰穿透</b>：授权"勿扰访问"后，任务闹钟在勿扰模式下也能正常响。</li>
+                            <li><strong>[Fix]</strong> ✨ <b>点通知不再重开应用</b>：点击通知会直接回到你原来的界面，不会把应用重新加载一遍。</li>
+                        </ul>
+                    </div>
                     <div class="version-history-item">
                         <p><strong>版本 v9.41.2 (2026-10-21)</strong> ⏱️ <b>每日详情的时间更清楚 · 直接看出从几点做到几点</b></p>
                         <ul>

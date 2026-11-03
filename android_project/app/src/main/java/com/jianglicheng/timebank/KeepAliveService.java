@@ -33,6 +33,13 @@ public class KeepAliveService extends Service {
     public int onStartCommand(Intent intent, int flags, int startId) {
         // 检查用户是否启用了保活功能
         if (!isKeepAliveEnabled()) {
+            // [紧急修复] 走到这里说明服务已被 startForegroundService 拉起（toggle 竞态 / sticky 重启等）：
+            // 必须先履约 startForeground 再立即撤销并停止，否则 10 秒后系统抛
+            // ForegroundServiceDidNotStartInTimeException 导致整个 App 闪退
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                startForeground(NOTIFICATION_ID, createNotification());
+                stopForeground(STOP_FOREGROUND_REMOVE);
+            }
             stopSelf();
             return START_NOT_STICKY;
         }
@@ -104,14 +111,25 @@ public class KeepAliveService extends Service {
      * 检查用户是否启用了保活功能
      */
     private boolean isKeepAliveEnabled() {
-        SharedPreferences prefs = getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE);
-        return prefs.getBoolean(KEY_KEEP_ALIVE_ENABLED, true); // 默认启用
+        return isKeepAliveEnabledFor(this);
+    }
+
+    /**
+     * [紧急修复] 静态判定（供 startService 入口门控复用，与实例判定同一份逻辑）
+     */
+    private static boolean isKeepAliveEnabledFor(Context context) {
+        SharedPreferences prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE);
+        return prefs.getBoolean(KEY_KEEP_ALIVE_ENABLED, false); // [批次5] 默认关闭（用户显式开启后才保活）
     }
 
     /**
      * 静态方法：启动保活服务
      */
     public static void startService(Context context) {
+        // [紧急修复] 未启用时绝不能调用 startForegroundService：
+        // 一旦调用，系统要求 Service 在 10 秒内 startForeground，
+        // 而本服务关闭分支若不履约会直接 FATAL 崩溃（MainActivity 无条件调用的历史预埋问题）
+        if (!isKeepAliveEnabledFor(context)) return;
         Intent intent = new Intent(context, KeepAliveService.class);
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
             context.startForegroundService(intent);

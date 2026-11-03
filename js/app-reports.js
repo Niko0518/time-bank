@@ -9161,6 +9161,10 @@ function updateWidgets() {
 // --- Settings & Notifications ---
 function requestNotificationPermission() { if ('Notification' in window) Notification.requestPermission(); }
 
+// [通知治理] 允许的通知类型白名单：task（任务通知）/ system（系统通知）/ habitNudge（习惯提醒）/ reminder（失败与异常，常开）。
+// 白名单之外的 type（历史上大量 info/warning/error/success 调用）在旧 gate 下从未生效，现显式拒绝并告警，防止"死调用"再次积累。
+const TB_NOTIFY_TYPES = new Set(['task', 'system', 'habitNudge', 'reminder']);
+
 // [v4.5.6-Android] 混合开发适配版通知函数
 async function showNotification(title, body, type) {
     // [v9.12.1] 防御性处理：防止对象被直接显示为 [object Object]
@@ -9191,17 +9195,22 @@ async function showNotification(title, body, type) {
 
     const isTestNotification = title === '✅ 测试通知';
 
-    // 1. 检查应用内设置开关
+    // 1. 检查应用内设置开关（[通知治理] 白名单 gate：task/system 受两个新开关控制，habitNudge 受习惯提醒开关控制，reminder 常开）
     if (!isTestNotification) {
-        if (type === 'achievement' && !notificationSettings.achievement) {
+        if (!TB_NOTIFY_TYPES.has(type)) {
+            console.warn(`[showNotification] 未知通知类型 "${type}"，已丢弃（允许：task/system/habitNudge/reminder）：${title}`);
+            return;
+        }
+        if (type === 'task' && !notificationSettings.taskNotifyEnabled) {
+            return;
+        }
+        if (type === 'system' && !notificationSettings.systemNotifyEnabled) {
             return;
         }
         if (type === 'habitNudge' && !notificationSettings.habitNudgeEnabled) {
             return;
         }
-        if (type !== 'reminder' && type !== 'achievement' && type !== 'habitNudge' && !notificationSettings[type]) {
-            return; 
-        }
+        // reminder（失败/同步异常类）不受任何开关控制，常开
     }
     
     // 2. 核心修改：检查是否存在 Android 原生接口
@@ -9231,7 +9240,7 @@ async function sendTestNotification() {
         // 如果是安卓环境，直接发送，跳过后面的 PWA 检查
         console.log('Triggering Android Test Notification');
         // 直接调用之前改好的 showNotification 函数
-        showNotification('✅ 测试通知', '如果看到此消息，说明您的通知功能工作正常！', 'achievement');
+        showNotification('✅ 测试通知', '如果看到此消息，说明您的通知功能工作正常！', 'system');
         showAlert('指令已发送至 Android 系统！\n若未收到通知请授予相关权限。', '测试通知');
         return;
     }
@@ -9240,14 +9249,20 @@ async function sendTestNotification() {
     if (!('Notification' in window) || !('serviceWorker' in navigator)) { showAlert('此浏览器不支持 PWA 通知功能。'); return; }
     if (Notification.permission === 'denied') { showAlert('通知权限已被拒绝。请在您的浏览器或系统设置中为本站重新开启通知权限。'); return; }
     if (Notification.permission === 'default') { const permission = await Notification.requestPermission(); if (permission !== 'granted') { showAlert('您拒绝了通知权限。请在浏览器设置中手动开启。'); return; } }
-    try { await showNotification('✅ 测试通知', '如果看到此消息，说明您的通知功能工作正常！', 'achievement'); showAlert('测试通知已成功发送！请检查您的系统通知。', '测试通知'); } catch (error) { showAlert(`发送通知时出错：\n${error.message}\n\n请检查浏览器控制台获取详细信息。`, '错误'); }
+    try { await showNotification('✅ 测试通知', '如果看到此消息，说明您的通知功能工作正常！', 'system'); showAlert('测试通知已成功发送！请检查您的系统通知。', '测试通知'); } catch (error) { showAlert(`发送通知时出错：\n${error.message}\n\n请检查浏览器控制台获取详细信息。`, '错误'); }
 }
 	// [v4.6.1] 悬浮窗开关逻辑
 // [v7.1.7] 通知设置改为纯本地存储，不再同步到云端
 // [v9.17.6] 悬浮窗全局开关已删除：仅保留任务级别独立设置，全局变量 floatingTimer 同步移除
-function toggleAchievementNotifications() { 
-    notificationSettings.achievement = document.getElementById('achievementNotificationToggle').checked; 
-    if (notificationSettings.achievement && Notification.permission === 'default') requestNotificationPermission(); 
+// [通知治理] 「常规通知」拆分为两个独立开关：任务通知 / 系统通知（纯本地存储，仅本机生效）
+function toggleTaskNotifications() { 
+    notificationSettings.taskNotifyEnabled = document.getElementById('taskNotifyToggle').checked; 
+    if (notificationSettings.taskNotifyEnabled && Notification.permission === 'default') requestNotificationPermission(); 
+    saveNotificationSettings(); 
+}
+function toggleSystemNotifications() { 
+    notificationSettings.systemNotifyEnabled = document.getElementById('systemNotifyToggle').checked; 
+    if (notificationSettings.systemNotifyEnabled && Notification.permission === 'default') requestNotificationPermission(); 
     saveNotificationSettings(); 
 }
 function toggleHabitNudge() { 
@@ -9265,8 +9280,11 @@ function updateHabitNudgeTime() {
 // [v7.11.2] 添加空值检查，防止 DOM 未就绪时异常中断后续初始化
 // [v9.17.6] 移除悬浮窗全局开关（floatingTimer）与保活服务开关（keepAliveServiceToggle）的 UI 同步
 function updateNotificationSettingsUI() { 
-    const achievementToggle = document.getElementById('achievementNotificationToggle');
-    if (achievementToggle) achievementToggle.checked = notificationSettings.achievement;
+    const taskToggle = document.getElementById('taskNotifyToggle');
+    if (taskToggle) taskToggle.checked = notificationSettings.taskNotifyEnabled;
+
+    const systemToggle = document.getElementById('systemNotifyToggle');
+    if (systemToggle) systemToggle.checked = notificationSettings.systemNotifyEnabled;
     
     const habitNudgeToggle = document.getElementById('habitNudgeToggle');
     if (habitNudgeToggle) habitNudgeToggle.checked = notificationSettings.habitNudgeEnabled;
@@ -9373,6 +9391,16 @@ function updatePermissionStatusUI() {
     } else {
         setStatus('exactAlarmStatus', '不适用', 'var(--text-color-light)');
         setPermissionItemStatus('exact-alarm', true);
+    }
+
+    // [批次5] 勿扰访问权限（闹钟穿透勿扰依赖）
+    if (isAndroid && Android.isNotificationPolicyAccessGranted) {
+        const ok = Android.isNotificationPolicyAccessGranted();
+        setStatus('dndAccessStatus', ok ? '已授权' : '未授权', ok ? 'var(--color-positive)' : 'var(--color-spend)');
+        setPermissionItemStatus('dnd', ok);
+    } else {
+        setStatus('dndAccessStatus', '不适用', 'var(--text-color-light)');
+        setPermissionItemStatus('dnd', true);
     }
 
     if (isAndroid && Android.isIgnoringBatteryOptimizations) {
@@ -9572,6 +9600,16 @@ async function requestExactAlarmPermission() {
     }
     if (window.Android?.openExactAlarmSettings) {
         Android.openExactAlarmSettings();
+        setTimeout(updatePermissionStatusUI, 1200);
+        return;
+    }
+    showAlert('该功能仅在 Android 应用中可用。');
+}
+
+// [批次5] 跳转勿扰访问设置
+function requestDndAccessPermission() {
+    if (window.Android?.openNotificationPolicySettings) {
+        Android.openNotificationPolicySettings();
         setTimeout(updatePermissionStatusUI, 1200);
         return;
     }

@@ -4,6 +4,35 @@
 >
 > 用户-facing 的精简版本请见 `index.html` 关于页。
 
+## v9.42.1 (2026-11-03) — 通知治理（白名单 gate + 双开关）· 睡眠奖惩锚点算法 C · 跨设备完成通知 · 保活冷启动 FATAL 修复 · 原生四项
+
+### A. showNotification gate 缺陷与白名单重构（app-reports.js）
+1. **根因**：旧 gate 只放行 `'achievement'` 等少数类型，`info/success/warning/error` 四类调用（60+ 处）被**静默丢弃**——通知体系实际半失效。
+2. 重构为白名单 `TB_NOTIFY_TYPES = {task, system, habitNudge, reminder}`：`task`/`system` 分别受设置页新开关 `taskNotifyEnabled` / `systemNotifyEnabled` 控制（**通知设置拆成两个开关**），`habitNudge` 受原习惯提醒开关控制，`reminder`（失败/同步异常类）常开；未知类型丢弃并 `console.warn`。
+3. 64 处死调用处置计数：**删 27 / 改 toast 29 / 改 alert 3 / 改归 task/system 6**；`toggleAchievementNotifications` 全库删除，无 `'achievement'` 残留（已扫描）。
+
+### B. 通知文案统一（app-2.js / app-sleep.js / app-systems.js / app-auth.js）
+4. 任务完成通知改为「起止时间 + 时长 + 奖励/消费额」；睡眠、小睡、撤回、删除、开始恢复、达标等通知格式对齐（时间列统一走 `formatRecordTimeHM`，不再出现占位时刻）。
+
+### C. 睡眠奖惩锚点算法 C（app-sleep.js）
+5. **根因**：旧逻辑以"入睡日"为锚、仅 00:00-05:59 回退一天，熬夜后上午入睡（如 09:11）被误判"早睡奖励"（实测偏差 600→24480 秒量级）。
+6. 改为**锚点 = 醒来日 − 1 天的计划就寝时刻**（对齐术语表铁律「这一夜 = businessDate − 1 天」），删除 `<6` 小时启发式；起床分支同源错误（18 点后醒来推次日误判早起奖励）一并移除。
+
+### D. 跨设备完成通知（app-1.js）
+7. Transaction watch add 分支新增 `notifyRemoteTaskCompletion()`：真实任务交易 + `clientId` ≠ 本机 + 入账时刻距今 ≤60s 新鲜度 + 会话级 Set 去重（>500 清空，仅内存）；冷启动拉历史/远端补录不补弹；异常吞掉不影响同步。
+
+### E. KeepAliveService 冷启动 FATAL 修复（Java）
+8. **根因**：保活关闭时 `MainActivity.onCreate` 无条件 `startForegroundService`，服务关闭分支不履约 `startForeground` → 10 秒后 `ForegroundServiceDidNotStartInTimeException` 整 App 闪退。
+9. 修复：`startService()` 入口门控（未启用直接 return）+ `onStartCommand` 关闭分支先 `startForeground` 履约再 `stopForeground+stopSelf`，双保险。
+
+### F. 原生四项（批次 5）
+10. 保活常驻通知**默认关**（`keep_alive_enabled` 默认 `false`）；设置控件 `keepAlivePermissionToggle` 移入「启动与后台」组（**id 不变**，绑定未断）。
+11. 闹钟勿扰真穿透：新增桥 `isNotificationPolicyAccessGranted()` / `openNotificationPolicySettings()`（跳 `ACTION_NOTIFICATION_POLICY_ACCESS_SETTINGS`）；高优渠道**换 ID `tb_max_alarm_channel_v2` 并删除旧渠道**（渠道授权不追溯，必须重建）。
+12. 通知点击 `FLAG_ACTIVITY_CLEAR_TASK → SINGLE_TOP`（不再冷启动重载 WebView）；悬浮窗常驻通知中文化（标题「TimeBank · 计时运行中」+ 任务名与已计时长）。
+
+### G. 习惯提醒本地错峰（批次 4，app-2.js）
+13. 触发阈值 = `habitNudgeTime + hash(deviceId) % 10 分钟`（午夜封顶 23:59）。**这是错峰不是真去重**：两端仍可能各弹一次，只是不再同分钟齐响。
+
 ## v9.41.2 (2026-10-21) — 每日详情第三行时间口径统一：持续类任务显示起止分段 + 睡眠显示入睡~醒来
 
 > 背景：每日详情第三行此前只调用 `formatRecordTimeHM()` 取单一 `occurredAt` —— 计时类实际显示的是"结束时刻"，睡眠显示的是"入睡时刻"，与第二行/时间流图口径不一致。
